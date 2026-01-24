@@ -63,7 +63,11 @@ const RestaurantApp = () => {
     const categoryScrollRef = useRef<HTMLDivElement>(null);
 
     // --- AUTH & INITIALIZATION ---
-
+    useEffect(() => {
+        if (!loading && !user) {
+            navigate('/login');
+        }
+    }, [user, loading, navigate]);
 
     useEffect(() => {
         if (tableId) {
