@@ -11,9 +11,12 @@ import {
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, where, setDoc } from 'firebase/firestore';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { useAuth } from '../contexts/AuthContext';
+import { initializeApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { firebaseConfig } from '../lib/firebase';
 
 // --- Mock Stats Data (Keep for charts for now) ---
 const MOCK_DATA = [
@@ -218,23 +221,48 @@ const RestaurantAdmin = () => {
     };
 
     const handleAddStaff = async () => {
-        if (!newStaff.firstName || !newStaff.email) return;
+        if (!newStaff.firstName || !newStaff.email || !newStaff.password) {
+            alert("Please fill in all required fields (Name, Email, Password)");
+            return;
+        }
         setIsLoading(true);
         try {
+            // 1. Create User in Firebase Auth (using secondary app to avoid logging out admin)
+            const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+            const secondaryAuth = getAuth(secondaryApp);
+            const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newStaff.email, newStaff.password);
+            const { uid } = userCredential.user;
+
+            // Cleanup secondary app
+            await signOut(secondaryAuth);
+            // Note: deleteApp is not strictly necessary for single operations but good practice if supported, 
+            // but typical generic JS SDK cleanup is just letting it GC or `deleteApp(secondaryApp)` if imported.
+            // keeping it simple with signOut.
+
+            // 2. Add User Details to Firestore
             const staffData = {
                 firstName: newStaff.firstName,
                 lastName: newStaff.lastName,
                 email: newStaff.email,
-                password: newStaff.password,
                 role: newStaff.role,
                 shift: newStaff.shift,
-                createdAt: new Date().toISOString()
+                phone: "", // Added default to match schema
+                createdAt: new Date().toISOString(),
+                // Note: We do NOT store the password in Firestore for security
             };
-            await addDoc(collection(db, 'users'), staffData);
+
+            // Use setDoc with the UID to link Auth and Firestore
+            await setDoc(doc(db, 'users', uid), staffData);
+
             setNewStaff({ firstName: '', lastName: '', email: '', password: '', role: 'waiter', shift: 'Morning' });
             setShowAddStaff(false);
-        } catch (error) {
+            alert("Staff member added successfully!");
+        } catch (error: any) {
             console.error("Error adding staff: ", error);
+            let msg = "Failed to add staff.";
+            if (error.code === 'auth/email-already-in-use') msg = "Email is already in use.";
+            if (error.code === 'auth/weak-password') msg = "Password should be at least 6 characters.";
+            alert(msg);
         } finally {
             setIsLoading(false);
         }
