@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Clock, Check, ChefHat, User, CreditCard, Smartphone, Wallet, X, ChevronRight, UtensilsCrossed, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, serverTimestamp, query, where, orderBy, updateDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -67,8 +67,37 @@ const RestaurantApp = () => {
             console.error("Error fetching menu:", error);
         });
 
-        return () => unsubscribe();
-    }, []);
+        // Listen for User Orders
+        let unsubscribeOrders = () => { };
+        if (user) {
+            const q = query(
+                collection(db, 'orders'),
+                where('customerId', '==', user.uid)
+            );
+
+            unsubscribeOrders = onSnapshot(q, (snapshot) => {
+                const fetchedOrders = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    // Calculate estimated time based on status or creation time if simple
+                    // For now, mock estimated time or derive from logic
+                    return {
+                        id: doc.id,
+                        ...data,
+                        time: data.createdAt?.toDate() || new Date(),
+                        estimatedTime: 20 // Static for now, or calculate
+                    };
+                }).sort((a, b) => b.time - a.time);
+                setOrders(fetchedOrders);
+            }, (error) => {
+                console.error("Error fetching orders:", error);
+            });
+        }
+
+        return () => {
+            unsubscribe();
+            unsubscribeOrders();
+        };
+    }, [user]);
 
     const addToCart = (item: any) => {
         const existing = cart.find(c => c.id === item.id);
@@ -85,19 +114,59 @@ const RestaurantApp = () => {
         ).filter(item => item.quantity > 0));
     };
 
-    const placeOrder = () => {
-        if (cart.length === 0) return;
-        const newOrder = {
-            id: Date.now(),
-            items: [...cart],
-            status: 'queue',
-            time: new Date(),
-            estimatedTime: Math.floor(Math.random() * 20) + 15
-        };
-        setOrders([...orders, newOrder]);
-        setCart([]);
-        setShowCart(false);
-        setActiveView('orders');
+    const placeOrder = async () => {
+        if (cart.length === 0 || !user) return;
+
+        try {
+            const totalAmount = getTotalPrice();
+
+            // 1. Create the order in Firestore
+            await addDoc(collection(db, 'orders'), {
+                tableId: tableNumber,
+                customerId: user.uid,
+                createdBy: user.uid,
+                status: 'in_queue',
+                totalAmount: totalAmount,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                items: cart.map(item => ({
+                    itemId: item.id,
+                    name: item.name,
+                    price: item.price,
+                    quantity: item.quantity,
+                    veg: item.veg ?? true // Preserve veg status for UI
+                }))
+            });
+
+            // 2. Update table status to occupied (check if not already occupied to save writes if needed, but safe to just update)
+            // Query tables to find the doc with tableNumber (assuming tableId in schema refers to the doc ID, but here we only have tableNumber "12")
+            // Since we don't know the exact doc ID for "Table 12", we might need to query it or assume a simpler structure. 
+            // For now, let's try to query it.
+            const tablesQuery = query(collection(db, 'tables'), where('tableNumber', '==', tableNumber));
+            const tableDocs = await getDocs(tablesQuery);
+
+            if (!tableDocs.empty) {
+                const tableDoc = tableDocs.docs[0];
+                await updateDoc(doc(db, 'tables', tableDoc.id), {
+                    status: 'occupied'
+                });
+            } else {
+                // Option to create it if it doesn't exist, strictly following instructions to update.
+                // If table doesn't exist, we skip for now or could create it. 
+                // Let's safe guard.
+                console.log("Table document not found, skipping table status update.");
+            }
+
+            // 3. Clear cart and UI updates
+            setCart([]);
+            setShowCart(false);
+            setActiveView('orders');
+            // No need to setOrders locally, the snapshot listener will handle it
+
+        } catch (error) {
+            console.error("Error placing order:", error);
+            alert("Failed to place order. Please try again.");
+        }
     };
 
     const completeAllOrders = () => {
@@ -360,19 +429,20 @@ const RestaurantApp = () => {
                                             <span className="text-xs text-gray-500">
                                                 {order.time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                             </span>
-                                            <div className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${order.status === 'queue' ? 'bg-yellow-100 text-yellow-700' :
+                                            <div className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${order.status === 'in_queue' ? 'bg-yellow-100 text-yellow-700' :
                                                 order.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
                                                     'bg-green-100 text-green-700'
                                                 }`}>
-                                                {order.status === 'queue' && <Clock className="w-3.5 h-3.5" />}
+                                                {order.status === 'in_queue' && <Clock className="w-3.5 h-3.5" />}
                                                 {order.status === 'preparing' && <ChefHat className="w-3.5 h-3.5" />}
                                                 {order.status === 'done' && <Check className="w-3.5 h-3.5" />}
-                                                {order.status === 'queue' ? 'In Queue' :
-                                                    order.status === 'preparing' ? 'Preparing' : 'Ready'}
+                                                {order.status === 'in_queue' ? 'In Queue' :
+                                                    order.status === 'preparing' ? 'Preparing' :
+                                                        order.status === 'ready' ? 'Ready' : 'Served'}
                                             </div>
                                         </div>
 
-                                        {(order.status === 'queue' || order.status === 'preparing') && (
+                                        {(order.status === 'in_queue' || order.status === 'preparing') && (
                                             <div className="mb-3 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-3">
                                                 <div className="flex items-center gap-2 text-sm">
                                                     <Clock className="w-4 h-4 text-orange-600" />
