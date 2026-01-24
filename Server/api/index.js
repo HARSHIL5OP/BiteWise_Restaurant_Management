@@ -3,59 +3,70 @@ import Razorpay from "razorpay";
 import cors from "cors";
 import crypto from "crypto";
 
-// dotenv is not needed in production environment on Vercel as variables are injected directly
-// but useful for local dev if running via 'vercel dev'
-// import dotenv from "dotenv"; 
-// dotenv.config();
-
 const app = express();
 
-app.use(express.json());
+// Middlewares
 app.use(cors());
+app.use(express.json());
 
+// Razorpay instance
 const instance = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-app.get('/order', async (req, res) => {
-    try {
-        const amount = parseFloat(req.query.amount) || 1; // Default to 1 INR if not specified
-        const data = await instance.orders.create({
-            "amount": Math.round(amount * 100),
-            "currency": "INR",
-            "receipt": "ORD_ID_" + Date.now(),
-        });
-        res.json({
-            amount: data.amount,
-            orderID: data.id,
-        });
-    } catch (error) {
-        console.error("Error creating order:", error);
-        res.status(500).json({ error: "Something went wrong" });
+// 🔹 IMPORTANT: root test
+app.get("/", (req, res) => {
+  res.json({ status: "API working" });
+});
+
+// 🔹 ORDER ROUTE → /api/order
+app.get("/order", async (req, res) => {
+  try {
+    const amount = Number(req.query.amount || 1);
+
+    const order = await instance.orders.create({
+      amount: Math.round(amount * 100),
+      currency: "INR",
+      receipt: "ORD_" + Date.now(),
+    });
+
+    res.status(200).json({
+      amount: order.amount,
+      orderID: order.id,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Order creation failed" });
+  }
+});
+
+// 🔹 VERIFY ROUTE → /api/verify
+app.post("/verify", async (req, res) => {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    } = req.body;
+
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+
+    const expectedSign = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(sign)
+      .digest("hex");
+
+    if (expectedSign === razorpay_signature) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false });
     }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Verification failed" });
+  }
 });
 
-app.post('/verify', async (req, res) => {
-    try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-
-        const sign = razorpay_order_id + "|" + razorpay_payment_id;
-        const expectedSign = crypto
-            .createHmac("sha256", instance.key_secret)
-            .update(sign.toString())
-            .digest("hex");
-
-        if (razorpay_signature === expectedSign) {
-            res.json({ success: true, message: "Payment verified successfully" });
-        } else {
-            res.status(400).json({ success: false, message: "Invalid signature sent!" });
-        }
-    } catch (error) {
-        console.error("Error verifying payment:", error);
-        res.status(500).json({ error: "Something went wrong" });
-    }
-});
-
-// Export the app for Vercel
+// ❗ CRITICAL FOR VERCEL
 export default app;
