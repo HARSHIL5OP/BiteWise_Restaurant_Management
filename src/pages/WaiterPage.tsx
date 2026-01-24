@@ -3,60 +3,80 @@ import { Clock, CheckCircle2, Sparkles, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
+
+import { collection, onSnapshot, query, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
 const WaiterDashboard = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [tables, setTables] = useState([]);
-    const { logout } = useAuth();
+    const [orders, setOrders] = useState<any[]>([]);
+    const { user, logout } = useAuth();
     const navigate = useNavigate();
 
-    // Simulated real-time data - In production, this would be Firestore real-time listener
+    // Import Firestore functions inside component (or ensure imports exist)
+    // Assuming imports from previous context or file start:
+    // import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+    // import { db } from '../lib/firebase';
+    // Let's rely on the file header imports if they are there, or add them.
+    // Since I am replacing the COMPONENT, I need to make sure imports are handled.
+    // The previous file content had imports at the top. 
+    // I'll add the necessary Firestore imports to the top of the file in a separate edit if needed, 
+    // or assume they are added. Wait, the tool 'replace_file_content' replaces a block.
+    // I will replace the whole component `WaiterDashboard`.
+
     useEffect(() => {
-        const mockOrders = [
-            { id: 1, tableNumber: 12, items: ["Paneer Tikka", "Butter Naan"], readyAt: new Date(Date.now() - 3 * 60000) },
-            { id: 2, tableNumber: 8, items: ["Dal Makhani", "Garlic Naan", "Biryani"], readyAt: new Date(Date.now() - 8 * 60000) },
-            { id: 3, tableNumber: 5, items: ["Butter Chicken", "Tandoori Roti"], readyAt: new Date(Date.now() - 15 * 60000) },
-            { id: 4, tableNumber: 15, items: ["Spring Rolls"], readyAt: new Date(Date.now() - 1 * 60000) },
-            { id: 5, tableNumber: 3, items: ["Gulab Jamun", "Ice Cream"], readyAt: new Date(Date.now() - 5 * 60000) },
-            { id: 6, tableNumber: 7, items: ["Kadhai Chicken", "Butter Naan", "Mango Lassi"], readyAt: new Date(Date.now() - 12 * 60000) },
-        ];
+        if (!user) return;
 
-        // Group by table
-        const groupedByTable = mockOrders.reduce((acc: any, order) => {
-            const existing = acc.find((t: any) => t.tableNumber === order.tableNumber);
-            if (existing) {
-                existing.items.push(...order.items);
-                existing.readyAt = new Date(Math.min(existing.readyAt, order.readyAt));
-            } else {
-                acc.push({
-                    tableNumber: order.tableNumber,
-                    items: order.items,
-                    readyAt: order.readyAt,
-                    id: order.id
-                });
-            }
-            return acc;
-        }, []);
+        // Query: Assigned to me + Status is Ready
+        const q = query(
+            collection(db, 'orders'),
+            where('waiterId', '==', user.uid),
+            where('status', '==', 'ready'),
+            // orderBy('updatedAt', 'asc') // Oldest ready first. NOTE: Requires composite index probably.
+            // If index error, we can sort client side. Let's sort client side to be safe and robust.
+        );
 
-        // Sort by ready time (oldest first)
-        groupedByTable.sort((a: any, b: any) => a.readyAt - b.readyAt);
-        setTables(groupedByTable);
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    // Ensure dates are converted
+                    createdAt: data.createdAt?.toDate() || new Date(),
+                    updatedAt: data.updatedAt?.toDate() || new Date(),
+                    // Fallback to createdAt if updatedAt is missing
+                    readyAt: data.updatedAt?.toDate() || data.createdAt?.toDate() || new Date()
+                };
+            });
+
+            // Client-side sort: Oldest Ready First
+            fetchedOrders.sort((a, b) => a.readyAt.getTime() - b.readyAt.getTime());
+
+            setOrders(fetchedOrders);
+        }, (error) => {
+            console.error("Error fetching waiter orders:", error);
+        });
 
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
+        return () => {
+            unsubscribe();
+            clearInterval(timer);
+        };
+    }, [user]);
 
-    const getMinutesSince = (readyAt) => {
-        const diffMs = currentTime.getTime() - new Date(readyAt).getTime();
+    const getMinutesSince = (readyAt: Date) => {
+        const diffMs = currentTime.getTime() - readyAt.getTime();
         return Math.floor(diffMs / 60000);
     };
 
-    const getUrgencyLevel = (minutes) => {
+    const getUrgencyLevel = (minutes: number) => {
         if (minutes >= 10) return 'urgent';
         if (minutes >= 5) return 'warning';
         return 'fresh';
     };
 
-    const getTimeStyles = (urgency) => {
+    const getTimeStyles = (urgency: string) => {
         switch (urgency) {
             case 'urgent':
                 return 'bg-red-50 text-red-700 border-red-200';
@@ -67,7 +87,7 @@ const WaiterDashboard = () => {
         }
     };
 
-    const getCardStyles = (urgency) => {
+    const getCardStyles = (urgency: string) => {
         switch (urgency) {
             case 'urgent':
                 return 'bg-white border-red-200 shadow-lg shadow-red-100/50';
@@ -78,10 +98,18 @@ const WaiterDashboard = () => {
         }
     };
 
-    const markServed = (tableNumber) => {
-        // In production: Update Firestore order status to "served"
-        // The real-time listener will automatically remove it from UI
-        setTables(tables.filter((t: any) => t.tableNumber !== tableNumber));
+    const markServed = async (orderId: string) => {
+        try {
+            const orderRef = doc(db, 'orders', orderId);
+            await updateDoc(orderRef, {
+                status: 'served',
+                updatedAt: serverTimestamp()
+            });
+            // UI updates automatically via listener
+        } catch (error) {
+            console.error("Error marking served:", error);
+            alert("Failed to update status. details in console.");
+        }
     };
 
     const handleLogout = async () => {
@@ -114,7 +142,7 @@ const WaiterDashboard = () => {
                             <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500 rounded-2xl shadow-lg shadow-emerald-200/50">
                                 <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                                 <span className="text-sm font-bold text-white">
-                                    {tables.length} {tables.length === 1 ? 'Table' : 'Tables'}
+                                    {orders.length} {orders.length === 1 ? 'Order' : 'Orders'}
                                 </span>
                             </div>
                             <button
@@ -131,7 +159,7 @@ const WaiterDashboard = () => {
 
             {/* Main Content */}
             <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
-                {tables.length === 0 ? (
+                {orders.length === 0 ? (
                     <div className="text-center py-20">
                         <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <CheckCircle2 className="w-10 h-10 text-slate-400" />
@@ -141,22 +169,22 @@ const WaiterDashboard = () => {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {tables.map((table: any) => {
-                            const minutes = getMinutesSince(table.readyAt);
+                        {orders.map((order) => {
+                            const minutes = getMinutesSince(order.readyAt);
                             const urgency = getUrgencyLevel(minutes);
 
                             return (
                                 <div
-                                    key={table.tableNumber}
+                                    key={order.id}
                                     className={`rounded-3xl border-2 overflow-hidden transition-all duration-300 ${getCardStyles(urgency)}`}
                                 >
-                                    {/* Table Header */}
+                                    {/* Order Header with Table Info */}
                                     <div className="p-6 pb-4">
                                         <div className="flex items-start justify-between mb-4">
                                             <div>
                                                 <div className="flex items-baseline gap-2 mb-1">
                                                     <h2 className="text-4xl font-black text-slate-900">
-                                                        {table.tableNumber}
+                                                        {order.tableId}
                                                     </h2>
                                                     <span className="text-sm font-semibold text-slate-500">TABLE</span>
                                                 </div>
@@ -177,20 +205,25 @@ const WaiterDashboard = () => {
 
                                         {/* Items List */}
                                         <div className="space-y-2 mb-5">
-                                            {table.items.map((item: any, idx: number) => (
+                                            {order.items.map((item: any, idx: number) => (
                                                 <div
                                                     key={idx}
-                                                    className="flex items-center gap-3 py-2 px-3 bg-slate-50 rounded-xl border border-slate-100"
+                                                    className="flex justify-between items-center py-2 px-3 bg-slate-50 rounded-xl border border-slate-100"
                                                 >
-                                                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-                                                    <span className="text-sm font-semibold text-slate-900">{item}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
+                                                        <span className="text-sm font-semibold text-slate-900">{item.name}</span>
+                                                    </div>
+                                                    {item.quantity > 1 && (
+                                                        <span className="text-xs font-bold bg-slate-200 text-slate-700 px-2 py-0.5 rounded">x{item.quantity}</span>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
 
                                         {/* Action Button */}
                                         <button
-                                            onClick={() => markServed(table.tableNumber)}
+                                            onClick={() => markServed(order.id)}
                                             className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-[0.98] text-white py-4 rounded-2xl font-bold text-base shadow-lg shadow-emerald-200/50 transition-all duration-200 flex items-center justify-center gap-2"
                                         >
                                             <CheckCircle2 className="w-5 h-5" />
