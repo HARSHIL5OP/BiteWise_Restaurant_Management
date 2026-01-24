@@ -345,7 +345,12 @@ const RestaurantAdmin = () => {
 
             // 1. Generate QR Code
             // This URL should point to the customer facing menu/order page with table param
-            const qrData = `https://odoo-cafe-project.web.app/menu?table=${tableNum}`;
+            // User Request: "just be scanned and show table number" -> switching to simple JSON/text for verification "for now"
+            // const qrData = `https://odoo-cafe-project.web.app/menu?table=${tableNum}`;
+            const qrData = JSON.stringify({
+                text: `Table ${tableNum}`,
+                url: `www.google.com`
+            });
             const qrDataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
 
             // 2. Convert to File for Cloudinary
@@ -455,7 +460,11 @@ const RestaurantAdmin = () => {
                             <div className="flex justify-between items-center">
                                 <h1 className="text-3xl font-bold text-white">Table Management</h1>
                                 <button
-                                    onClick={() => setShowAddTable(true)}
+                                    onClick={() => {
+                                        const maxNum = tables.reduce((max, t) => Math.max(max, parseInt(t.tableNumber) || 0), 0);
+                                        setNewTable({ ...newTable, tableNumber: (maxNum + 1).toString(), capacity: '4' });
+                                        setShowAddTable(true);
+                                    }}
                                     className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 flex items-center gap-2 transition-all"
                                 >
                                     <Plus size={20} /> Add Table
