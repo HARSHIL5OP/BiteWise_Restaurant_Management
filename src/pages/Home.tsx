@@ -2,6 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Clock, Check, ChefHat, User, CreditCard, Smartphone, Wallet, X, ChevronRight, UtensilsCrossed, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+
+const CATEGORY_ICONS: Record<string, string> = {
+    "Starters": "🥗",
+    "Appetizer": "🍟",
+    "Appetizers": "🍟",
+    "Main Course": "🍛",
+    "Breads": "🫓",
+    "Beverages": "🥤",
+    "Dessert": "🍰",
+    "Desserts": "🍰",
+};
 
 const RestaurantApp = () => {
     const { user, userProfile, logout, loading } = useAuth();
@@ -22,56 +35,40 @@ const RestaurantApp = () => {
 
     const tableNumber = "12";
 
-    const menuData = [
-        {
-            category: "Starters",
-            icon: "🥗",
-            items: [
-                { id: 1, name: "Paneer Tikka", price: 280, image: "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?w=400&h=300&fit=crop", veg: true, spicy: 2 },
-                { id: 2, name: "Chicken Wings", price: 320, image: "https://images.unsplash.com/photo-1608039755401-742074f0548d?w=400&h=300&fit=crop", veg: false, spicy: 3 },
-                { id: 3, name: "Spring Rolls", price: 200, image: "https://images.unsplash.com/photo-1594007654729-407eedc4be65?w=400&h=300&fit=crop", veg: true, spicy: 1 },
-                { id: 4, name: "Fish Fingers", price: 340, image: "https://images.unsplash.com/photo-1580217593608-61931cefc821?w=400&h=300&fit=crop", veg: false, spicy: 1 }
-            ]
-        },
-        {
-            category: "Main Course",
-            icon: "🍛",
-            items: [
-                { id: 5, name: "Butter Chicken", price: 450, image: "https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=400&h=300&fit=crop", veg: false, spicy: 2 },
-                { id: 6, name: "Dal Makhani", price: 280, image: "https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=300&fit=crop", veg: true, spicy: 1 },
-                { id: 7, name: "Biryani", price: 380, image: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400&h=300&fit=crop", veg: false, spicy: 3 },
-                { id: 8, name: "Paneer Butter Masala", price: 320, image: "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=400&h=300&fit=crop", veg: true, spicy: 2 },
-                { id: 9, name: "Kadhai Chicken", price: 420, image: "https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?w=400&h=300&fit=crop", veg: false, spicy: 3 }
-            ]
-        },
-        {
-            category: "Breads",
-            icon: "🫓",
-            items: [
-                { id: 10, name: "Butter Naan", price: 60, image: "https://images.unsplash.com/photo-1628840042765-356cda07504e?w=400&h=300&fit=crop", veg: true, spicy: 0 },
-                { id: 11, name: "Garlic Naan", price: 70, image: "https://images.unsplash.com/photo-1619887209025-e0c93a3d85d2?w=400&h=300&fit=crop", veg: true, spicy: 0 },
-                { id: 12, name: "Tandoori Roti", price: 40, image: "https://images.unsplash.com/photo-1606491956689-2ea866880c84?w=400&h=300&fit=crop", veg: true, spicy: 0 }
-            ]
-        },
-        {
-            category: "Beverages",
-            icon: "🥤",
-            items: [
-                { id: 13, name: "Fresh Lime Soda", price: 80, image: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=400&h=300&fit=crop", veg: true, spicy: 0 },
-                { id: 14, name: "Mango Lassi", price: 120, image: "https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?w=400&h=300&fit=crop", veg: true, spicy: 0 },
-                { id: 15, name: "Cold Coffee", price: 140, image: "https://images.unsplash.com/photo-1517487881594-2787fef5ebf7?w=400&h=300&fit=crop", veg: true, spicy: 0 }
-            ]
-        },
-        {
-            category: "Desserts",
-            icon: "🍰",
-            items: [
-                { id: 16, name: "Gulab Jamun", price: 100, image: "https://images.unsplash.com/photo-1589119908995-c6b8b1d85728?w=400&h=300&fit=crop", veg: true, spicy: 0 },
-                { id: 17, name: "Ice Cream", price: 120, image: "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400&h=300&fit=crop", veg: true, spicy: 0 },
-                { id: 18, name: "Brownie", price: 150, image: "https://images.unsplash.com/photo-1607920591413-4ec007e70023?w=400&h=300&fit=crop", veg: true, spicy: 0 }
-            ]
-        }
-    ];
+
+    const [menuData, setMenuData] = useState<any[]>([]);
+
+    useEffect(() => {
+        const unsubscribe = onSnapshot(collection(db, 'menu'), (snapshot) => {
+            const rawItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+
+            // Group by category
+            const grouped = rawItems.reduce((acc: any, item) => {
+                const cat = item.category || 'Other';
+                if (!acc[cat]) {
+                    acc[cat] = {
+                        category: cat,
+                        icon: CATEGORY_ICONS[cat] || '🍽️',
+                        items: []
+                    };
+                }
+
+                acc[cat].items.push({
+                    ...item,
+                    price: Number(item.price) || 0, // Ensure price is a number
+                    veg: item.veg !== undefined ? item.veg : true, // Default if missing
+                    spicy: item.spicy || 0
+                });
+                return acc;
+            }, {});
+
+            setMenuData(Object.values(grouped));
+        }, (error) => {
+            console.error("Error fetching menu:", error);
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     const addToCart = (item: any) => {
         const existing = cart.find(c => c.id === item.id);
@@ -186,8 +183,8 @@ const RestaurantApp = () => {
                         <button
                             onClick={() => setActiveView('menu')}
                             className={`flex-1 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all ${activeView === 'menu'
-                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                         >
                             Menu
@@ -195,8 +192,8 @@ const RestaurantApp = () => {
                         <button
                             onClick={() => setActiveView('orders')}
                             className={`flex-1 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all relative ${activeView === 'orders'
-                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                         >
                             Orders
@@ -302,8 +299,8 @@ const RestaurantApp = () => {
                                                 {order.time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                             <div className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${order.status === 'queue' ? 'bg-yellow-100 text-yellow-700' :
-                                                    order.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
-                                                        'bg-green-100 text-green-700'
+                                                order.status === 'preparing' ? 'bg-blue-100 text-blue-700' :
+                                                    'bg-green-100 text-green-700'
                                                 }`}>
                                                 {order.status === 'queue' && <Clock className="w-3.5 h-3.5" />}
                                                 {order.status === 'preparing' && <ChefHat className="w-3.5 h-3.5" />}
