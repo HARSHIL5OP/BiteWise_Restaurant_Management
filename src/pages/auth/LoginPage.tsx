@@ -36,6 +36,10 @@ export default function LoginPage() {
       toast.success("Login successful");
       if (role === 'admin') {
         navigate('/admin');
+      } else if (role === 'chef') {
+        navigate('/Chef');
+      } else if (role === 'waiter') {
+        navigate('/waiter');
       } else {
         navigate('/home');
       }
@@ -68,6 +72,10 @@ export default function LoginPage() {
       toast.success("Login successful");
       if (role === 'admin') {
         navigate('/admin');
+      } else if (role === 'chef') {
+        navigate('/Chef');
+      } else if (role === 'waiter') {
+        navigate('/waiter');
       } else {
         navigate('/home');
       }
@@ -93,6 +101,10 @@ export default function LoginPage() {
       toast.success("Login successful");
       if (role === 'admin') {
         navigate('/admin');
+      } else if (role === 'chef') {
+        navigate('/Chef');
+      } else if (role === 'waiter') {
+        navigate('/waiter');
       } else {
         navigate('/home');
       }
