@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Flame, AlertCircle } from 'lucide-react';
-
-import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { Clock, Flame, AlertCircle, LogOut } from 'lucide-react';
+import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const ChefKDS = () => {
+    const { logout } = useAuth();
+    const navigate = useNavigate();
     const [items, setItems] = useState([]);
     const [menuMap, setMenuMap] = useState({});
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -16,8 +19,7 @@ const ChefKDS = () => {
             const mapping = {};
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                mapping[data.name] = data.category; // Map by name as fallback or ID if possible. Schema has name/price/category.
-                // Ideally we map by ID, but order items stores itemId. Let's try to map by ID if possible.
+                mapping[data.name] = data.category; // Map by name as fallback or ID if possible.
                 mapping[doc.id] = data.category;
             });
             setMenuMap(mapping);
@@ -32,32 +34,31 @@ const ChefKDS = () => {
     useEffect(() => {
         const q = query(
             collection(db, 'orders'),
-            where('status', '!=', 'served'),
-            orderBy('status'), // Constraint: if filtering by inequality, first sort must be same field. 
-            // Wait, firebase requires index for 'status then createdAt' if we sort by createdAt. 
-            // Let's just filter status != served. We can sort client side since active orders won't be massive.
-            // orderBy('createdAt', 'asc') // This might require an index. Let's do client side sort for safety.
+            where('status', 'in', ['in_queue', 'preparing', 'ready'])
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const activeItems = [];
             snapshot.forEach(doc => {
                 const order = doc.data();
-                order.items.forEach((item, index) => {
-                    // Flatten items
-                    activeItems.push({
-                        id: `${doc.id}_${index}`,
-                        originalOrderId: doc.id,
-                        name: item.name,
-                        // Try to find category by ID, else name, else default
-                        category: menuMap[item.itemId] || menuMap[item.name] || 'Other',
-                        tableNumber: order.tableId || '?',
-                        createdAt: order.createdAt?.toDate() || new Date(),
-                        status: order.status, // Item status inherits order status 
-                        // Note: Prompt implies item status tracking, but implementation updates *parent order* status.
-                        // So all items in an order share status. 
+                // Map status "in_queue" -> "queued" if needed, but schema says "in_queue"
+                // Schema: status: string // in_queue | preparing | ready | served
+
+                if (order.items && Array.isArray(order.items)) {
+                    order.items.forEach((item, index) => {
+                        activeItems.push({
+                            id: `${doc.id}_${index}`,
+                            originalOrderId: doc.id,
+                            name: item.name,
+                            // Try to find category by ID, else name, else default
+                            category: menuMap[item.menuId] || menuMap[item.name] || 'Main Course',
+                            tableNumber: order.tableId || '?', // Assuming tableId stores the number or we need another lookup.
+                            createdAt: order.createdAt?.toDate ? order.createdAt.toDate() : new Date(),
+                            status: order.status,
+                            quantity: item.quantity
+                        });
                     });
-                });
+                }
             });
 
             // Sort by creation time (FIFO)
@@ -66,13 +67,11 @@ const ChefKDS = () => {
         });
 
         return () => unsubscribe();
-    }, [menuMap]); // Re-run when menuMap loads to ensure categories populate
+    }, [menuMap]);
 
-    // Computed Categories (so empty categories don't show, or show all fixed? Prompt says "grouped category-wise")
-    // We'll stick to fixed + any new ones found to keep UI stable but flexible.
     const baseCategories = ["Starters", "Main Course", "Breads", "Desserts"];
     const foundCategories = [...new Set(items.map(i => i.category))];
-    const categories = [...new Set([...baseCategories, ...foundCategories])];
+    const categories = Array.from(new Set([...baseCategories, ...foundCategories]));
 
     const getTimeSinceOrder = (createdAt) => {
         const diffMs = currentTime - new Date(createdAt);
@@ -80,7 +79,7 @@ const ChefKDS = () => {
     };
 
     const getUrgencyLevel = (minutes) => {
-        if (minutes >= 20) return 'critical'; // Adjusted for real world
+        if (minutes >= 20) return 'critical';
         if (minutes >= 10) return 'warning';
         return 'normal';
     };
@@ -107,44 +106,40 @@ const ChefKDS = () => {
     };
 
     const changeStatus = async (itemId) => {
-        // Find item to get Active Order ID
         const item = items.find(i => i.id === itemId);
         if (!item) return;
 
-        let newStatus = 'in_queue';
+        let newStatus = item.status;
         if (item.status === 'in_queue') newStatus = 'preparing';
         else if (item.status === 'preparing') newStatus = 'ready';
 
-        // Allow reverting? Prompt flow: queue -> preparing -> ready -> served.
+        // Use user rule: "update the current status upto ready then served will be done by waiter"
+        // So Chef cannot move from ready -> served.
 
-        try {
-            await updateDoc(doc(db, 'orders', item.originalOrderId), {
-                status: newStatus,
-                updatedAt: serverTimestamp()
-            });
-        } catch (err) {
-            console.error("Failed to update status", err);
+        if (newStatus !== item.status) {
+            try {
+                await updateDoc(doc(db, 'orders', item.originalOrderId), {
+                    status: newStatus,
+                    updatedAt: serverTimestamp()
+                });
+            } catch (err) {
+                console.error("Failed to update status", err);
+            }
         }
     };
 
-    const dismissItem = async (itemId) => {
-        const item = items.find(i => i.id === itemId);
-        if (!item) return;
-
+    const handleLogout = async () => {
         try {
-            await updateDoc(doc(db, 'orders', item.originalOrderId), {
-                status: 'served',
-                updatedAt: serverTimestamp()
-            });
-        } catch (err) {
-            console.error("Failed to dismiss order", err);
+            await logout();
+            navigate('/login');
+        } catch (error) {
+            console.error(error);
         }
     };
 
     const getItemsByCategory = (category) => {
         return items
             .filter(item => item.category === category)
-            // Already sorted in listener, but sort again to be safe
             .sort((a, b) => a.createdAt - b.createdAt);
     };
 
@@ -191,6 +186,13 @@ const ChefKDS = () => {
                                 {items.filter(i => i.status !== 'ready').length} Active
                             </span>
                         </div>
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition-colors font-medium"
+                        >
+                            <LogOut size={18} />
+                            Logout
+                        </button>
                     </div>
                 </div>
             </div>
@@ -280,6 +282,9 @@ const ChefKDS = () => {
                                                                         <Clock className="w-3 h-3" />
                                                                         {minutes}m
                                                                     </span>
+                                                                    {item.quantity > 1 && (
+                                                                        <span className="px-2 py-0.5 bg-slate-700 rounded text-xs font-bold text-white">x{item.quantity}</span>
+                                                                    )}
                                                                 </div>
                                                             </div>
 
@@ -308,7 +313,7 @@ const ChefKDS = () => {
 
                                                         {/* Action Buttons */}
                                                         <div className="flex gap-2">
-                                                            {item.status === 'queued' && (
+                                                            {item.status === 'in_queue' && (
                                                                 <button
                                                                     onClick={() => changeStatus(item.id)}
                                                                     className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl font-bold text-sm transition-all duration-300 shadow-lg hover:shadow-blue-500/50 active:scale-95"
@@ -324,23 +329,13 @@ const ChefKDS = () => {
                                                                     Mark Ready
                                                                 </button>
                                                             )}
+                                                            {/* No dismiss button for Ready: Waiter handles served */}
                                                             {item.status === 'ready' && (
-                                                                <button
-                                                                    onClick={() => dismissItem(item.id)}
-                                                                    className="flex-1 py-3 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 rounded-xl font-bold text-sm transition-all duration-300 shadow-lg active:scale-95"
-                                                                >
-                                                                    Dismiss
-                                                                </button>
+                                                                <div className="flex-1 py-3 bg-slate-800 text-slate-400 rounded-xl font-bold text-sm text-center border border-slate-700 select-none">
+                                                                    Waiting for Pickup
+                                                                </div>
                                                             )}
                                                         </div>
-
-                                                        {/* AI Next Best Item Indicator */}
-                                                        {isFirst && !isReady && (
-                                                            <div className="mt-3 flex items-center gap-2 text-xs text-blue-400/80 animate-pulse-slow">
-                                                                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
-                                                                <span className="font-medium">AI suggests: Cook this next</span>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
