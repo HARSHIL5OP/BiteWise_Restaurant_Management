@@ -12,6 +12,7 @@ import SignupPage from "./pages/auth/SignupPage";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import NotFound from "./pages/NotFound";
 import ChefKDS from "./pages/ChefKDS";
+import WaiterPage from "./pages/WaiterPage";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/Chef" element={<ChefKDS />} />
+              <Route path="/waiter" element={<WaiterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
