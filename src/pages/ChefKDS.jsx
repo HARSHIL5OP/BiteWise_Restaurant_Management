@@ -1,133 +1,124 @@
-import React, { useState, useEffect } from 'react';
-import { Clock, Flame, AlertCircle, LogOut } from 'lucide-react';
-import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Clock, Flame, CheckCircle, ChefHat, Users, ArrowUp, LogOut } from 'lucide-react';
+import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// --- Components ---
+
+const ProgressBar = ({ current, total }) => {
+    const progress = Math.min(100, (current / total) * 100);
+    return (
+        <div className="h-4 bg-slate-800 rounded-full overflow-hidden w-full mt-3 border border-slate-700">
+            <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                className={`h-full ${progress >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'} transition-all duration-300`}
+            />
+        </div>
+    );
+};
+
+const AggregatedItemCard = ({ item, preparedCount, onIncrement, onMarkAll, onDispatch }) => {
+    const isComplete = preparedCount >= item.totalQuantity;
+    const isUrgent = (new Date() - item.oldestOrderAt) > 1000 * 60 * 15; // 15 mins
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`
+                relative overflow-hidden rounded-2xl border-2 p-5 flex flex-col justify-between h-full min-h-[280px]
+                ${isComplete
+                    ? 'bg-emerald-500/10 border-emerald-500/50 shadow-emerald-500/20'
+                    : isUrgent
+                        ? 'bg-slate-900/90 border-rose-500/50 shadow-rose-900/20'
+                        : 'bg-slate-900/90 border-slate-700 shadow-xl'
+                }
+            `}
+        >
+            {/* Header */}
+            <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-white leading-tight mb-1">{item.name}</h3>
+                    <div className="flex items-center gap-2 text-slate-400 text-sm">
+                        <Clock size={14} />
+                        <span>Oldest: {item.oldestOrderAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                </div>
+                <div className={`
+                    text-4xl font-black tabular-nums tracking-tighter
+                    ${isComplete ? 'text-emerald-400' : 'text-indigo-400'}
+                `}>
+                    {preparedCount}<span className="text-2xl text-slate-600">/{item.totalQuantity}</span>
+                </div>
+            </div>
+
+            {/* Tables */}
+            <div className="flex flex-wrap gap-2 mb-4">
+                {item.tableNumbers.map(t => (
+                    <span key={t} className="px-2 py-1 bg-slate-800 text-slate-300 rounded text-xs font-bold border border-slate-700">
+                        T-{t}
+                    </span>
+                ))}
+                {item.tableNumbers.length > 5 && (
+                    <span className="px-2 py-1 text-slate-500 text-xs">+ {item.tableNumbers.length - 5} more</span>
+                )}
+            </div>
+
+            {/* Progress */}
+            <ProgressBar current={preparedCount} total={item.totalQuantity} />
+
+            {/* Actions */}
+            <div className="mt-auto pt-6 grid grid-cols-2 gap-3">
+                {!isComplete ? (
+                    <>
+                        <button
+                            onClick={() => onIncrement(item.id)}
+                            className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl text-lg transition-colors border border-slate-700 active:scale-95 touch-manipulation"
+                        >
+                            +1 Ready
+                        </button>
+                        <button
+                            onClick={() => onMarkAll(item.id, item.totalQuantity)}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl text-lg transition-colors shadow-lg shadow-indigo-500/30 active:scale-95 touch-manipulation"
+                        >
+                            All Ready
+                        </button>
+                    </>
+                ) : (
+                    <button
+                        onClick={() => onDispatch(item)}
+                        className="col-span-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl text-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 animate-pulse-once"
+                    >
+                        <CheckCircle size={24} />
+                        Dispatch to Waiters
+                    </button>
+                )}
+            </div>
+
+            {isUrgent && !isComplete && (
+                <div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full animate-ping m-4" />
+            )}
+        </motion.div>
+    );
+};
+
+// --- Main Page ---
 
 const ChefKDS = () => {
     const { logout } = useAuth();
     const navigate = useNavigate();
-    const [items, setItems] = useState([]);
-    const [menuMap, setMenuMap] = useState({});
-    const [currentTime, setCurrentTime] = useState(new Date());
 
-    // Fetch Menu for Category Mapping
-    useEffect(() => {
-        const fetchMenu = async () => {
-            const querySnapshot = await getDocs(collection(db, "menu"));
-            const mapping = {};
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                mapping[data.name] = data.category; // Map by name as fallback or ID if possible.
-                mapping[doc.id] = data.category;
-            });
-            setMenuMap(mapping);
-        };
-        fetchMenu();
+    // Data State
+    const [orders, setOrders] = useState([]);
+    const [preparedState, setPreparedState] = useState({}); // { [menuId]: count }
+    const [sortBy, setSortBy] = useState('urgency'); // urgency | quantity | tables
 
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
-
-    // Real-time Orders Listener
-    useEffect(() => {
-        const q = query(
-            collection(db, 'orders'),
-            where('status', 'in', ['in_queue', 'preparing', 'ready'])
-        );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const activeItems = [];
-            snapshot.forEach(doc => {
-                const order = doc.data();
-                // Map status "in_queue" -> "queued" if needed, but schema says "in_queue"
-                // Schema: status: string // in_queue | preparing | ready | served
-
-                if (order.items && Array.isArray(order.items)) {
-                    order.items.forEach((item, index) => {
-                        activeItems.push({
-                            id: `${doc.id}_${index}`,
-                            originalOrderId: doc.id,
-                            name: item.name,
-                            // Try to find category by ID, else name, else default
-                            category: menuMap[item.menuId] || menuMap[item.name] || 'Main Course',
-                            tableNumber: order.tableId || '?', // Assuming tableId stores the number or we need another lookup.
-                            createdAt: order.createdAt?.toDate ? order.createdAt.toDate() : new Date(),
-                            status: order.status,
-                            quantity: item.quantity
-                        });
-                    });
-                }
-            });
-
-            // Sort by creation time (FIFO)
-            activeItems.sort((a, b) => a.createdAt - b.createdAt);
-            setItems(activeItems);
-        });
-
-        return () => unsubscribe();
-    }, [menuMap]);
-
-    const baseCategories = ["Starters", "Main Course", "Breads", "Desserts"];
-    const foundCategories = [...new Set(items.map(i => i.category))];
-    const categories = Array.from(new Set([...baseCategories, ...foundCategories]));
-
-    const getTimeSinceOrder = (createdAt) => {
-        const diffMs = currentTime - new Date(createdAt);
-        return Math.floor(diffMs / 60000);
-    };
-
-    const getUrgencyLevel = (minutes) => {
-        if (minutes >= 20) return 'critical';
-        if (minutes >= 10) return 'warning';
-        return 'normal';
-    };
-
-    const getUrgencyStyles = (urgency, status) => {
-        if (status === 'ready') return 'bg-emerald-500/10 border-emerald-500/30';
-
-        switch (urgency) {
-            case 'critical':
-                return 'bg-red-500/5 border-red-500/40 shadow-red-500/20 animate-pulse-slow';
-            case 'warning':
-                return 'bg-amber-500/5 border-amber-500/30 shadow-amber-500/10';
-            default:
-                return 'bg-slate-800/40 border-slate-700/50';
-        }
-    };
-
-    const getTimeColor = (urgency) => {
-        switch (urgency) {
-            case 'critical': return 'text-red-400';
-            case 'warning': return 'text-amber-400';
-            default: return 'text-slate-500';
-        }
-    };
-
-    const changeStatus = async (itemId) => {
-        const item = items.find(i => i.id === itemId);
-        if (!item) return;
-
-        let newStatus = item.status;
-        if (item.status === 'in_queue') newStatus = 'preparing';
-        else if (item.status === 'preparing') newStatus = 'ready';
-
-        // Use user rule: "update the current status upto ready then served will be done by waiter"
-        // So Chef cannot move from ready -> served.
-
-        if (newStatus !== item.status) {
-            try {
-                await updateDoc(doc(db, 'orders', item.originalOrderId), {
-                    status: newStatus,
-                    updatedAt: serverTimestamp()
-                });
-            } catch (err) {
-                console.error("Failed to update status", err);
-            }
-        }
-    };
-
+    // Auth Logout
     const handleLogout = async () => {
         try {
             await logout();
@@ -137,248 +128,198 @@ const ChefKDS = () => {
         }
     };
 
-    const getItemsByCategory = (category) => {
-        return items
-            .filter(item => item.category === category)
-            .sort((a, b) => a.createdAt - b.createdAt);
+    // 1. Live Firestore Listener
+    useEffect(() => {
+        // Query active orders only
+        const q = query(
+            collection(db, 'orders'),
+            where('status', 'in', ['in_queue', 'preparing'])
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const loadedOrders = snapshot.docs.map(doc => ({
+                orderId: doc.id,
+                ...doc.data(),
+                createdAt: doc.data().createdAt?.toDate() || new Date()
+            }));
+            setOrders(loadedOrders);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    // 2. Aggregation Logic (Memoized)
+    const aggregatedItems = useMemo(() => {
+        const groups = {};
+
+        orders.forEach(order => {
+            if (!order.items || !Array.isArray(order.items)) return;
+
+            order.items.forEach(item => {
+                // Key could be menuId or item Name as fallback (schema guarantees menuId exists usually)
+                const key = item.menuId || item.name;
+
+                if (!groups[key]) {
+                    groups[key] = {
+                        id: key,
+                        name: item.name,
+                        totalQuantity: 0,
+                        tableNumbers: new Set(),
+                        oldestOrderAt: order.createdAt,
+                        involvedOrderIds: new Set(),
+                        originalItems: [] // To track which specific item lines belong here
+                    };
+                }
+
+                const group = groups[key];
+                group.totalQuantity += parseInt(item.quantity) || 1;
+                if (order.tableId) group.tableNumbers.add(order.tableId); // Assuming tableId is the number
+                if (order.createdAt < group.oldestOrderAt) group.oldestOrderAt = order.createdAt;
+                group.involvedOrderIds.add(order.orderId);
+            });
+        });
+
+        return Object.values(groups).map(g => ({
+            ...g,
+            tableNumbers: Array.from(g.tableNumbers).sort((a, b) => a - b),
+            involvedOrderIds: Array.from(g.involvedOrderIds)
+        }));
+    }, [orders]);
+
+    // 3. Sorting Logic
+    const sortedItems = useMemo(() => {
+        return [...aggregatedItems].sort((a, b) => {
+            if (sortBy === 'urgency') return a.oldestOrderAt - b.oldestOrderAt;
+            if (sortBy === 'quantity') return b.totalQuantity - a.totalQuantity;
+            if (sortBy === 'tables') return b.tableNumbers.length - a.tableNumbers.length;
+            return 0;
+        });
+    }, [aggregatedItems, sortBy]);
+
+    // 4. Action Handlers
+
+    const handleIncrement = (id) => {
+        setPreparedState(prev => {
+            const current = prev[id] || 0;
+            // Cap at total? Aggregation recalculates on every render? 
+            // Better to just increment. Visuals handle the cap check.
+            return { ...prev, [id]: current + 1 };
+        });
     };
 
-    const getStatusDisplay = (status) => {
-        switch (status) {
-            case 'in_queue': return { text: 'Queue', color: 'bg-slate-600' };
-            case 'preparing': return { text: 'Cooking', color: 'bg-blue-500' };
-            case 'ready': return { text: 'Ready', color: 'bg-emerald-500' };
-            default: return { text: status, color: 'bg-slate-600' };
-        }
+    const handleMarkAll = (id, total) => {
+        setPreparedState(prev => ({ ...prev, [id]: total }));
     };
 
-    const getCategoryIcon = (category) => {
-        switch (category) {
-            case 'Starters': return '🥗';
-            case 'Main Course': return '🍛';
-            case 'Breads': return '🫓';
-            case 'Desserts': return '🍰';
-            default: return '🍽️';
+    const handleDispatch = async (item) => {
+        // Optimistic UI updates could happen here, but we rely on Firestore live sync.
+
+        // 1. Identify Orders to Update
+        // "Dispatch" implies the chef is done with this batch. 
+        // We will update involved orders to 'ready'. 
+        // NOTE: This might mark an order ready even if other items (drinks?) are not done. 
+        // In a strict KDS, we'd check partials, but per instructions, we focus on Chef Workload.
+        // We'll update involved orders.
+
+        const updates = item.involvedOrderIds.map(orderId => {
+            const orderDoc = doc(db, 'orders', orderId);
+            return updateDoc(orderDoc, {
+                status: 'ready',
+                updatedAt: serverTimestamp()
+            });
+        });
+
+        try {
+            await Promise.all(updates);
+
+            // Clear local state for this item
+            setPreparedState(prev => {
+                const next = { ...prev };
+                delete next[item.id];
+                return next;
+            });
+
+        } catch (err) {
+            console.error("Dispatch Failed", err);
+            alert("Failed to update orders. Check console.");
         }
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-4">
-            {/* Header */}
-            <div className="max-w-[2000px] mx-auto mb-6">
-                <div className="flex items-center justify-between mb-2">
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-                            Kitchen Display
-                        </h1>
-                        <p className="text-sm text-slate-500 mt-1">Live orders • Category view</p>
-                    </div>
-                    <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-xl border border-slate-700/50">
-                            <Clock className="w-4 h-4 text-slate-400" />
-                            <span className="text-sm font-medium text-slate-300">
-                                {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 rounded-xl border border-blue-500/30">
-                            <Flame className="w-4 h-4 text-blue-400" />
-                            <span className="text-sm font-medium text-blue-300">
-                                {items.filter(i => i.status !== 'ready').length} Active
-                            </span>
-                        </div>
-                        <button
-                            onClick={handleLogout}
-                            className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition-colors font-medium"
-                        >
-                            <LogOut size={18} />
-                            Logout
-                        </button>
-                    </div>
+        <div className="min-h-screen bg-slate-950 text-slate-200 font-sans p-6 pb-20">
+            {/* Header Area */}
+            <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 max-w-[2000px] mx-auto">
+                <div>
+                    <h1 className="text-4xl font-black text-white flex items-center gap-3">
+                        <Flame className="text-orange-500 fill-orange-500" size={32} />
+                        CHEF STATION
+                    </h1>
+                    <p className="text-slate-500 mt-2 font-medium">
+                        {orders.length} Active Orders • {aggregatedItems.length} Unique Items to Cook
+                    </p>
                 </div>
-            </div>
 
-            {/* Category Lanes */}
-            <div className="max-w-[2000px] mx-auto grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
-                {categories.map((category) => {
-                    const categoryItems = getItemsByCategory(category);
-                    const hasCritical = categoryItems.some(item =>
-                        getUrgencyLevel(getTimeSinceOrder(item.createdAt)) === 'critical'
-                    );
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-800">
+                        {[
+                            { id: 'urgency', label: 'Oldest', icon: Clock },
+                            { id: 'quantity', label: 'Qty', icon: ArrowUp },
+                            { id: 'tables', label: 'Tables', icon: Users }
+                        ].map(opt => (
+                            <button
+                                key={opt.id}
+                                onClick={() => setSortBy(opt.id)}
+                                className={`
+                                    flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all
+                                    ${sortBy === opt.id
+                                        ? 'bg-indigo-600 text-white shadow-lg'
+                                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                    }
+                                `}
+                            >
+                                <opt.icon size={16} />
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
 
-                    return (
-                        <div key={category} className="flex flex-col h-full">
-                            {/* Category Header */}
-                            <div className={`sticky top-0 z-10 backdrop-blur-xl bg-slate-900/80 border rounded-2xl p-4 mb-3 transition-all duration-500 ${hasCritical ? 'border-red-500/50 shadow-lg shadow-red-500/20' : 'border-slate-700/50'
-                                }`}>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl flex items-center justify-center text-2xl">
-                                            {getCategoryIcon(category)}
-                                        </div>
-                                        <div>
-                                            <h2 className="text-lg font-bold tracking-tight">{category}</h2>
-                                            <p className="text-xs text-slate-500">
-                                                {categoryItems.filter(i => i.status !== 'ready').length} in queue
-                                            </p>
-                                        </div>
-                                    </div>
-                                    {hasCritical && (
-                                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                                    )}
-                                </div>
-                            </div>
+                    <button
+                        onClick={handleLogout}
+                        className="p-4 bg-slate-900 hover:bg-rose-900/20 text-slate-400 hover:text-rose-500 rounded-xl border border-slate-800 hover:border-rose-900/50 transition-colors"
+                        title="Logout"
+                    >
+                        <LogOut size={20} />
+                    </button>
+                </div>
+            </header>
 
-                            {/* Items Stream */}
-                            <div className="flex-1 space-y-3">
-                                {categoryItems.length === 0 ? (
-                                    <div className="h-40 border border-dashed border-slate-700/50 rounded-2xl flex items-center justify-center">
-                                        <p className="text-sm text-slate-600">No orders</p>
-                                    </div>
-                                ) : (
-                                    categoryItems.map((item, index) => {
-                                        const minutes = getTimeSinceOrder(item.createdAt);
-                                        const urgency = getUrgencyLevel(minutes);
-                                        const status = getStatusDisplay(item.status);
-                                        const isFirst = index === 0 && item.status !== 'ready';
-                                        const isReady = item.status === 'ready';
+            {/* Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 max-w-[2000px] mx-auto">
+                <AnimatePresence>
+                    {sortedItems.map(item => (
+                        <AggregatedItemCard
+                            key={item.id}
+                            item={item}
+                            preparedCount={preparedState[item.id] || 0}
+                            onIncrement={handleIncrement}
+                            onMarkAll={handleMarkAll}
+                            onDispatch={handleDispatch}
+                        />
+                    ))}
+                </AnimatePresence>
 
-                                        return (
-                                            <div
-                                                key={item.id}
-                                                className={`relative group transition-all duration-700 ease-out ${isFirst ? 'scale-[1.02]' : ''
-                                                    }`}
-                                                style={{
-                                                    transformOrigin: 'top center',
-                                                }}
-                                            >
-                                                <div
-                                                    className={`relative overflow-hidden rounded-2xl border backdrop-blur-sm transition-all duration-700 ${getUrgencyStyles(urgency, item.status)
-                                                        } ${isFirst && !isReady ? 'shadow-2xl ring-2 ring-white/10' : 'shadow-xl'
-                                                        }`}
-                                                >
-                                                    {/* AI Suggestion Glow for First Item */}
-                                                    {isFirst && !isReady && (
-                                                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-blue-500/5 animate-gradient"></div>
-                                                    )}
-
-                                                    {/* Urgency Indicator */}
-                                                    {urgency === 'critical' && !isReady && (
-                                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 via-orange-500 to-red-500"></div>
-                                                    )}
-
-                                                    <div className="relative p-5">
-                                                        {/* Item Header */}
-                                                        <div className="flex items-start justify-between mb-3">
-                                                            <div className="flex-1 pr-4">
-                                                                <h3 className={`font-bold tracking-tight transition-all duration-300 ${isFirst && !isReady ? 'text-2xl' : 'text-xl'
-                                                                    }`}>
-                                                                    {item.name}
-                                                                </h3>
-                                                                <div className="flex items-center gap-3 mt-2">
-                                                                    <span className="text-xs text-slate-500 font-medium">
-                                                                        Table {item.tableNumber}
-                                                                    </span>
-                                                                    <span className={`flex items-center gap-1.5 text-xs font-semibold ${getTimeColor(urgency)}`}>
-                                                                        <Clock className="w-3 h-3" />
-                                                                        {minutes}m
-                                                                    </span>
-                                                                    {item.quantity > 1 && (
-                                                                        <span className="px-2 py-0.5 bg-slate-700 rounded text-xs font-bold text-white">x{item.quantity}</span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Status Badge */}
-                                                            <div className={`px-3 py-1.5 rounded-lg text-xs font-bold ${status.color} transition-all duration-300`}>
-                                                                {status.text}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Time Pressure Bar */}
-                                                        {!isReady && (
-                                                            <div className="mb-4">
-                                                                <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
-                                                                    <div
-                                                                        className={`h-full transition-all duration-1000 rounded-full ${urgency === 'critical' ? 'bg-gradient-to-r from-red-500 to-orange-500' :
-                                                                            urgency === 'warning' ? 'bg-gradient-to-r from-amber-500 to-yellow-500' :
-                                                                                'bg-gradient-to-r from-blue-500 to-cyan-500'
-                                                                            }`}
-                                                                        style={{
-                                                                            width: `${Math.min(100, (minutes / 15) * 100)}%`
-                                                                        }}
-                                                                    ></div>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Action Buttons */}
-                                                        <div className="flex gap-2">
-                                                            {item.status === 'in_queue' && (
-                                                                <button
-                                                                    onClick={() => changeStatus(item.id)}
-                                                                    className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-xl font-bold text-sm transition-all duration-300 shadow-lg hover:shadow-blue-500/50 active:scale-95"
-                                                                >
-                                                                    Start Cooking
-                                                                </button>
-                                                            )}
-                                                            {item.status === 'preparing' && (
-                                                                <button
-                                                                    onClick={() => changeStatus(item.id)}
-                                                                    className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 rounded-xl font-bold text-sm transition-all duration-300 shadow-lg hover:shadow-emerald-500/50 active:scale-95"
-                                                                >
-                                                                    Mark Ready
-                                                                </button>
-                                                            )}
-                                                            {/* No dismiss button for Ready: Waiter handles served */}
-                                                            {item.status === 'ready' && (
-                                                                <div className="flex-1 py-3 bg-slate-800 text-slate-400 rounded-xl font-bold text-sm text-center border border-slate-700 select-none">
-                                                                    Waiting for Pickup
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* Floating Stats */}
-            <div className="fixed bottom-6 right-6 flex flex-col gap-3">
-                {items.filter(i => getUrgencyLevel(getTimeSinceOrder(i.createdAt)) === 'critical' && i.status !== 'ready').length > 0 && (
-                    <div className="px-4 py-3 bg-red-500/20 backdrop-blur-xl border border-red-500/50 rounded-xl shadow-2xl shadow-red-500/20 animate-pulse-slow">
-                        <div className="flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-red-400" />
-                            <span className="text-sm font-bold text-red-300">
-                                {items.filter(i => getUrgencyLevel(getTimeSinceOrder(i.createdAt)) === 'critical' && i.status !== 'ready').length} Critical
-                            </span>
-                        </div>
+                {sortedItems.length === 0 && (
+                    <div className="col-span-full py-20 text-center opacity-50">
+                        <ChefHat size={64} className="mx-auto mb-4 text-slate-600" />
+                        <h2 className="text-2xl font-bold text-slate-500">All Clear! No Active Orders.</h2>
                     </div>
                 )}
             </div>
 
-            <style jsx>{`
-        @keyframes gradient {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
-        .animate-gradient {
-          background-size: 200% 200%;
-          animation: gradient 3s ease infinite;
-        }
-        .animate-pulse-slow {
-          animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.8; }
-        }
-      `}</style>
+            {/* Explanation / Footer */}
+            <div className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-md border-t border-slate-800 p-2 text-center text-xs text-slate-600 z-50">
+                KDS Aggregation Logic • Groups unique items • Tracks local prep • Bulk updates Status to Ready
+            </div>
         </div>
     );
 };
