@@ -2,6 +2,7 @@ const express = require("express");
 const Razorpay = require("razorpay");
 const cors = require("cors");
 const crypto = require("crypto");
+require("dotenv").config();
 
 const app = express();
 
@@ -9,8 +10,8 @@ app.use(express.json());
 app.use(cors());
 
 const instance = new Razorpay({
-    key_id: 'rzp_test_ympRGkcZSefCNd',
-    key_secret: 'I8vTBWnKrAFBAd4CiMb8F2Ya',
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
 app.get('/order', async (req, res) => {

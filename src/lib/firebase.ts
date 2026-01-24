@@ -3,13 +3,13 @@ import { getAuth, GoogleAuthProvider, GithubAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyB1AeCif_M4vRDDpHvvQIBWX_dO14wIo68",
-    authDomain: "odoo-cafe-2.firebaseapp.com",
-    projectId: "odoo-cafe-2",
-    storageBucket: "odoo-cafe-2.firebasestorage.app",
-    messagingSenderId: "1063217105221",
-    appId: "1:1063217105221:web:828c4693b8ed784ec8d62c",
-    measurementId: "G-MSB6YL302Z"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);

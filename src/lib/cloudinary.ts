@@ -1,6 +1,6 @@
-const CLOUD_NAME = "dpa0vo47e";
-const API_KEY = "668584257734383";
-const API_SECRET = "AFH3V-9Mwy2drr-6FlLfz8qZ5O4";
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const API_KEY = import.meta.env.VITE_CLOUDINARY_API_KEY;
+const API_SECRET = import.meta.env.VITE_CLOUDINARY_API_SECRET;
 
 // WARNING: exposing API_SECRET on the client side is insecure.
 // This is done here only because it was explicitly requested for this demo project.
