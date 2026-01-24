@@ -118,6 +118,68 @@ const RestaurantApp = () => {
         return '🌶️'.repeat(level);
     };
 
+    const handleRazorpayPayment = async () => {
+        try {
+            const totalAmount = getAllOrdersTotal();
+            if (totalAmount === 0) {
+                alert("Amount is 0");
+                return;
+            }
+
+            const response = await fetch(`http://localhost:8080/order?amount=${totalAmount}`);
+            const data = await response.json();
+
+            if (!data.orderID) {
+                alert("Server error. Are you running the backend?");
+                return;
+            }
+
+            const options = {
+                key: "rzp_test_ympRGkcZSefCNd",
+                amount: data.amount,
+                currency: "INR",
+                name: "Spice Garden",
+                description: "Payment for Order",
+                order_id: data.orderID,
+                handler: async function (response: any) {
+                    try {
+                        const verifyRes = await fetch("http://localhost:8080/verify", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(response),
+                        });
+                        const verifyData = await verifyRes.json();
+                        if (verifyData.success) {
+                            alert("Payment Successful!");
+                            setOrders([]);
+                            setActiveView('menu');
+                        } else {
+                            alert("Payment Verification Failed");
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        alert("Verification Error");
+                    }
+                },
+                prefill: {
+                    name: userProfile?.firstName || "Guest",
+                    email: user?.email || "guest@example.com",
+                    contact: "9999999999"
+                },
+                theme: {
+                    color: "#F97316"
+                }
+            };
+
+            const rzp = new (window as any).Razorpay(options);
+            rzp.open();
+
+        } catch (error) {
+            console.error("Payment Error:", error);
+            alert("Payment initialization failed. Make sure the backend server is running on port 8080.");
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-orange-50">
@@ -378,7 +440,7 @@ const RestaurantApp = () => {
                         <div className="space-y-3">
                             <h3 className="font-bold text-gray-800 px-1">Payment Method</h3>
 
-                            <button className="w-full bg-white border-2 border-orange-500 rounded-2xl p-4 hover:bg-orange-50 transition-all flex items-center gap-4">
+                            <button onClick={handleRazorpayPayment} className="w-full bg-white border-2 border-orange-500 rounded-2xl p-4 hover:bg-orange-50 transition-all flex items-center gap-4">
                                 <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center">
                                     <CreditCard className="w-6 h-6 text-white" />
                                 </div>
@@ -389,7 +451,7 @@ const RestaurantApp = () => {
                                 <ChevronRight className="w-5 h-5 text-gray-400" />
                             </button>
 
-                            <button className="w-full bg-white border-2 border-gray-200 rounded-2xl p-4 hover:bg-gray-50 transition-all flex items-center gap-4">
+                            <button onClick={handleRazorpayPayment} className="w-full bg-white border-2 border-gray-200 rounded-2xl p-4 hover:bg-gray-50 transition-all flex items-center gap-4">
                                 <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-500 rounded-xl flex items-center justify-center">
                                     <Smartphone className="w-6 h-6 text-white" />
                                 </div>
