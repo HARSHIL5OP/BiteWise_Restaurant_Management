@@ -94,30 +94,13 @@ const AppRoutes = () => {
         </PublicOnly>
       } />
 
+      {/* --- Public Home Routes --- */}
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/home/:tableId" element={<HomePage />} />
+      <Route path="/" element={<Navigate to="/home" replace />} />
+
       {/* --- Protected Routes --- */}
       <Route element={<ProtectedRoute />}>
-
-        {/* Redirect Root to Home (which will then redirect based on role if needed, or stick to customer home) */}
-        {/* We can use a smart root redirect component or specific RoleRoutes */}
-
-        <Route path="/" element={<Navigate to="/home" replace />} />
-
-        {/* Customer / General Access */}
-        <Route path="/home" element={
-          <RoleRoute allowedRoles={['customer', 'admin']}>
-            {/* Admins can view customer view too usually, or strict separation? 
-                   Prompt says: Customer -> Menu. Let's assume 'customer' is the main role for this.
-                   Let's start strictly. */}
-            <HomePage />
-          </RoleRoute>
-        } />
-
-        {/* Support Table Param in Home */}
-        <Route path="/home/:tableId" element={
-          <RoleRoute allowedRoles={['customer']}>
-            <HomePage />
-          </RoleRoute>
-        } />
 
         {/* Chef KDS */}
         <Route path="/chef" element={
