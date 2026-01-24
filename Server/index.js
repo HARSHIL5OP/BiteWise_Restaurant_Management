@@ -2,6 +2,9 @@ import express from "express";
 import Razorpay from "razorpay";
 import cors from "cors";
 import crypto from "crypto";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 
@@ -20,8 +23,8 @@ app.get("/", (req, res) => {
     res.json({ status: "API working" });
 });
 
-// 🔹 ORDER ROUTE → /api/order
-app.get("/api/order", async (req, res) => {
+// 🔹 ORDER ROUTE → /order
+app.get("/order", async (req, res) => {
     try {
         const amount = Number(req.query.amount || 1);
 
@@ -41,8 +44,8 @@ app.get("/api/order", async (req, res) => {
     }
 });
 
-// 🔹 VERIFY ROUTE → /api/verify
-app.post("/api/verify", async (req, res) => {
+// 🔹 VERIFY ROUTE → /verify
+app.post("/verify", async (req, res) => {
     try {
         const {
             razorpay_order_id,
@@ -68,5 +71,6 @@ app.post("/api/verify", async (req, res) => {
     }
 });
 
-// ❗ CRITICAL FOR VERCEL
-export default app;
+app.listen(8080, () => {
+    console.log("Server running on port 8080");
+});

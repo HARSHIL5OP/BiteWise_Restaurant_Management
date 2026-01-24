@@ -270,7 +270,7 @@ const RestaurantApp = () => {
                 return;
             }
 
-            const response = await fetch(`https://localhost:8080/order?amount=${totalAmount}`);
+            const response = await fetch(`http://localhost:8080/order?amount=${totalAmount}`);
             const data = await response.json();
 
             if (!data.orderID) {
@@ -287,7 +287,7 @@ const RestaurantApp = () => {
                 order_id: data.orderID,
                 handler: async function (response: any) {
                     try {
-                        const verifyRes = await fetch("https://odoo-cafe-project-f6yn.vercel.app/api/verify", {
+                        const verifyRes = await fetch("http://localhost:8080/verify", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify(response),
