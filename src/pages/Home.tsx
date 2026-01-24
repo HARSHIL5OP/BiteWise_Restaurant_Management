@@ -270,7 +270,7 @@ const RestaurantApp = () => {
                 return;
             }
 
-            const response = await fetch(`http://localhost:8080/order?amount=${totalAmount}`);
+            const response = await fetch(`/api/order?amount=${totalAmount}`);
             const data = await response.json();
 
             if (!data.orderID) {
@@ -287,7 +287,7 @@ const RestaurantApp = () => {
                 order_id: data.orderID,
                 handler: async function (response: any) {
                     try {
-                        const verifyRes = await fetch("http://localhost:8080/verify", {
+                        const verifyRes = await fetch("/api/verify", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify(response),
@@ -320,7 +320,7 @@ const RestaurantApp = () => {
 
         } catch (error) {
             console.error("Payment Error:", error);
-            alert("Payment initialization failed. Make sure the backend server is running on port 8080.");
+            alert("Payment initialization failed. Make sure the backend server is running.");
         }
     };
 

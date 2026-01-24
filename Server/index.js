@@ -1,8 +1,12 @@
-const express = require("express");
-const Razorpay = require("razorpay");
-const cors = require("cors");
-const crypto = require("crypto");
-require("dotenv").config();
+import express from "express";
+import Razorpay from "razorpay";
+import cors from "cors";
+import crypto from "crypto";
+
+// dotenv is not needed in production environment on Vercel as variables are injected directly
+// but useful for local dev if running via 'vercel dev'
+// import dotenv from "dotenv"; 
+// dotenv.config();
 
 const app = express();
 
@@ -53,6 +57,5 @@ app.post('/verify', async (req, res) => {
     }
 });
 
-app.listen(8080, () => {
-    console.log("Server running on port 8080");
-});
+// Export the app for Vercel
+export default app;
