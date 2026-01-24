@@ -34,7 +34,19 @@ const RestaurantApp = () => {
     const { tableId } = useParams();
 
     // --- STATE MANAGEMENT ---
-    const [cart, setCart] = useState<any[]>([]);
+    const [cart, setCart] = useState<any[]>(() => {
+        try {
+            const saved = localStorage.getItem('cart_items');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+
+    useEffect(() => {
+        localStorage.setItem('cart_items', JSON.stringify(cart));
+    }, [cart]);
+
     const [activeView, setActiveView] = useState<'menu' | 'orders' | 'history' | 'payment'>('menu');
     const [menuViewMode, setMenuViewMode] = useState<'overview' | 'items'>('overview');
     const [orders, setOrders] = useState<any[]>([]);
@@ -51,11 +63,7 @@ const RestaurantApp = () => {
     const categoryScrollRef = useRef<HTMLDivElement>(null);
 
     // --- AUTH & INITIALIZATION ---
-    useEffect(() => {
-        if (!loading && !user) {
-            navigate('/login');
-        }
-    }, [user, loading, navigate]);
+
 
     useEffect(() => {
         if (tableId) {
@@ -186,7 +194,15 @@ const RestaurantApp = () => {
     };
 
     const placeOrder = async () => {
-        if (cart.length === 0 || !user) return;
+        if (!user) {
+            const confirmLogin = window.confirm("You must be logged in to place an order. Would you like to login now?");
+            if (confirmLogin) {
+                navigate('/login');
+            }
+            return;
+        }
+
+        if (cart.length === 0) return;
 
         try {
             const totalAmount = cartTotal;
@@ -346,7 +362,7 @@ const RestaurantApp = () => {
             </div>
         );
     }
-    if (!user) return null;
+
 
     return (
         <div className="min-h-screen bg-[#FDFBF7] font-sans pb-24 max-w-md mx-auto shadow-2xl overflow-hidden relative">
@@ -368,7 +384,10 @@ const RestaurantApp = () => {
                     </div>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => logout()}
+                            onClick={() => {
+                                logout();
+                                navigate('/login');
+                            }}
                             className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                         >
                             <LogOut className="w-5 h-5" />
@@ -386,8 +405,8 @@ const RestaurantApp = () => {
                                 if (view === 'menu') setMenuViewMode('overview'); // Reset to overview
                             }}
                             className={`pb-3 text-sm font-semibold capitalize relative transition-colors whitespace-nowrap ${activeView === view
-                                    ? 'text-orange-600'
-                                    : 'text-gray-400 hover:text-gray-600'
+                                ? 'text-orange-600'
+                                : 'text-gray-400 hover:text-gray-600'
                                 }`}
                         >
                             {view}
@@ -474,8 +493,8 @@ const RestaurantApp = () => {
                                                 key={cat.category}
                                                 onClick={() => handleCategoryClick(cat.category)}
                                                 className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-all flex items-center gap-2 ${selectedCategory === cat.category
-                                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md transform scale-105'
-                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md transform scale-105'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                     }`}
                                             >
                                                 <span>{cat.icon}</span>
@@ -617,8 +636,8 @@ const RestaurantApp = () => {
                                         {/* Status Header */}
                                         <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
                                             <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider ${order.status === 'in_queue' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
-                                                    order.status === 'preparing' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                                        'bg-green-50 text-green-700 border border-green-200'
+                                                order.status === 'preparing' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                                    'bg-green-50 text-green-700 border border-green-200'
                                                 }`}>
                                                 {order.status === 'in_queue' && <Clock className="w-3 h-3" />}
                                                 {order.status === 'preparing' && <ChefHat className="w-3 h-3" />}
