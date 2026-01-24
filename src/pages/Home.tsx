@@ -270,7 +270,7 @@ const RestaurantApp = () => {
                 return;
             }
 
-            const response = await fetch(`https://odoo-cafe-project-f6yn.vercel.app/api/order?amount=${totalAmount}`);
+            const response = await fetch(`https://localhost:8080/order?amount=${totalAmount}`);
             const data = await response.json();
 
             if (!data.orderID) {
