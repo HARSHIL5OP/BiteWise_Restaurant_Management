@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Clock, Flame, CheckCircle, ChefHat, Users, ArrowUp, LogOut } from 'lucide-react';
-import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { Clock, CheckCircle, ChefHat, Timer, TrendingUp, LogOut, Hash, CheckSquare } from 'lucide-react';
+import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,101 +8,146 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Components ---
 
-const ProgressBar = ({ current, total }) => {
-    const progress = Math.min(100, (current / total) * 100);
-    return (
-        <div className="h-4 bg-slate-800 rounded-full overflow-hidden w-full mt-3 border border-slate-700">
-            <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                className={`h-full ${progress >= 100 ? 'bg-emerald-500' : 'bg-indigo-500'} transition-all duration-300`}
-            />
-        </div>
-    );
-};
+const OrderCard = ({ order, progress = {}, onItemClick, onMarkReady, onMarkAllItems }) => {
+    // Check completion
+    const isOrderComplete = useMemo(() => {
+        if (!order.items || order.items.length === 0) return false;
+        return order.items.every((item, idx) => {
+            const prepared = progress[idx] || 0;
+            return prepared >= item.quantity;
+        });
+    }, [order.items, progress]);
 
-const AggregatedItemCard = ({ item, preparedCount, onIncrement, onMarkAll, onDispatch }) => {
-    const isComplete = preparedCount >= item.totalQuantity;
-    const isUrgent = (new Date() - item.oldestOrderAt) > 1000 * 60 * 15; // 15 mins
+    // Timer
+    const [minutesAgo, setMinutesAgo] = useState(0);
+    useEffect(() => {
+        const calculateTime = () => {
+            // Safe check for undefined createdAt
+            if (!order.createdAt) return;
+            const diff = (new Date() - order.createdAt) / 1000 / 60;
+            setMinutesAgo(Math.floor(diff));
+        };
+        calculateTime();
+        const timer = setInterval(calculateTime, 30000);
+        return () => clearInterval(timer);
+    }, [order.createdAt]);
+
+    const isUrgent = minutesAgo > 20;
 
     return (
         <motion.div
             layout
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
             className={`
-                relative overflow-hidden rounded-2xl border-2 p-5 flex flex-col justify-between h-full min-h-[280px]
-                ${isComplete
-                    ? 'bg-emerald-500/10 border-emerald-500/50 shadow-emerald-500/20'
+                flex flex-col h-full bg-white rounded-2xl shadow-sm border-2 overflow-hidden relative transition-all duration-300
+                ${isOrderComplete
+                    ? 'border-emerald-400 shadow-emerald-100'
                     : isUrgent
-                        ? 'bg-slate-900/90 border-rose-500/50 shadow-rose-900/20'
-                        : 'bg-slate-900/90 border-slate-700 shadow-xl'
+                        ? 'border-orange-500 shadow-orange-100'
+                        : 'border-gray-100 hover:border-orange-200'
                 }
             `}
         >
             {/* Header */}
-            <div className="flex justify-between items-start mb-4">
-                <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-white leading-tight mb-1">{item.name}</h3>
-                    <div className="flex items-center gap-2 text-slate-400 text-sm">
-                        <Clock size={14} />
-                        <span>Oldest: {item.oldestOrderAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <div className={`
+                p-4 border-b flex justify-between items-start
+                ${isOrderComplete ? 'bg-emerald-50 border-emerald-100' : isUrgent ? 'bg-orange-50 border-orange-100' : 'bg-white border-gray-100'}
+            `}>
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-xl font-black tracking-tight ${isUrgent && !isOrderComplete ? 'text-orange-600' : 'text-gray-800'}`}>
+                            Table {order.tableId}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400">
+                        <Timer size={12} />
+                        <span className={isUrgent && !isOrderComplete ? 'text-orange-500' : ''}>{minutesAgo}m ago</span>
                     </div>
                 </div>
-                <div className={`
-                    text-4xl font-black tabular-nums tracking-tighter
-                    ${isComplete ? 'text-emerald-400' : 'text-indigo-400'}
-                `}>
-                    {preparedCount}<span className="text-2xl text-slate-600">/{item.totalQuantity}</span>
+                <div className="text-right">
+                    <span className="text-2xl font-black text-gray-200">
+                        #{order.orderId.slice(-3)}
+                    </span>
                 </div>
             </div>
 
-            {/* Tables */}
-            <div className="flex flex-wrap gap-2 mb-4">
-                {item.tableNumbers.map(t => (
-                    <span key={t} className="px-2 py-1 bg-slate-800 text-slate-300 rounded text-xs font-bold border border-slate-700">
-                        T-{t}
-                    </span>
-                ))}
-                {item.tableNumbers.length > 5 && (
-                    <span className="px-2 py-1 text-slate-500 text-xs">+ {item.tableNumbers.length - 5} more</span>
-                )}
+            {/* Items List (Original Order) */}
+            <div className="p-2 flex-1 overflow-y-auto max-h-[400px]">
+                {order.items.map((item, idx) => {
+                    const prepared = progress[idx] || 0;
+                    const isItemDone = prepared >= item.quantity;
+
+                    return (
+                        <div
+                            key={idx}
+                            onClick={() => onItemClick(order.orderId, idx, item.quantity)}
+                            className={`
+                                cursor-pointer p-3 mx-1 mb-1 rounded-xl border transition-all duration-200 group relative overflow-hidden
+                                ${isItemDone
+                                    ? 'bg-emerald-50 border-emerald-100'
+                                    : 'bg-white border-gray-100 hover:border-orange-200 hover:shadow-sm'
+                                }
+                            `}
+                        >
+                            {/* Progress Bar Background */}
+                            {!isItemDone && prepared > 0 && (
+                                <div
+                                    className="absolute left-0 bottom-0 top-0 bg-orange-50 transition-all duration-300 z-0"
+                                    style={{ width: `${(prepared / item.quantity) * 100}%` }}
+                                />
+                            )}
+
+                            <div className="relative z-10 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className={`
+                                        w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm transition-colors
+                                        ${isItemDone
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : prepared > 0
+                                                ? 'bg-orange-100 text-orange-700'
+                                                : 'bg-gray-100 text-gray-500 group-hover:bg-orange-50 group-hover:text-orange-600'
+                                        }
+                                    `}>
+                                        {isItemDone ? <CheckCircle size={16} /> : `x${item.quantity}`}
+                                    </div>
+                                    <div>
+                                        <h4 className={`font-bold leading-tight ${isItemDone ? 'text-emerald-800 line-through decoration-emerald-500/50' : 'text-gray-800'}`}>
+                                            {item.name}
+                                        </h4>
+                                        {prepared > 0 && !isItemDone && (
+                                            <span className="text-[10px] font-bold text-orange-500">
+                                                {prepared} of {item.quantity} prepared
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
 
-            {/* Progress */}
-            <ProgressBar current={preparedCount} total={item.totalQuantity} />
-
-            {/* Actions */}
-            <div className="mt-auto pt-6 grid grid-cols-2 gap-3">
-                {!isComplete ? (
-                    <>
-                        <button
-                            onClick={() => onIncrement(item.id)}
-                            className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-xl text-lg transition-colors border border-slate-700 active:scale-95 touch-manipulation"
-                        >
-                            +1 Ready
-                        </button>
-                        <button
-                            onClick={() => onMarkAll(item.id, item.totalQuantity)}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-4 rounded-xl text-lg transition-colors shadow-lg shadow-indigo-500/30 active:scale-95 touch-manipulation"
-                        >
-                            All Ready
-                        </button>
-                    </>
+            {/* Action Footer */}
+            <div className="p-4 mt-auto border-t border-gray-50">
+                {!isOrderComplete ? (
+                    <button
+                        onClick={() => onMarkAllItems(order.orderId)}
+                        className="w-full py-4 rounded-xl font-bold text-base uppercase tracking-wide flex items-center justify-center gap-2 transition-all duration-200 bg-orange-50 text-orange-600 hover:bg-orange-100 hover:shadow-sm"
+                    >
+                        <CheckSquare size={20} />
+                        Mark All Done
+                    </button>
                 ) : (
                     <button
-                        onClick={() => onDispatch(item)}
-                        className="col-span-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl text-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 animate-pulse-once"
+                        onClick={() => onMarkReady(order.orderId)}
+                        className="w-full py-4 rounded-xl font-bold text-base uppercase tracking-wide flex items-center justify-center gap-2 transition-all duration-200 bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 animate-pulse-once"
                     >
-                        <CheckCircle size={24} />
-                        Dispatch to Waiters
+                        Ready to Serve
                     </button>
                 )}
             </div>
-
-            {isUrgent && !isComplete && (
-                <div className="absolute top-0 right-0 w-3 h-3 bg-rose-500 rounded-full animate-ping m-4" />
-            )}
         </motion.div>
     );
 };
@@ -113,12 +158,12 @@ const ChefKDS = () => {
     const { logout } = useAuth();
     const navigate = useNavigate();
 
-    // Data State
+    // State
     const [orders, setOrders] = useState([]);
-    const [preparedState, setPreparedState] = useState({}); // { [menuId]: count }
-    const [sortBy, setSortBy] = useState('urgency'); // urgency | quantity | tables
+    const [localProgress, setLocalProgress] = useState({});
+    const [sortBy, setSortBy] = useState('oldest');
 
-    // Auth Logout
+    // Auth
     const handleLogout = async () => {
         try {
             await logout();
@@ -128,197 +173,169 @@ const ChefKDS = () => {
         }
     };
 
-    // 1. Live Firestore Listener
+    // Firestore Orders
     useEffect(() => {
-        // Query active orders only
         const q = query(
             collection(db, 'orders'),
             where('status', 'in', ['in_queue', 'preparing'])
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const loadedOrders = snapshot.docs.map(doc => ({
+            const fetched = snapshot.docs.map(doc => ({
                 orderId: doc.id,
                 ...doc.data(),
                 createdAt: doc.data().createdAt?.toDate() || new Date()
             }));
-            setOrders(loadedOrders);
+            setOrders(fetched);
         });
 
         return () => unsubscribe();
     }, []);
 
-    // 2. Aggregation Logic (Memoized)
-    const aggregatedItems = useMemo(() => {
-        const groups = {};
+    // Sort
+    const sortedOrders = useMemo(() => {
+        return [...orders].sort((a, b) => {
+            switch (sortBy) {
+                case 'newest': return b.createdAt - a.createdAt;
+                case 'table': return parseInt(a.tableId) - parseInt(b.tableId);
+                case 'oldest':
+                default: return a.createdAt - b.createdAt;
+            }
+        });
+    }, [orders, sortBy]);
 
-        orders.forEach(order => {
-            if (!order.items || !Array.isArray(order.items)) return;
+    // Handlers
+    const handleItemClick = (orderId, itemIndex, maxQuantity) => {
+        setLocalProgress(prev => {
+            const orderProgress = prev[orderId] || {};
+            const currentCount = orderProgress[itemIndex] || 0;
+            let newCount = currentCount + 1;
+            if (currentCount >= maxQuantity) newCount = 0; // Reset loop
 
-            order.items.forEach(item => {
-                // Key could be menuId or item Name as fallback (schema guarantees menuId exists usually)
-                const key = item.menuId || item.name;
-
-                if (!groups[key]) {
-                    groups[key] = {
-                        id: key,
-                        name: item.name,
-                        totalQuantity: 0,
-                        tableNumbers: new Set(),
-                        oldestOrderAt: order.createdAt,
-                        involvedOrderIds: new Set(),
-                        originalItems: [] // To track which specific item lines belong here
-                    };
+            return {
+                ...prev,
+                [orderId]: {
+                    ...orderProgress,
+                    [itemIndex]: newCount
                 }
+            };
+        });
+    };
 
-                const group = groups[key];
-                group.totalQuantity += parseInt(item.quantity) || 1;
-                if (order.tableId) group.tableNumbers.add(order.tableId); // Assuming tableId is the number
-                if (order.createdAt < group.oldestOrderAt) group.oldestOrderAt = order.createdAt;
-                group.involvedOrderIds.add(order.orderId);
-            });
+    const handleMarkAllItems = (orderId) => {
+        const order = orders.find(o => o.orderId === orderId);
+        if (!order) return;
+
+        const fullProgress = {};
+        order.items.forEach((item, idx) => {
+            fullProgress[idx] = item.quantity;
         });
 
-        return Object.values(groups).map(g => ({
-            ...g,
-            tableNumbers: Array.from(g.tableNumbers).sort((a, b) => a - b),
-            involvedOrderIds: Array.from(g.involvedOrderIds)
+        setLocalProgress(prev => ({
+            ...prev,
+            [orderId]: fullProgress
         }));
-    }, [orders]);
-
-    // 3. Sorting Logic
-    const sortedItems = useMemo(() => {
-        return [...aggregatedItems].sort((a, b) => {
-            if (sortBy === 'urgency') return a.oldestOrderAt - b.oldestOrderAt;
-            if (sortBy === 'quantity') return b.totalQuantity - a.totalQuantity;
-            if (sortBy === 'tables') return b.tableNumbers.length - a.tableNumbers.length;
-            return 0;
-        });
-    }, [aggregatedItems, sortBy]);
-
-    // 4. Action Handlers
-
-    const handleIncrement = (id) => {
-        setPreparedState(prev => {
-            const current = prev[id] || 0;
-            // Cap at total? Aggregation recalculates on every render? 
-            // Better to just increment. Visuals handle the cap check.
-            return { ...prev, [id]: current + 1 };
-        });
     };
 
-    const handleMarkAll = (id, total) => {
-        setPreparedState(prev => ({ ...prev, [id]: total }));
-    };
-
-    const handleDispatch = async (item) => {
-        // Optimistic UI updates could happen here, but we rely on Firestore live sync.
-
-        // 1. Identify Orders to Update
-        // "Dispatch" implies the chef is done with this batch. 
-        // We will update involved orders to 'ready'. 
-        // NOTE: This might mark an order ready even if other items (drinks?) are not done. 
-        // In a strict KDS, we'd check partials, but per instructions, we focus on Chef Workload.
-        // We'll update involved orders.
-
-        const updates = item.involvedOrderIds.map(orderId => {
-            const orderDoc = doc(db, 'orders', orderId);
-            return updateDoc(orderDoc, {
+    const handleMarkReady = async (orderId) => {
+        try {
+            const orderRef = doc(db, 'orders', orderId);
+            await updateDoc(orderRef, {
                 status: 'ready',
                 updatedAt: serverTimestamp()
             });
-        });
-
-        try {
-            await Promise.all(updates);
-
-            // Clear local state for this item
-            setPreparedState(prev => {
+            setLocalProgress(prev => {
                 const next = { ...prev };
-                delete next[item.id];
+                delete next[orderId];
                 return next;
             });
-
-        } catch (err) {
-            console.error("Dispatch Failed", err);
-            alert("Failed to update orders. Check console.");
+        } catch (error) {
+            console.error("Error:", error);
         }
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-200 font-sans p-6 pb-20">
-            {/* Header Area */}
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 max-w-[2000px] mx-auto">
-                <div>
-                    <h1 className="text-4xl font-black text-white flex items-center gap-3">
-                        <Flame className="text-orange-500 fill-orange-500" size={32} />
-                        CHEF STATION
-                    </h1>
-                    <p className="text-slate-500 mt-2 font-medium">
-                        {orders.length} Active Orders • {aggregatedItems.length} Unique Items to Cook
-                    </p>
-                </div>
+        <div className="min-h-screen bg-gray-50 text-gray-900 font-sans selection:bg-orange-100">
+            {/* Header */}
+            <header className="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
+                <div className="max-w-[2000px] mx-auto px-6 py-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        {/* Branding */}
+                        <div className="flex items-center gap-4">
+                            <div className="bg-orange-500 rounded-xl p-3 shadow-lg shadow-orange-200">
+                                <ChefHat size={28} className="text-white" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+                                    CHEF<span className="text-orange-500">DISPLAY</span>
+                                </h1>
+                                <p className="text-sm font-bold text-gray-400">
+                                    {orders.length} Active • FIFO Mode
+                                </p>
+                            </div>
+                        </div>
 
-                <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-800">
-                        {[
-                            { id: 'urgency', label: 'Oldest', icon: Clock },
-                            { id: 'quantity', label: 'Qty', icon: ArrowUp },
-                            { id: 'tables', label: 'Tables', icon: Users }
-                        ].map(opt => (
+                        {/* Controls */}
+                        <div className="flex items-center gap-3">
+                            <div className="flex p-1 bg-gray-100 rounded-xl border border-gray-200">
+                                {[
+                                    { id: 'oldest', label: 'Time', icon: Clock },
+                                    { id: 'table', label: 'Table', icon: Hash },
+                                    { id: 'newest', label: 'Recent', icon: TrendingUp }
+                                ].map(opt => (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => setSortBy(opt.id)}
+                                        className={`
+                                            flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all
+                                            ${sortBy === opt.id
+                                                ? 'bg-white text-orange-600 shadow-sm'
+                                                : 'text-gray-500 hover:text-gray-900'
+                                            }
+                                        `}
+                                    >
+                                        <opt.icon size={16} />
+                                        <span className="hidden sm:inline">{opt.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
                             <button
-                                key={opt.id}
-                                onClick={() => setSortBy(opt.id)}
-                                className={`
-                                    flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all
-                                    ${sortBy === opt.id
-                                        ? 'bg-indigo-600 text-white shadow-lg'
-                                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                                    }
-                                `}
+                                onClick={handleLogout}
+                                className="p-3 bg-white text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-gray-200 shadow-sm"
                             >
-                                <opt.icon size={16} />
-                                {opt.label}
+                                <LogOut size={20} />
                             </button>
-                        ))}
+                        </div>
                     </div>
-
-                    <button
-                        onClick={handleLogout}
-                        className="p-4 bg-slate-900 hover:bg-rose-900/20 text-slate-400 hover:text-rose-500 rounded-xl border border-slate-800 hover:border-rose-900/50 transition-colors"
-                        title="Logout"
-                    >
-                        <LogOut size={20} />
-                    </button>
                 </div>
             </header>
 
-            {/* Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 max-w-[2000px] mx-auto">
-                <AnimatePresence>
-                    {sortedItems.map(item => (
-                        <AggregatedItemCard
-                            key={item.id}
-                            item={item}
-                            preparedCount={preparedState[item.id] || 0}
-                            onIncrement={handleIncrement}
-                            onMarkAll={handleMarkAll}
-                            onDispatch={handleDispatch}
-                        />
-                    ))}
-                </AnimatePresence>
+            {/* Content */}
+            <div className="max-w-[2000px] mx-auto px-6 py-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 items-start">
+                    <AnimatePresence mode="popLayout">
+                        {sortedOrders.map(order => (
+                            <OrderCard
+                                key={order.orderId}
+                                order={order}
+                                progress={localProgress[order.orderId]}
+                                onItemClick={handleItemClick}
+                                onMarkAllItems={handleMarkAllItems}
+                                onMarkReady={handleMarkReady}
+                            />
+                        ))}
+                    </AnimatePresence>
+                </div>
 
-                {sortedItems.length === 0 && (
-                    <div className="col-span-full py-20 text-center opacity-50">
-                        <ChefHat size={64} className="mx-auto mb-4 text-slate-600" />
-                        <h2 className="text-2xl font-bold text-slate-500">All Clear! No Active Orders.</h2>
+                {sortedOrders.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-32 opacity-50">
+                        <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                            <CheckCircle size={40} className="text-gray-300" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-400">Kitchen is Clear</h2>
                     </div>
                 )}
-            </div>
-
-            {/* Explanation / Footer */}
-            <div className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-md border-t border-slate-800 p-2 text-center text-xs text-slate-600 z-50">
-                KDS Aggregation Logic • Groups unique items • Tracks local prep • Bulk updates Status to Ready
             </div>
         </div>
     );
