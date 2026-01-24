@@ -11,61 +11,61 @@ app.use(express.json());
 
 // Razorpay instance
 const instance = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
 // 🔹 IMPORTANT: root test
 app.get("/", (req, res) => {
-  res.json({ status: "API working" });
+    res.json({ status: "API working" });
 });
 
 // 🔹 ORDER ROUTE → /api/order
-app.get("/order", async (req, res) => {
-  try {
-    const amount = Number(req.query.amount || 1);
+app.get("/api/order", async (req, res) => {
+    try {
+        const amount = Number(req.query.amount || 1);
 
-    const order = await instance.orders.create({
-      amount: Math.round(amount * 100),
-      currency: "INR",
-      receipt: "ORD_" + Date.now(),
-    });
+        const order = await instance.orders.create({
+            amount: Math.round(amount * 100),
+            currency: "INR",
+            receipt: "ORD_" + Date.now(),
+        });
 
-    res.status(200).json({
-      amount: order.amount,
-      orderID: order.id,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Order creation failed" });
-  }
+        res.status(200).json({
+            amount: order.amount,
+            orderID: order.id,
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Order creation failed" });
+    }
 });
 
 // 🔹 VERIFY ROUTE → /api/verify
-app.post("/verify", async (req, res) => {
-  try {
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    } = req.body;
+app.post("/api/verify", async (req, res) => {
+    try {
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+        } = req.body;
 
-    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+        const sign = razorpay_order_id + "|" + razorpay_payment_id;
 
-    const expectedSign = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(sign)
-      .digest("hex");
+        const expectedSign = crypto
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(sign)
+            .digest("hex");
 
-    if (expectedSign === razorpay_signature) {
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ success: false });
+        if (expectedSign === razorpay_signature) {
+            res.json({ success: true });
+        } else {
+            res.status(400).json({ success: false });
+        }
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Verification failed" });
     }
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Verification failed" });
-  }
 });
 
 // ❗ CRITICAL FOR VERCEL
