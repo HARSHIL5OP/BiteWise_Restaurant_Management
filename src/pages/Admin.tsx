@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
     LayoutDashboard, Users, UtensilsCrossed, Settings, Plus, X,
     Search, Trash2, Edit2, ChevronRight, TrendingUp, DollarSign,
-    ShoppingBag, Bell, LogOut, ChefHat, User, UserCheck, Upload
+    ShoppingBag, Bell, LogOut, ChefHat, User, UserCheck, Upload,
+    QrCode, Grid, Download, Printer, Clock
 } from 'lucide-react';
+import QRCode from 'qrcode';
+import RestaurantFloorBlueprint from '../components/RestaurantFloorBlueprint';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -116,6 +119,7 @@ const RestaurantAdmin = () => {
     // Modals & Forms State
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [showAddStaff, setShowAddStaff] = useState(false);
+    const [showAddTable, setShowAddTable] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
 
     const [newMenuItem, setNewMenuItem] = useState({
@@ -127,6 +131,9 @@ const RestaurantAdmin = () => {
     const [newStaff, setNewStaff] = useState({
         firstName: '', lastName: '', email: '', password: '', role: 'waiter', shift: 'Morning'
     });
+
+    const [tables, setTables] = useState([]);
+    const [newTable, setNewTable] = useState({ tableNumber: '', capacity: '4' });
 
     const [tempSettings, setTempSettings] = useState({ name: restaurantName, logo: logo });
 
@@ -162,9 +169,20 @@ const RestaurantAdmin = () => {
             console.error("Staff fetch error:", error);
         });
 
+        // Fetch Tables
+        const unsubscribeTables = onSnapshot(collection(db, 'tables'), (snapshot) => {
+            const tablesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Sort by table number
+            tablesData.sort((a: any, b: any) => parseInt(a.tableNumber) - parseInt(b.tableNumber));
+            setTables(tablesData);
+        }, (error) => {
+            console.error("Tables fetch error:", error);
+        });
+
         return () => {
             unsubscribeMenu();
             unsubscribeStaff();
+            unsubscribeTables();
         };
     }, []);
 
@@ -280,10 +298,84 @@ const RestaurantAdmin = () => {
         }
     };
 
+    const handleDeleteTable = async (id) => {
+        if (confirm('Are you sure you want to delete this table?')) {
+            await deleteDoc(doc(db, 'tables', id));
+        }
+    };
+
     const saveSettings = () => {
         setRestaurantName(tempSettings.name);
         setLogo(tempSettings.logo);
         setShowSettings(false);
+    };
+
+    // Helper to convert Data URL to Blob/File for Cloudinary
+    const dataURLtoFile = (dataurl, filename) => {
+        const arr = dataurl.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new File([u8arr], filename, { type: mime });
+    };
+
+    const handleAddTable = async () => {
+        if (!newTable.tableNumber || !newTable.capacity) {
+            alert("Please fill all table details");
+            return;
+        };
+
+        // Check for uniqueness
+        if (tables.some(t => t.tableNumber.toString() === newTable.tableNumber.toString())) {
+            alert(`Table ${newTable.tableNumber} already exists!`);
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const tableNum = parseInt(newTable.tableNumber);
+
+            // Uniqueness check again with number type if needed, but the first check covers it string-wise if consistent.
+            // But let's rely on the first check.
+
+            // 1. Generate QR Code
+            // This URL should point to the customer facing menu/order page with table param
+            const qrData = `https://odoo-cafe-project.web.app/menu?table=${tableNum}`;
+            const qrDataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
+
+            // 2. Convert to File for Cloudinary
+            const qrFile = dataURLtoFile(qrDataUrl, `qr-table-${tableNum}.png`);
+
+            // 3. Upload to Cloudinary
+            const qrUrl = await uploadToCloudinary(qrFile);
+
+            // 4. Save to Firestore
+            const tableData = {
+                tableNumber: tableNum,
+                capacity: parseInt(newTable.capacity),
+                status: 'available',
+                qrUrl: qrUrl,
+                createdAt: new Date().toISOString()
+            };
+
+            // Using table number as ID for easier lookup/deduplication if needed, or auto-id
+            // Requirement says tableNumber must be unique. Let's use auto-ID but we already checked uniqueness.
+            await addDoc(collection(db, 'tables'), tableData);
+
+            setNewTable({ tableNumber: '', capacity: '4' });
+            setShowAddTable(false);
+            alert(`Table ${tableNum} added successfully!`);
+        } catch (error) {
+            console.error("Error adding table:", error);
+            alert("Failed to add table. Check console.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -299,6 +391,7 @@ const RestaurantAdmin = () => {
 
                 <div className="space-y-2 flex-1">
                     <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                    <SidebarItem icon={Grid} label="Tables" active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} />
                     <SidebarItem icon={UtensilsCrossed} label="Menu" active={activeTab === 'menu'} onClick={() => setActiveTab('menu')} />
                     <SidebarItem icon={Users} label="Staff" active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} />
                     <SidebarItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setTempSettings({ name: restaurantName, logo }); }} />
@@ -350,6 +443,153 @@ const RestaurantAdmin = () => {
                 </header>
 
                 <AnimatePresence mode="wait">
+                    {/* TABLES TAB */}
+                    {activeTab === 'tables' && (
+                        <motion.div
+                            key="tables"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="space-y-8"
+                        >
+                            <div className="flex justify-between items-center">
+                                <h1 className="text-3xl font-bold text-white">Table Management</h1>
+                                <button
+                                    onClick={() => setShowAddTable(true)}
+                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 flex items-center gap-2 transition-all"
+                                >
+                                    <Plus size={20} /> Add Table
+                                </button>
+                            </div>
+
+                            {/* Table Stats */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex items-center gap-4">
+                                    <div className="p-3 bg-indigo-500/10 rounded-lg text-indigo-400">
+                                        <Grid size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-slate-500 text-sm font-medium">Total Tables</p>
+                                        <h3 className="text-2xl font-bold text-white">{tables.length}</h3>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex items-center gap-4">
+                                    <div className="p-3 bg-white/10 rounded-lg text-white">
+                                        <div className="w-6 h-6 rounded-full border-2 border-white/50" />
+                                    </div>
+                                    <div>
+                                        <p className="text-slate-500 text-sm font-medium">Available</p>
+                                        <h3 className="text-2xl font-bold text-white">{tables.filter(t => t.status === 'available').length}</h3>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex items-center gap-4">
+                                    <div className="p-3 bg-red-500/10 rounded-lg text-red-400">
+                                        <User size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-slate-500 text-sm font-medium">Occupied</p>
+                                        <h3 className="text-2xl font-bold text-white">{tables.filter(t => t.status === 'occupied').length}</h3>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex items-center gap-4">
+                                    <div className="p-3 bg-orange-500/10 rounded-lg text-orange-400">
+                                        <Clock size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-slate-500 text-sm font-medium">Reserved</p>
+                                        <h3 className="text-2xl font-bold text-white">{tables.filter(t => t.status === 'reserved').length}</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Table Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {tables.map(table => (
+                                    <div
+                                        key={table.id}
+                                        className={`
+                                            relative bg-slate-900 border-2 rounded-2xl p-6 transition-all duration-300 hover:shadow-xl group
+                                            ${table.status === 'available' ? 'border-slate-800 hover:border-slate-600' : ''}
+                                            ${table.status === 'occupied' ? 'border-red-500/20 hover:border-red-500/40 bg-red-500/5' : ''}
+                                            ${table.status === 'reserved' ? 'border-orange-500/20 hover:border-orange-500/40 bg-orange-500/5' : ''}
+                                        `}
+                                    >
+                                        {/* Delete Button (visible on hover) */}
+                                        <button
+                                            onClick={() => handleDeleteTable(table.id)}
+                                            className="absolute top-4 right-4 p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                            title="Delete Table"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <h3 className="text-3xl font-black text-white mb-1">T-{table.tableNumber}</h3>
+                                                <p className="text-slate-400 text-sm flex items-center gap-1">
+                                                    <Users size={14} /> {table.capacity} Seats
+                                                </p>
+                                            </div>
+                                            <div className={`
+                                                px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
+                                                ${table.status === 'available' ? 'bg-slate-800 text-slate-300' : ''}
+                                                ${table.status === 'occupied' ? 'bg-red-500 text-white' : ''}
+                                                ${table.status === 'reserved' ? 'bg-orange-500 text-white' : ''}
+                                            `}>
+                                                {table.status}
+                                            </div>
+                                        </div>
+
+                                        {/* QR Code Preview */}
+                                        <div className="bg-white p-3 rounded-xl w-fit mx-auto mb-4 group-hover:scale-105 transition-transform duration-300">
+                                            <img
+                                                src={table.qrUrl}
+                                                alt={`QR T-${table.tableNumber}`}
+                                                className="w-24 h-24 object-contain opacity-90 group-hover:opacity-100"
+                                            />
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <a
+                                                href={table.qrUrl}
+                                                download={`Table-${table.tableNumber}-QR.png`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <Download size={14} /> PNG
+                                            </a>
+                                            <button
+                                                onClick={() => {
+                                                    const printWindow = window.open('', '_blank');
+                                                    printWindow.document.write(`
+                                                        <html>
+                                                            <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+                                                                <h1>Table ${table.tableNumber}</h1>
+                                                                <img src="${table.qrUrl}" width="300" />
+                                                                <p>Scan to Order</p>
+                                                            </body>
+                                                        </html>
+                                                    `);
+                                                    printWindow.document.close();
+                                                    printWindow.print();
+                                                }}
+                                                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                <Printer size={14} /> Print
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Floor Plan Blueprint */}
+                            <div className="mt-8 border-t border-slate-800 pt-8">
+                                <RestaurantFloorBlueprint tables={tables} />
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* DASHBOARD TAB */}
                     {activeTab === 'dashboard' && (
                         <motion.div
@@ -632,6 +872,34 @@ const RestaurantAdmin = () => {
                 </div>
             </Modal>
 
+            <Modal isOpen={showAddTable} onClose={() => setShowAddTable(false)} title="Add New Table">
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Table Number</label>
+                        <input type="number" className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                            placeholder="e.g. 12"
+                            value={newTable.tableNumber} onChange={e => setNewTable({ ...newTable, tableNumber: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Capacity</label>
+                        <input type="number" className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                            placeholder="4"
+                            value={newTable.capacity} onChange={e => setNewTable({ ...newTable, capacity: e.target.value })} />
+                    </div>
+                    <div className="p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-200 text-sm">
+                        <p>A QR Code will be automatically generated and saved for this table.</p>
+                    </div>
+                    <button
+                        onClick={handleAddTable}
+                        disabled={isLoading}
+                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                    >
+                        {isLoading ? <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" /> : <Plus size={20} />}
+                        {isLoading ? 'Generating QR...' : 'Add Table'}
+                    </button>
+                </div>
+            </Modal>
+
             <Modal isOpen={showAddStaff} onClose={() => setShowAddStaff(false)} title="Add Staff Member">
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -688,6 +956,61 @@ const RestaurantAdmin = () => {
                         className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 disabled:opacity-50"
                     >
                         {isLoading ? 'Adding...' : 'Add Staff'}
+                    </button>
+                </div>
+            </Modal>
+
+            {/* Add Table Modal */}
+            <Modal isOpen={showAddTable} onClose={() => setShowAddTable(false)} title="Add New Table">
+                <div className="space-y-6">
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 flex items-center gap-4">
+                        <div className="bg-white p-2 rounded-lg">
+                            <img
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(JSON.stringify({ tableId: newTable.tableNumber || 'PREVIEW' }))}`}
+                                alt="QR Preview"
+                                className="w-16 h-16"
+                            />
+                        </div>
+                        <div>
+                            <p className="text-white font-bold text-sm">Auto-Generated QR</p>
+                            <p className="text-slate-500 text-xs">Based on unique Table ID</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-2">Table Number</label>
+                        <input
+                            type="number"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 outline-none font-mono text-lg"
+                            placeholder="e.g. 12"
+                            value={newTable.tableNumber}
+                            onChange={e => setNewTable({ ...newTable, tableNumber: e.target.value })}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-2">Seating Capacity</label>
+                        <div className="grid grid-cols-4 gap-2">
+                            {[2, 4, 6, 8].map(cap => (
+                                <button
+                                    key={cap}
+                                    onClick={() => setNewTable({ ...newTable, capacity: cap.toString() })}
+                                    className={`py-2 rounded-lg font-bold border transition-all ${newTable.capacity === cap.toString()
+                                        ? 'bg-indigo-600 border-indigo-500 text-white'
+                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-600'
+                                        }`}
+                                >
+                                    {cap}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleAddTable}
+                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 shadow-lg shadow-indigo-500/20"
+                    >
+                        Create Table
                     </button>
                 </div>
             </Modal>
