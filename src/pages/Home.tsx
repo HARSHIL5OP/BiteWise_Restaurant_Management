@@ -51,11 +51,8 @@ const RestaurantApp = () => {
     const categoryScrollRef = useRef<HTMLDivElement>(null);
 
     // --- AUTH & INITIALIZATION ---
-    useEffect(() => {
-        if (!loading && !user) {
-            navigate('/login');
-        }
-    }, [user, loading, navigate]);
+    // Auth protection handled by ProtectedRoute
+
 
     useEffect(() => {
         if (tableId) {
@@ -386,8 +383,8 @@ const RestaurantApp = () => {
                                 if (view === 'menu') setMenuViewMode('overview'); // Reset to overview
                             }}
                             className={`pb-3 text-sm font-semibold capitalize relative transition-colors whitespace-nowrap ${activeView === view
-                                    ? 'text-orange-600'
-                                    : 'text-gray-400 hover:text-gray-600'
+                                ? 'text-orange-600'
+                                : 'text-gray-400 hover:text-gray-600'
                                 }`}
                         >
                             {view}
@@ -474,8 +471,8 @@ const RestaurantApp = () => {
                                                 key={cat.category}
                                                 onClick={() => handleCategoryClick(cat.category)}
                                                 className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-medium transition-all flex items-center gap-2 ${selectedCategory === cat.category
-                                                        ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md transform scale-105'
-                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md transform scale-105'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                     }`}
                                             >
                                                 <span>{cat.icon}</span>
@@ -617,8 +614,8 @@ const RestaurantApp = () => {
                                         {/* Status Header */}
                                         <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
                                             <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider ${order.status === 'in_queue' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
-                                                    order.status === 'preparing' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                                                        'bg-green-50 text-green-700 border border-green-200'
+                                                order.status === 'preparing' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                                                    'bg-green-50 text-green-700 border border-green-200'
                                                 }`}>
                                                 {order.status === 'in_queue' && <Clock className="w-3 h-3" />}
                                                 {order.status === 'preparing' && <ChefHat className="w-3 h-3" />}

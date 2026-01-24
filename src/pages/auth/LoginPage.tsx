@@ -45,7 +45,7 @@ export default function LoginPage() {
       if (role === 'admin') {
         navigate('/admin');
       } else if (role === 'chef') {
-        navigate('/Chef');
+        navigate('/chef');
       } else if (role === 'waiter') {
         navigate('/waiter');
       } else {
@@ -81,7 +81,7 @@ export default function LoginPage() {
       if (role === 'admin') {
         navigate('/admin');
       } else if (role === 'chef') {
-        navigate('/Chef');
+        navigate('/chef');
       } else if (role === 'waiter') {
         navigate('/waiter');
       } else {
@@ -110,7 +110,7 @@ export default function LoginPage() {
       if (role === 'admin') {
         navigate('/admin');
       } else if (role === 'chef') {
-        navigate('/Chef');
+        navigate('/chef');
       } else if (role === 'waiter') {
         navigate('/waiter');
       } else {
