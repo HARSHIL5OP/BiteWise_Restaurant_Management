@@ -30,8 +30,8 @@ const RestaurantApp = () => {
     const [cart, setCart] = useState<any[]>([]);
     const [activeView, setActiveView] = useState('menu');
     const [orders, setOrders] = useState<any[]>([]);
+    const [history, setHistory] = useState<any[]>([]);
     const [showCart, setShowCart] = useState(false);
-    const [selectedCategory, setSelectedCategory] = useState(null);
 
     // Check URL params for tableId
     const { tableId } = useParams();
@@ -43,7 +43,6 @@ const RestaurantApp = () => {
     }, [tableId]);
 
     const tableNumber = tableId || sessionStorage.getItem('currentTable') || "12";
-
 
     const [menuData, setMenuData] = useState<any[]>([]);
 
@@ -87,16 +86,17 @@ const RestaurantApp = () => {
             unsubscribeOrders = onSnapshot(q, (snapshot) => {
                 const fetchedOrders = snapshot.docs.map(doc => {
                     const data = doc.data();
-                    // Calculate estimated time based on status or creation time if simple
-                    // For now, mock estimated time or derive from logic
                     return {
                         id: doc.id,
                         ...data,
                         time: data.createdAt?.toDate() || new Date(),
-                        estimatedTime: 20 // Static for now, or calculate
+                        estimatedTime: 20
                     };
                 }).sort((a, b) => b.time - a.time);
-                setOrders(fetchedOrders);
+
+                // Separate active and history
+                setOrders(fetchedOrders.filter(o => o.status !== 'completed'));
+                setHistory(fetchedOrders.filter(o => o.status === 'completed'));
             }, (error) => {
                 console.error("Error fetching orders:", error);
             });
@@ -123,17 +123,12 @@ const RestaurantApp = () => {
         ).filter(item => item.quantity > 0));
     };
 
-    /**
-     * Balances load among waiters by finding the one with the fewest active orders.
-     */
     const assignWaiter = async (): Promise<{ waiterId: string | null; waiterName: string | null }> => {
         try {
-            // STEP 1: Fetch all active waiters
             const waitersQuery = query(collection(db, 'users'), where('role', '==', 'waiter'));
             const waitersSnapshot = await getDocs(waitersQuery);
 
             if (waitersSnapshot.empty) {
-                console.warn("No waiters found in system.");
                 return { waiterId: null, waiterName: null };
             }
 
@@ -142,8 +137,6 @@ const RestaurantApp = () => {
                 ...doc.data() as any
             }));
 
-            // STEP 2: Calculate workload for each waiter
-            // "Active" means status is NOT 'served' (i.e. in_queue, preparing, ready)
             const workloadPromises = waiters.map(async (waiter) => {
                 const q = query(
                     collection(db, 'orders'),
@@ -158,16 +151,10 @@ const RestaurantApp = () => {
             });
 
             const workloads = await Promise.all(workloadPromises);
-
-            // STEP 3: Determine least-loaded waiter(s)
             const minLoad = Math.min(...workloads.map(w => w.load));
             const eligibleWaiters = workloads.filter(w => w.load === minLoad);
-
-            // STEP 4: Tie-breaker logic (Random selection)
             const selected = eligibleWaiters[Math.floor(Math.random() * eligibleWaiters.length)];
             const selectedWaiter = selected.waiter;
-
-            console.log(`Assigned waiter: ${selectedWaiter.firstName} (Load: ${selected.load})`);
 
             return {
                 waiterId: selectedWaiter.id,
@@ -176,7 +163,6 @@ const RestaurantApp = () => {
 
         } catch (error) {
             console.error("Error assigning waiter:", error);
-            // Fallback: don't block order creation
             return { waiterId: null, waiterName: null };
         }
     };
@@ -186,20 +172,14 @@ const RestaurantApp = () => {
 
         try {
             const totalAmount = getTotalPrice();
-
-            // Dynamic Waiter Assignment
             const { waiterId, waiterName } = await assignWaiter();
 
-            // 1. Create the order in Firestore
             await addDoc(collection(db, 'orders'), {
                 tableId: tableNumber,
                 customerId: user.uid,
                 createdBy: user.uid,
-
-                // Assigned Waiter
                 waiterId: waiterId,
                 waiterName: waiterName,
-
                 status: 'in_queue',
                 totalAmount: totalAmount,
                 createdAt: serverTimestamp(),
@@ -209,14 +189,10 @@ const RestaurantApp = () => {
                     name: item.name,
                     price: item.price,
                     quantity: item.quantity,
-                    veg: item.veg ?? true // Preserve veg status for UI
+                    veg: item.veg ?? true
                 }))
             });
 
-            // 2. Update table status to occupied (check if not already occupied to save writes if needed, but safe to just update)
-            // Query tables to find the doc with tableNumber (assuming tableId in schema refers to the doc ID, but here we only have tableNumber "12")
-            // Since we don't know the exact doc ID for "Table 12", we might need to query it or assume a simpler structure. 
-            // For now, let's try to query it.
             const tablesQuery = query(collection(db, 'tables'), where('tableNumber', '==', tableNumber));
             const tableDocs = await getDocs(tablesQuery);
 
@@ -225,18 +201,11 @@ const RestaurantApp = () => {
                 await updateDoc(doc(db, 'tables', tableDoc.id), {
                     status: 'occupied'
                 });
-            } else {
-                // Option to create it if it doesn't exist, strictly following instructions to update.
-                // If table doesn't exist, we skip for now or could create it. 
-                // Let's safe guard.
-                console.log("Table document not found, skipping table status update.");
             }
 
-            // 3. Clear cart and UI updates
             setCart([]);
             setShowCart(false);
             setActiveView('orders');
-            // No need to setOrders locally, the snapshot listener will handle it
 
         } catch (error) {
             console.error("Error placing order:", error);
@@ -294,9 +263,18 @@ const RestaurantApp = () => {
                         });
                         const verifyData = await verifyRes.json();
                         if (verifyData.success) {
-                            alert("Payment Successful!");
-                            setOrders([]);
-                            setActiveView('menu');
+                            const updatePromises = orders.map(order =>
+                                updateDoc(doc(db, 'orders', order.id), {
+                                    status: 'completed',
+                                    paymentId: response.razorpay_payment_id,
+                                    updatedAt: serverTimestamp()
+                                })
+                            );
+
+                            await Promise.all(updatePromises);
+
+                            alert("Payment Successful! Orders moved to history.");
+                            setActiveView('history');
                         } else {
                             alert("Payment Verification Failed");
                         }
@@ -409,6 +387,15 @@ const RestaurantApp = () => {
                                 </span>
                             )}
                         </button>
+                        <button
+                            onClick={() => setActiveView('history')}
+                            className={`flex-1 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all ${activeView === 'history'
+                                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                        >
+                            History
+                        </button>
                     </div>
                 </div>
             </div>
@@ -493,8 +480,8 @@ const RestaurantApp = () => {
                         {orders.length === 0 ? (
                             <div className="text-center py-12">
                                 <ChefHat className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                                <p className="text-gray-500 font-medium">No orders yet</p>
-                                <p className="text-sm text-gray-400 mt-1">Start ordering from the menu</p>
+                                <p className="text-gray-500 font-medium">No active orders</p>
+                                <p className="text-sm text-gray-400 mt-1">Check History for past orders</p>
                             </div>
                         ) : (
                             <>
@@ -511,6 +498,7 @@ const RestaurantApp = () => {
                                                 {order.status === 'in_queue' && <Clock className="w-3.5 h-3.5" />}
                                                 {order.status === 'preparing' && <ChefHat className="w-3.5 h-3.5" />}
                                                 {order.status === 'done' && <Check className="w-3.5 h-3.5" />}
+                                                {order.status === 'served' && <UtensilsCrossed className="w-3.5 h-3.5" />}
                                                 {order.status === 'in_queue' ? 'In Queue' :
                                                     order.status === 'preparing' ? 'Preparing' :
                                                         order.status === 'ready' ? 'Ready' : 'Served'}
@@ -551,10 +539,48 @@ const RestaurantApp = () => {
                                     onClick={completeAllOrders}
                                     className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 mt-6"
                                 >
-                                    Complete & Pay
+                                    Pay & Complete
                                     <ChevronRight className="w-5 h-5" />
                                 </button>
                             </>
+                        )}
+                    </div>
+                )}
+
+                {activeView === 'history' && (
+                    <div className="py-6 space-y-4">
+                        {history.length === 0 ? (
+                            <div className="text-center py-12">
+                                <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                <p className="text-gray-500 font-medium">No past orders</p>
+                            </div>
+                        ) : (
+                            history.map((order) => (
+                                <div key={order.id} className="bg-gray-50 rounded-2xl p-4 border border-gray-200 opacity-75 grayscale-[0.5] hover:grayscale-0 transition-all">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-xs text-gray-500">
+                                            {order.time.toLocaleDateString()} {order.time.toLocaleTimeString()}
+                                        </span>
+                                        <div className="px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 bg-gray-200 text-gray-700">
+                                            <Check className="w-3.5 h-3.5" /> Completed
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2 mb-3">
+                                        {order.items.map((item: any, idx: number) => (
+                                            <div key={idx} className="flex justify-between items-center text-sm">
+                                                <span className="text-gray-700">{item.name} x{item.quantity}</span>
+                                                <span className="font-semibold text-gray-600">₹{item.price * item.quantity}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
+                                        <span className="font-bold text-gray-600">Paid Total</span>
+                                        <span className="font-bold text-gray-800">₹{order.totalAmount}</span>
+                                    </div>
+                                </div>
+                            ))
                         )}
                     </div>
                 )}
@@ -672,7 +698,7 @@ const RestaurantApp = () => {
                                                     onClick={() => updateQuantity(item.id, 1)}
                                                     className="w-6 h-6 bg-orange-500 text-white rounded-md flex items-center justify-center hover:bg-orange-600 transition-all"
                                                 >
-                                                    <Plus className="w-3 h-3" />
+                                                    <Plus className="w-3 h-3 text-white" />
                                                 </button>
                                             </div>
                                         </div>
