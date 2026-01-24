@@ -114,17 +114,83 @@ const RestaurantApp = () => {
         ).filter(item => item.quantity > 0));
     };
 
+    /**
+     * Balances load among waiters by finding the one with the fewest active orders.
+     */
+    const assignWaiter = async (): Promise<{ waiterId: string | null; waiterName: string | null }> => {
+        try {
+            // STEP 1: Fetch all active waiters
+            const waitersQuery = query(collection(db, 'users'), where('role', '==', 'waiter'));
+            const waitersSnapshot = await getDocs(waitersQuery);
+
+            if (waitersSnapshot.empty) {
+                console.warn("No waiters found in system.");
+                return { waiterId: null, waiterName: null };
+            }
+
+            const waiters = waitersSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data() as any
+            }));
+
+            // STEP 2: Calculate workload for each waiter
+            // "Active" means status is NOT 'served' (i.e. in_queue, preparing, ready)
+            const workloadPromises = waiters.map(async (waiter) => {
+                const q = query(
+                    collection(db, 'orders'),
+                    where('waiterId', '==', waiter.id)
+                );
+                const snapshot = await getDocs(q);
+                const activeCount = snapshot.docs.filter(d => d.data().status !== 'served').length;
+                return {
+                    waiter,
+                    load: activeCount
+                };
+            });
+
+            const workloads = await Promise.all(workloadPromises);
+
+            // STEP 3: Determine least-loaded waiter(s)
+            const minLoad = Math.min(...workloads.map(w => w.load));
+            const eligibleWaiters = workloads.filter(w => w.load === minLoad);
+
+            // STEP 4: Tie-breaker logic (Random selection)
+            const selected = eligibleWaiters[Math.floor(Math.random() * eligibleWaiters.length)];
+            const selectedWaiter = selected.waiter;
+
+            console.log(`Assigned waiter: ${selectedWaiter.firstName} (Load: ${selected.load})`);
+
+            return {
+                waiterId: selectedWaiter.id,
+                waiterName: `${selectedWaiter.firstName || ''} ${selectedWaiter.lastName || ''}`.trim()
+            };
+
+        } catch (error) {
+            console.error("Error assigning waiter:", error);
+            // Fallback: don't block order creation
+            return { waiterId: null, waiterName: null };
+        }
+    };
+
     const placeOrder = async () => {
         if (cart.length === 0 || !user) return;
 
         try {
             const totalAmount = getTotalPrice();
 
+            // Dynamic Waiter Assignment
+            const { waiterId, waiterName } = await assignWaiter();
+
             // 1. Create the order in Firestore
             await addDoc(collection(db, 'orders'), {
                 tableId: tableNumber,
                 customerId: user.uid,
                 createdBy: user.uid,
+
+                // Assigned Waiter
+                waiterId: waiterId,
+                waiterName: waiterName,
+
                 status: 'in_queue',
                 totalAmount: totalAmount,
                 createdAt: serverTimestamp(),
