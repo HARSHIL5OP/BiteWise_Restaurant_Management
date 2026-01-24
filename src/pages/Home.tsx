@@ -182,29 +182,8 @@ const RestaurantApp = () => {
         }
     };
 
-    // --- CART RESTORATION ---
-    useEffect(() => {
-        // Recover cart if redirected back from login
-        const savedCart = sessionStorage.getItem('savedCart');
-        if (savedCart) {
-            try {
-                setCart(JSON.parse(savedCart));
-                setShowCart(true); // Open cart immediately
-                sessionStorage.removeItem('savedCart');
-            } catch (e) { console.error("Failed to restore cart", e) }
-        }
-    }, [user]);
-
     const placeOrder = async () => {
-        if (cart.length === 0) return;
-
-        // AUTH GATE: If not logged in, force login flow but save cart first
-        if (!user) {
-            sessionStorage.setItem('savedCart', JSON.stringify(cart));
-            sessionStorage.setItem('postLoginAction', 'PLACE_ORDER');
-            navigate('/login');
-            return;
-        }
+        if (cart.length === 0 || !user) return;
 
         try {
             const totalAmount = cartTotal;
@@ -239,9 +218,6 @@ const RestaurantApp = () => {
             setCart([]);
             setShowCart(false);
             setActiveView('orders');
-
-            // Clear any post-login flags
-            sessionStorage.removeItem('postLoginAction');
 
         } catch (error) {
             console.error("Error placing order:", error);
