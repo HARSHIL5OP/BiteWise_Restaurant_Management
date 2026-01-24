@@ -5,12 +5,16 @@ import { Mail, ArrowLeft, ArrowRight, CheckCircle, Send } from 'lucide-react';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { AuthInput } from '@/components/auth/AuthInput';
 import { AuthButton } from '@/components/auth/AuthButton';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  const { resetPassword } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,19 +31,24 @@ export default function ForgotPasswordPage() {
     }
 
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await resetPassword(email);
       setIsSuccess(true);
-      // Your existing Firebase password reset logic would go here
-    }, 1500);
+      toast.success("Password reset link sent");
+    } catch (err: any) {
+      console.error(err);
+      const errorMessage = err.message ? err.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ') : "An error occurred";
+      setError(errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <AuthLayout 
+    <AuthLayout
       title={isSuccess ? "Check your email" : "Reset your password"}
-      subtitle={isSuccess 
-        ? `We've sent a password reset link to ${email}` 
+      subtitle={isSuccess
+        ? `We've sent a password reset link to ${email}`
         : "Enter your email and we'll send you a reset link"
       }
     >
@@ -58,33 +67,33 @@ export default function ForgotPasswordPage() {
                 className="relative"
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ 
+                transition={{
                   type: "spring",
                   stiffness: 260,
                   damping: 20,
-                  delay: 0.2 
+                  delay: 0.2
                 }}
               >
                 {/* Glow ring */}
                 <motion.div
                   className="absolute inset-0 rounded-full bg-success/20"
-                  animate={{ 
+                  animate={{
                     scale: [1, 1.5, 1],
                     opacity: [0.5, 0, 0.5]
                   }}
-                  transition={{ 
+                  transition={{
                     duration: 2,
                     repeat: Infinity,
                     ease: "easeInOut"
                   }}
                 />
-                
+
                 {/* Icon container */}
                 <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-success/10">
                   <motion.div
                     initial={{ scale: 0, rotate: -180 }}
                     animate={{ scale: 1, rotate: 0 }}
-                    transition={{ 
+                    transition={{
                       delay: 0.4,
                       type: "spring",
                       stiffness: 200
@@ -104,15 +113,20 @@ export default function ForgotPasswordPage() {
               transition={{ delay: 0.6 }}
             >
               <p className="text-sm text-muted-foreground">
-                Click the link in your email to reset your password. 
+                Click the link in your email to reset your password.
                 If you don't see the email, check your spam folder.
               </p>
-              
+
               {/* Resend Button */}
               <button
                 type="button"
-                onClick={() => {
-                  // Resend logic would go here
+                onClick={async () => {
+                  try {
+                    await resetPassword(email);
+                    toast.success("Email sent again");
+                  } catch (e) {
+                    toast.error("Failed to resend");
+                  }
                 }}
                 className="inline-flex items-center gap-2 text-sm text-accent hover:text-accent/80 transition-colors"
               >
@@ -183,7 +197,7 @@ export default function ForgotPasswordPage() {
             </Link>
 
             {/* Help Text */}
-            <motion.p 
+            <motion.p
               className="text-center text-xs text-muted-foreground"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

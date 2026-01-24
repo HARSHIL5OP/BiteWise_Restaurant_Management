@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, ArrowRight, Shield, CheckCircle } from 'lucide-react';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { AuthInput } from '@/components/auth/AuthInput';
-import { AuthButton, GoogleButton } from '@/components/auth/AuthButton';
+import { AuthButton, GoogleButton, GithubButton } from '@/components/auth/AuthButton';
 import { PasswordStrengthMeter } from '@/components/auth/PasswordStrengthMeter';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -18,7 +20,11 @@ export default function SignupPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const { signup, loginWithGoogle, loginWithGithub } = useAuth();
+  const navigate = useNavigate();
 
   const updateField = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -30,7 +36,7 @@ export default function SignupPage() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.firstName.trim()) {
       newErrors.firstName = 'First name is required';
     }
@@ -59,28 +65,82 @@ export default function SignupPage() {
   };
 
   const handleSignup = async (e: React.FormEvent) => {
+    alert("hello");
     e.preventDefault();
-    
-    if (!validateForm()) return;
-    
+    if (!validateForm()) {
+      console.log("Form validation failed", errors);
+      toast.error("Please fix the errors in the form");
+      return;
+    }
+
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const cred = await signup(formData.email, formData.password, {
+        firstName: formData.firstName,
+        lastName: formData.lastName
+      });
+
+      toast.success("Account created successfully");
+
+      // Since signup creates customer role by default, redirect to home
+      // If you need to check role, you can fetch it here
+      navigate('/home');
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      let errorMessage = "An error occurred";
+
+      if (error.code === 'auth/internal-error' || error.message?.includes('network')) {
+        errorMessage = "Network error. Please check your internet connection and try again.";
+      } else if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "This email is already registered. Please login instead.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "Password is too weak. Please use at least 8 characters.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Invalid email address.";
+      } else if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+        errorMessage = "Database permission error. Please check Firestore security rules.";
+      } else if (error.message) {
+        errorMessage = error.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ');
+      }
+
+      toast.error(errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1));
+    } finally {
       setIsLoading(false);
-      // Your existing Firebase auth logic would go here
-    }, 1500);
+    }
   };
 
   const handleGoogleSignup = async () => {
     setIsGoogleLoading(true);
-    setTimeout(() => {
+    try {
+      await loginWithGoogle();
+      toast.success("Account created successfully");
+      navigate('/');
+    } catch (error: any) {
+      console.error(error);
+      const errorMessage = error.message ? error.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ') : "An error occurred";
+      toast.error(errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1));
+    } finally {
       setIsGoogleLoading(false);
-      // Your existing Google OAuth logic would go here
-    }, 1500);
+    }
+  };
+
+  const handleGithubSignup = async () => {
+    setIsGithubLoading(true);
+    try {
+      await loginWithGithub();
+      toast.success("Account created successfully");
+      navigate('/');
+    } catch (error: any) {
+      console.error(error);
+      const errorMessage = error.message ? error.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ') : "An error occurred";
+      toast.error(errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1));
+    } finally {
+      setIsGithubLoading(false);
+    }
   };
 
   return (
-    <AuthLayout 
+    <AuthLayout
       title="Create your account"
       subtitle="Start your 14-day free trial"
     >
@@ -146,7 +206,7 @@ export default function SignupPage() {
           value={formData.confirmPassword}
           onChange={(e) => updateField('confirmPassword', e.target.value)}
           error={errors.confirmPassword}
-          success={formData.confirmPassword && formData.password === formData.confirmPassword}
+          success={formData.confirmPassword !== '' && formData.password === formData.confirmPassword}
           icon={<Lock className="h-5 w-5" />}
           autoComplete="new-password"
           required
@@ -163,11 +223,10 @@ export default function SignupPage() {
                 className="peer sr-only"
               />
               <motion.div
-                className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors ${
-                  formData.acceptTerms 
-                    ? 'border-accent bg-accent' 
-                    : 'border-border bg-background'
-                } ${errors.acceptTerms ? 'border-destructive' : ''}`}
+                className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors ${formData.acceptTerms
+                  ? 'border-accent bg-accent'
+                  : 'border-border bg-background'
+                  } ${errors.acceptTerms ? 'border-destructive' : ''}`}
                 whileTap={{ scale: 0.9 }}
               >
                 <AnimatePresence>
@@ -191,7 +250,7 @@ export default function SignupPage() {
             </span>
           </label>
           {errors.acceptTerms && (
-            <motion.p 
+            <motion.p
               className="text-xs text-destructive"
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
@@ -215,14 +274,21 @@ export default function SignupPage() {
           <span>or continue with</span>
         </div>
 
-        {/* Google OAuth */}
-        <GoogleButton 
-          isLoading={isGoogleLoading}
-          onClick={handleGoogleSignup}
-        />
+        <div className="space-y-3">
+          {/* Google OAuth */}
+          <GoogleButton
+            isLoading={isGoogleLoading}
+            onClick={handleGoogleSignup}
+          />
+          {/* Github OAuth */}
+          <GithubButton
+            isLoading={isGithubLoading}
+            onClick={handleGithubSignup}
+          />
+        </div>
 
         {/* Sign In Link */}
-        <motion.p 
+        <motion.p
           className="text-center text-sm text-muted-foreground"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -235,7 +301,7 @@ export default function SignupPage() {
         </motion.p>
 
         {/* Security Note */}
-        <motion.div 
+        <motion.div
           className="flex items-center justify-center gap-2 text-xs text-muted-foreground"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

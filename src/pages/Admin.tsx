@@ -1,0 +1,670 @@
+import React, { useState, useEffect } from 'react';
+import {
+    LayoutDashboard, Users, UtensilsCrossed, Settings, Plus, X,
+    Search, Trash2, Edit2, ChevronRight, TrendingUp, DollarSign,
+    ShoppingBag, Bell, LogOut, ChefHat, User, UserCheck, Upload
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    BarChart, Bar, AreaChart, Area
+} from 'recharts';
+import { useNavigate } from 'react-router-dom';
+import { db } from '../lib/firebase';
+import { collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { uploadToCloudinary } from '../lib/cloudinary';
+import { useAuth } from '../contexts/AuthContext';
+
+// --- Mock Stats Data (Keep for charts for now) ---
+const MOCK_DATA = [
+    { name: 'Mon', revenue: 4000, orders: 240 },
+    { name: 'Tue', revenue: 3000, orders: 139 },
+    { name: 'Wed', revenue: 2000, orders: 980 },
+    { name: 'Thu', revenue: 2780, orders: 390 },
+    { name: 'Fri', revenue: 1890, orders: 480 },
+    { name: 'Sat', revenue: 2390, orders: 380 },
+    { name: 'Sun', revenue: 3490, orders: 430 },
+];
+
+// --- Components ---
+
+const SidebarItem = ({ icon: Icon, label, active, onClick, className = "" }) => (
+    <button
+        onClick={onClick}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group ${active
+            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
+            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            } ${className}`}
+    >
+        <Icon size={20} className={`${active ? 'text-white' : 'text-slate-400 group-hover:text-indigo-400'} transition-colors`} />
+        <span className="font-medium">{label}</span>
+        {active && <motion.div layoutId="active-pill" className="ml-auto w-1.5 h-1.5 rounded-full bg-white" />}
+    </button>
+);
+
+const StatCard = ({ title, value, subtext, icon: Icon, trend }) => (
+    <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-6 rounded-2xl relative overflow-hidden group hover:border-indigo-500/30 transition-all duration-300">
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Icon size={80} />
+        </div>
+        <div className="flex items-start justify-between mb-4">
+            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
+                <Icon size={24} />
+            </div>
+            <span className={`text-sm font-medium px-2 py-1 rounded-full ${trend > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                }`}>
+                {trend > 0 ? '+' : ''}{trend}%
+            </span>
+        </div>
+        <h3 className="text-slate-400 text-sm font-medium mb-1">{title}</h3>
+        <p className="text-3xl font-bold text-white mb-1">{value}</p>
+        <p className="text-slate-500 text-xs">{subtext}</p>
+    </div>
+);
+
+const Modal = ({ isOpen, onClose, title, children }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={onClose}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative bg-slate-900 border border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
+            >
+                <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/50">
+                    <h2 className="text-xl font-bold text-white">{title}</h2>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="p-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                    {children}
+                </div>
+            </motion.div>
+        </div>
+    );
+};
+
+// --- Main Component ---
+
+const RestaurantAdmin = () => {
+    const { logout } = useAuth();
+    const navigate = useNavigate();
+
+    // App State
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [restaurantName, setRestaurantName] = useState('Luxe Bistro');
+    const [logo, setLogo] = useState('🍽️');
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Data State
+    const [menuItems, setMenuItems] = useState([]);
+    const [staff, setStaff] = useState([]);
+    const [categories, setCategories] = useState(['Main Course', 'Appetizer', 'Dessert', 'Beverage']);
+
+    // Modals & Forms State
+    const [showAddMenu, setShowAddMenu] = useState(false);
+    const [showAddStaff, setShowAddStaff] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
+
+    const [newMenuItem, setNewMenuItem] = useState({
+        name: '', price: '', quantity: '', image: null, category: 'Main Course',
+        newCategory: '' // for adding custom category
+    });
+
+    // Updated initial staff state to match the user's DB schema preferences
+    const [newStaff, setNewStaff] = useState({
+        firstName: '', lastName: '', email: '', password: '', role: 'waiter', shift: 'Morning'
+    });
+
+    const [tempSettings, setTempSettings] = useState({ name: restaurantName, logo: logo });
+
+    // Computed
+    const chefs = staff.filter(s => s.role === 'chef');
+    const waiters = staff.filter(s => s.role === 'waiter');
+    const cashiers = staff.filter(s => s.role === 'cashier');
+
+    // Fetch Data on Mount
+    useEffect(() => {
+        const unsubscribeMenu = onSnapshot(collection(db, 'menu'), (snapshot) => {
+            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setMenuItems(items);
+
+            // Extract unique categories from fetched items to update list
+            const fetchedCategories = [...new Set(items.map(i => i.category))];
+            if (fetchedCategories.length > 0) {
+                setCategories(prev => [...new Set([...prev, ...fetchedCategories])]);
+            }
+        }, (error) => {
+            console.error("Menu fetch error:", error);
+        });
+
+        const unsubscribeStaff = onSnapshot(collection(db, 'users'), (snapshot) => {
+            const users = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                name: `${doc.data().firstName || ''} ${doc.data().lastName || ''}`.trim()
+            }));
+            // Filter only relevant roles if needed, or keeping all
+            setStaff(users.filter(u => ['chef', 'waiter', 'cashier'].includes(u.role)));
+        }, (error) => {
+            console.error("Staff fetch error:", error);
+        });
+
+        return () => {
+            unsubscribeMenu();
+            unsubscribeStaff();
+        };
+    }, []);
+
+    // Data Handlers
+    const handleLogout = async () => {
+        try {
+            await logout();
+            navigate('/');
+        } catch (error) {
+            console.error("Logout failed", error);
+        }
+    };
+
+    const handleAddMenu = async () => {
+        if (!newMenuItem.name || !newMenuItem.price) return;
+        setIsLoading(true);
+
+        try {
+            let imageUrl = '';
+            // Upload image if selected
+            if (newMenuItem.image && typeof newMenuItem.image !== 'string') {
+                imageUrl = await uploadToCloudinary(newMenuItem.image);
+            } else if (typeof newMenuItem.image === 'string') {
+                imageUrl = newMenuItem.image;
+            }
+
+            // Determine category
+            const categoryToSave = newMenuItem.newCategory ? newMenuItem.newCategory : newMenuItem.category;
+
+            const itemData = {
+                name: newMenuItem.name,
+                price: newMenuItem.price.toString(), // Store as string per request
+                quantity: newMenuItem.quantity.toString(), // Store as string per request
+                category: categoryToSave,
+                image: imageUrl || 'https://source.unsplash.com/random/800x600/?food',
+                createdAt: new Date().toISOString()
+            };
+
+            await addDoc(collection(db, 'menu'), itemData);
+
+            // Update local categories if new one added
+            if (newMenuItem.newCategory && !categories.includes(newMenuItem.newCategory)) {
+                setCategories([...categories, newMenuItem.newCategory]);
+            }
+
+            setNewMenuItem({ name: '', price: '', quantity: '', image: null, category: 'Main Course', newCategory: '' });
+            setShowAddMenu(false);
+        } catch (error) {
+            console.error("Error adding menu item: ", error);
+            alert("Failed to add item. See console.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAddStaff = async () => {
+        if (!newStaff.firstName || !newStaff.email) return;
+        setIsLoading(true);
+        try {
+            const staffData = {
+                firstName: newStaff.firstName,
+                lastName: newStaff.lastName,
+                email: newStaff.email,
+                password: newStaff.password,
+                role: newStaff.role,
+                shift: newStaff.shift,
+                createdAt: new Date().toISOString()
+            };
+            await addDoc(collection(db, 'users'), staffData);
+            setNewStaff({ firstName: '', lastName: '', email: '', password: '', role: 'waiter', shift: 'Morning' });
+            setShowAddStaff(false);
+        } catch (error) {
+            console.error("Error adding staff: ", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeleteMenu = async (id) => {
+        if (confirm('Are you sure you want to delete this item?')) {
+            await deleteDoc(doc(db, 'menu', id));
+        }
+    };
+
+    const handleDeleteStaff = async (id) => {
+        if (confirm('Are you sure you want to remove this staff member?')) {
+            await deleteDoc(doc(db, 'users', id));
+        }
+    };
+
+    const saveSettings = () => {
+        setRestaurantName(tempSettings.name);
+        setLogo(tempSettings.logo);
+        setShowSettings(false);
+    };
+
+    return (
+        <div className="flex min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30">
+            {/* Sidebar */}
+            <aside className="fixed left-0 top-0 h-screen w-64 bg-slate-950 border-r border-slate-800 p-6 flex flex-col z-40 lg:flex hidden">
+                <div className="flex items-center gap-3 mb-10 px-2">
+                    <span className="text-3xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400 font-bold">
+                        {logo}
+                    </span>
+                    <h1 className="text-xl font-bold text-white tracking-tight">{restaurantName}</h1>
+                </div>
+
+                <div className="space-y-2 flex-1">
+                    <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                    <SidebarItem icon={UtensilsCrossed} label="Menu" active={activeTab === 'menu'} onClick={() => setActiveTab('menu')} />
+                    <SidebarItem icon={Users} label="Staff" active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} />
+                    <SidebarItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setTempSettings({ name: restaurantName, logo }); }} />
+                    <SidebarItem icon={LogOut} label="Logout" active={false} onClick={handleLogout} className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 mt-10" />
+                </div>
+
+                <div className="mt-auto p-4 bg-slate-900 rounded-2xl border border-slate-800">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                            JD
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-white">John Doe</p>
+                            <p className="text-xs text-slate-500">Super Admin</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            {/* Mobile Sidebar (Simplified) */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-lg border-t border-slate-800 p-4 flex justify-around z-50">
+                <LayoutDashboard onClick={() => setActiveTab('dashboard')} className={activeTab === 'dashboard' ? 'text-indigo-400' : 'text-slate-500'} />
+                <UtensilsCrossed onClick={() => setActiveTab('menu')} className={activeTab === 'menu' ? 'text-indigo-400' : 'text-slate-500'} />
+                <Users onClick={() => setActiveTab('staff')} className={activeTab === 'staff' ? 'text-indigo-400' : 'text-slate-500'} />
+                <Settings onClick={() => setActiveTab('settings')} className={activeTab === 'settings' ? 'text-indigo-400' : 'text-slate-500'} />
+            </div>
+
+            {/* Main Content */}
+            <main className="flex-1 lg:ml-64 p-8 overflow-y-auto">
+                <header className="flex justify-between items-center mb-8">
+                    <div>
+                        <h2 className="text-2xl font-bold text-white mb-1 capitalize">{activeTab}</h2>
+                        <p className="text-slate-500 text-sm">Welcome back, here's what's happening today.</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="relative hidden md:block">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                className="bg-slate-900 border border-slate-800 pl-10 pr-4 py-2 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all w-64 text-sm"
+                            />
+                        </div>
+                        <button className="p-2 bg-slate-900 border border-slate-800 rounded-xl relative hover:text-indigo-400 transition-colors">
+                            <Bell size={20} />
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full" />
+                        </button>
+                    </div>
+                </header>
+
+                <AnimatePresence mode="wait">
+                    {/* DASHBOARD TAB */}
+                    {activeTab === 'dashboard' && (
+                        <motion.div
+                            key="dashboard"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="space-y-8"
+                        >
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <StatCard title="Total Revenue" value="$12,450" subtext="vs last month" trend={12} icon={DollarSign} />
+                                <StatCard title="Total Orders" value="1,240" subtext="vs last month" trend={8} icon={ShoppingBag} />
+                                <StatCard title="Active Staff" value={staff.length} subtext="Currently on shift" trend={-2} icon={Users} />
+                                <StatCard title="Growth" value="+15.2%" subtext="Overall performance" trend={24} icon={TrendingUp} />
+                            </div>
+
+                            {/* Charts */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <div className="lg:col-span-2 bg-slate-900/50 backdrop-blur-sm border border-slate-800 p-6 rounded-2xl">
+                                    <h3 className="text-lg font-bold text-white mb-6">Revenue Analysis</h3>
+                                    <div style={{ width: '100%', height: 300 }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={MOCK_DATA}>
+                                                <defs>
+                                                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                                <XAxis dataKey="name" stroke="#64748b" />
+                                                <YAxis stroke="#64748b" prefix="$" />
+                                                <Tooltip
+                                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }}
+                                                    itemStyle={{ color: '#fff' }}
+                                                />
+                                                <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 p-6 rounded-2xl">
+                                    <h3 className="text-lg font-bold text-white mb-6">Popular Categories</h3>
+                                    <div style={{ width: '100%', height: 300 }}>
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={MOCK_DATA}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                                <XAxis dataKey="name" stroke="#64748b" />
+                                                <Tooltip
+                                                    cursor={{ fill: '#1e293b' }}
+                                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }}
+                                                />
+                                                <Bar dataKey="orders" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* MENU TAB */}
+                    {activeTab === 'menu' && (
+                        <motion.div
+                            key="menu"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                        >
+                            <div className="flex justify-between items-center mb-6">
+                                <div className="flex gap-2">
+                                    <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition" onClick={() => setShowAddMenu(true)}>
+                                        <Plus size={18} className="inline mr-2" /> Add Item
+                                    </button>
+                                </div>
+                                <div className="text-slate-400 text-sm">{menuItems.length} Items Found</div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                                {menuItems.map(item => (
+                                    <div key={item.id} className="group bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-indigo-500/50 transition-all hover:shadow-xl hover:shadow-indigo-500/10">
+                                        <div className="h-48 overflow-hidden relative">
+                                            <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                            <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-white">
+                                                {item.category}
+                                            </div>
+                                        </div>
+                                        <div className="p-5">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="font-bold text-lg text-white">{item.name}</h3>
+                                                <span className="font-bold text-indigo-400">${item.price}</span>
+                                            </div>
+                                            <p className="text-slate-500 text-sm mb-4">Stock: {item.quantity || '∞'}</p>
+                                            <div className="flex justify-between items-center pt-4 border-t border-slate-800">
+                                                <button className="p-2 text-slate-400 hover:text-white transition-colors">
+                                                    <Edit2 size={16} />
+                                                </button>
+                                                <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* STAFF TAB */}
+                    {activeTab === 'staff' && (
+                        <motion.div
+                            key="staff"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                        >
+                            <div className="flex justify-between items-center mb-8">
+                                <button className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/25 flex items-center" onClick={() => setShowAddStaff(true)}>
+                                    <Plus size={18} className="mr-2" /> Add Staff Member
+                                </button>
+                            </div>
+
+                            <div className="space-y-8">
+                                {[
+                                    { title: 'Chefs', data: chefs, icon: ChefHat, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+                                    { title: 'Waiters', data: waiters, icon: User, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+                                    { title: 'Cashiers', data: cashiers, icon: DollarSign, color: 'text-emerald-500', bg: 'bg-emerald-500/10' }
+                                ].map((group) => (
+                                    <div key={group.title}>
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className={`p-2 rounded-lg ${group.bg} ${group.color}`}>
+                                                <group.icon size={20} />
+                                            </div>
+                                            <h3 className="text-lg font-bold text-white">{group.title} <span className="text-slate-500 text-sm font-normal">({group.data.length})</span></h3>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                            {group.data.map(member => (
+                                                <div key={member.id} className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl flex items-center gap-4 hover:border-indigo-500/30 transition-all">
+                                                    <img src={member.avatar || `https://ui-avatars.com/api/?name=${member.name}&background=random`} alt={member.name} className="w-12 h-12 rounded-full ring-2 ring-slate-800" />
+                                                    <div className="flex-1">
+                                                        <h4 className="font-semibold text-white">{member.name}</h4>
+                                                        <p className="text-xs text-slate-500 capitalize">{member.shift} Shift</p>
+                                                    </div>
+                                                    <button onClick={() => handleDeleteStaff(member.id)} className="p-2 text-slate-600 hover:text-rose-500 transition-colors">
+                                                        <X size={16} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {group.data.length === 0 && (
+                                                <div className="col-span-full py-8 text-center border border-dashed border-slate-800 rounded-xl text-slate-500">
+                                                    No {group.title.toLowerCase()} added yet.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* SETTINGS TAB */}
+                    {activeTab === 'settings' && (
+                        <motion.div
+                            key="settings"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="max-w-2xl"
+                        >
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
+                                <h3 className="text-xl font-bold text-white mb-6">General Settings</h3>
+
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Restaurant Name</label>
+                                        <input
+                                            value={tempSettings.name}
+                                            onChange={e => setTempSettings({ ...tempSettings, name: e.target.value })}
+                                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-2">Logo / Icon (Emoji)</label>
+                                        <div className="flex gap-4">
+                                            <input
+                                                value={tempSettings.logo}
+                                                onChange={e => setTempSettings({ ...tempSettings, logo: e.target.value })}
+                                                className="w-20 text-center bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-2xl focus:outline-none focus:border-indigo-500 transition"
+                                            />
+                                            <div className="flex-1 flex items-center text-sm text-slate-500">
+                                                Enter an emoji or character to represent your brand.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-6 border-t border-slate-800 flex justify-end">
+                                        <button
+                                            onClick={saveSettings}
+                                            className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/25"
+                                        >
+                                            Save Changes
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </main>
+
+            {/* Modals */}
+            <Modal isOpen={showAddMenu} onClose={() => setShowAddMenu(false)} title="Add New Menu Item">
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Item Name</label>
+                        <input className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                            placeholder="e.g. Spicy Ramen"
+                            value={newMenuItem.name} onChange={e => setNewMenuItem({ ...newMenuItem, name: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-400 mb-1">Price ($)</label>
+                            <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                                placeholder="0.00"
+                                value={newMenuItem.price} onChange={e => setNewMenuItem({ ...newMenuItem, price: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-400 mb-1">Quantity</label>
+                            <input type="text" className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                                placeholder="e.g. 50 servings"
+                                value={newMenuItem.quantity} onChange={e => setNewMenuItem({ ...newMenuItem, quantity: e.target.value })} />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Category</label>
+                        <select className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none mb-2"
+                            value={newMenuItem.category} onChange={e => setNewMenuItem({ ...newMenuItem, category: e.target.value, newCategory: '' })}>
+                            {categories.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            <option value="new">+ Add New Category</option>
+                        </select>
+                        {newMenuItem.category === 'new' && (
+                            <input className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none animate-in fade-in slide-in-from-top-2"
+                                placeholder="Enter new category name..."
+                                value={newMenuItem.newCategory} onChange={e => setNewMenuItem({ ...newMenuItem, newCategory: e.target.value })} />
+                        )}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Item Image</label>
+                        <div className="border-2 border-dashed border-slate-800 rounded-xl p-4 text-center hover:border-indigo-500/50 transition-colors cursor-pointer relative group">
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setNewMenuItem({ ...newMenuItem, image: e.target.files[0] })}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-indigo-400">
+                                {newMenuItem.image ? (
+                                    <span className="text-sm font-medium text-emerald-400">
+                                        {typeof newMenuItem.image === 'object' ? newMenuItem.image.name : 'Image Selected'}
+                                    </span>
+                                ) : (
+                                    <>
+                                        <Upload size={24} />
+                                        <span className="text-sm">Click to upload image</span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleAddMenu}
+                        disabled={isLoading}
+                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                    >
+                        {isLoading ? 'Saving...' : 'Add Item'}
+                    </button>
+                </div>
+            </Modal>
+
+            <Modal isOpen={showAddStaff} onClose={() => setShowAddStaff(false)} title="Add Staff Member">
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-400 mb-1">First Name</label>
+                            <input className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                                placeholder="John"
+                                value={newStaff.firstName} onChange={e => setNewStaff({ ...newStaff, firstName: e.target.value })} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-400 mb-1">Last Name</label>
+                            <input className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                                placeholder="Doe"
+                                value={newStaff.lastName} onChange={e => setNewStaff({ ...newStaff, lastName: e.target.value })} />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-400 mb-1">Role</label>
+                            <select className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                                value={newStaff.role} onChange={e => setNewStaff({ ...newStaff, role: e.target.value })}>
+                                <option value="waiter">Waiter</option>
+                                <option value="chef">Chef</option>
+                                <option value="cashier">Cashier</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-400 mb-1">Shift</label>
+                            <select className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                                value={newStaff.shift} onChange={e => setNewStaff({ ...newStaff, shift: e.target.value })}>
+                                <option>Morning</option>
+                                <option>Evening</option>
+                                <option>Full Day</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Email</label>
+                        <input className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                            placeholder="email@example.com"
+                            value={newStaff.email} onChange={e => setNewStaff({ ...newStaff, email: e.target.value })} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Password</label>
+                        <input className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-indigo-500 outline-none"
+                            type="password"
+                            placeholder="••••••••"
+                            value={newStaff.password} onChange={e => setNewStaff({ ...newStaff, password: e.target.value })} />
+                    </div>
+                    <button
+                        onClick={handleAddStaff}
+                        disabled={isLoading}
+                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 disabled:opacity-50"
+                    >
+                        {isLoading ? 'Adding...' : 'Add Staff'}
+                    </button>
+                </div>
+            </Modal>
+        </div>
+    );
+};
+
+export default RestaurantAdmin;

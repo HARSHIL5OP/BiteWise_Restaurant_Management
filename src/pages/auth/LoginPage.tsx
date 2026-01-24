@@ -1,42 +1,112 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, ArrowRight, CheckCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { AuthInput } from '@/components/auth/AuthInput';
-import { AuthButton, GoogleButton } from '@/components/auth/AuthButton';
+import { AuthButton, GoogleButton, GithubButton } from '@/components/auth/AuthButton';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Simulated login handler (UI only - logic exists elsewhere)
+  const { login, loginWithGoogle, loginWithGithub } = useAuth();
+  const navigate = useNavigate();
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      const cred = await login(email, password);
+      // Fetch role manually for instant redirect
+      const userDoc = await getDoc(doc(db, "users", cred.user.uid));
+      const userData = userDoc.data();
+      const role = userData?.role || 'customer';
+
+      toast.success("Login successful");
+      if (role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/home');
+      }
+    } catch (err: any) {
+      console.error(err);
+      let errorMessage = "An error occurred";
+
+      if (err.code === 'auth/internal-error' || err.message?.includes('network')) {
+        errorMessage = "Network error. Please check your internet connection.";
+      } else if (err.message) {
+        errorMessage = err.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ');
+      }
+
+      setError(errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1));
+    } finally {
       setIsLoading(false);
-      // Your existing Firebase auth logic would go here
-    }, 1500);
+    }
   };
 
   const handleGoogleLogin = async () => {
     setIsGoogleLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    setError('');
+    try {
+      const result = await loginWithGoogle();
+      // Fetch role manually for instant redirect (loginWithGoogle in context handles creation but returns result)
+      const userDoc = await getDoc(doc(db, "users", result.user.uid));
+      const userData = userDoc.data();
+      const role = userData?.role || 'customer';
+
+      toast.success("Login successful");
+      if (role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/home');
+      }
+    } catch (err: any) {
+      console.error(err);
+      const errorMessage = err.message ? err.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ') : "An error occurred";
+      setError(errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1));
+    } finally {
       setIsGoogleLoading(false);
-      // Your existing Google OAuth logic would go here
-    }, 1500);
+    }
+  };
+
+  const handleGithubLogin = async () => {
+    setIsGithubLoading(true);
+    setError('');
+    try {
+      const result = await loginWithGithub();
+      // Fetch role manually for instant redirect
+      const userDoc = await getDoc(doc(db, "users", result.user.uid));
+      const userData = userDoc.data();
+      const role = userData?.role || 'customer';
+
+      toast.success("Login successful");
+      if (role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/home');
+      }
+    } catch (err: any) {
+      console.error(err);
+      const errorMessage = err.message ? err.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ') : "An error occurred";
+      setError(errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1));
+    } finally {
+      setIsGithubLoading(false);
+    }
   };
 
   return (
-    <AuthLayout 
+    <AuthLayout
       title="Welcome back"
       subtitle="Sign in to your account to continue"
     >
@@ -103,14 +173,22 @@ export default function LoginPage() {
           <span>or continue with</span>
         </div>
 
-        {/* Google OAuth */}
-        <GoogleButton 
-          isLoading={isGoogleLoading}
-          onClick={handleGoogleLogin}
-        />
+        <div className="space-y-3">
+          {/* Google OAuth */}
+          <GoogleButton
+            isLoading={isGoogleLoading}
+            onClick={handleGoogleLogin}
+          />
+
+          {/* GitHub OAuth */}
+          <GithubButton
+            isLoading={isGithubLoading}
+            onClick={handleGithubLogin}
+          />
+        </div>
 
         {/* Sign Up Link */}
-        <motion.p 
+        <motion.p
           className="text-center text-sm text-muted-foreground"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
