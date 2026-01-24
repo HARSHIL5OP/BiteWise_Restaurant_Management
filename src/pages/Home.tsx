@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Clock, Check, ChefHat, User, CreditCard, Smartphone, Wallet, X, ChevronRight, UtensilsCrossed, LogOut } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { collection, onSnapshot, addDoc, serverTimestamp, query, where, orderBy, updateDoc, doc, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -33,7 +33,16 @@ const RestaurantApp = () => {
     const [showCart, setShowCart] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState(null);
 
-    const tableNumber = "12";
+    // Check URL params for tableId
+    const { tableId } = useParams();
+
+    useEffect(() => {
+        if (tableId) {
+            sessionStorage.setItem('currentTable', tableId);
+        }
+    }, [tableId]);
+
+    const tableNumber = tableId || sessionStorage.getItem('currentTable') || "12";
 
 
     const [menuData, setMenuData] = useState<any[]>([]);

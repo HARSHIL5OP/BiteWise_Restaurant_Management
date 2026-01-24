@@ -26,12 +26,14 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Navigate to="/home" replace />} />
               <Route path="/home" element={<HomePage />} />
+              <Route path="/home/:tableId" element={<HomePage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/login/:tableId" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/Chef" element={<ChefKDS />} />
               <Route path="/waiter" element={<WaiterPage />} />
-              
+
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

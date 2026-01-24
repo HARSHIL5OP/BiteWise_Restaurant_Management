@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { AuthLayout } from '@/layouts/AuthLayout';
@@ -20,6 +20,14 @@ export default function LoginPage() {
 
   const { login, loginWithGoogle, loginWithGithub } = useAuth();
   const navigate = useNavigate();
+  const { tableId } = useParams();
+
+  useEffect(() => {
+    if (tableId) {
+      sessionStorage.setItem('currentTable', tableId);
+      toast.info(`Welcome! You are at Table ${tableId}`);
+    }
+  }, [tableId]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

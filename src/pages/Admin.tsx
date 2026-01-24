@@ -346,11 +346,10 @@ const RestaurantAdmin = () => {
             // 1. Generate QR Code
             // This URL should point to the customer facing menu/order page with table param
             // User Request: "just be scanned and show table number" -> switching to simple JSON/text for verification "for now"
-            // const qrData = `https://odoo-cafe-project.web.app/menu?table=${tableNum}`;
-            const qrData = JSON.stringify({
-                text: `Table ${tableNum}`,
-                url: `www.google.com`
-            });
+            // 1. Generate QR Code
+            // This URL points to the customer facing home page with table number at the end
+            // User requested: https://odoo-cafe-project-eight.vercel.app/home/<tablenumber>
+            const qrData = `https://odoo-cafe-project-eight.vercel.app/home/${tableNum}`;
             const qrDataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
 
             // 2. Convert to File for Cloudinary
@@ -975,7 +974,7 @@ const RestaurantAdmin = () => {
                     <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 flex items-center gap-4">
                         <div className="bg-white p-2 rounded-lg">
                             <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(JSON.stringify({ tableId: newTable.tableNumber || 'PREVIEW' }))}`}
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://odoo-cafe-project-eight.vercel.app/home/${newTable.tableNumber || ''}`}
                                 alt="QR Preview"
                                 className="w-16 h-16"
                             />
