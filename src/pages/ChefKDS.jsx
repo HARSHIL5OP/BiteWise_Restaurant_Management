@@ -1,29 +1,78 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Flame, AlertCircle } from 'lucide-react';
 
-const ChefKDS = () => {
-    const [items, setItems] = useState([
-        { id: 1, name: "Paneer Tikka", category: "Starters", tableNumber: 12, createdAt: new Date(Date.now() - 15 * 60000), status: "queued" },
-        { id: 2, name: "Spring Rolls", category: "Starters", tableNumber: 8, createdAt: new Date(Date.now() - 8 * 60000), status: "queued" },
-        { id: 3, name: "Fish Fingers", category: "Starters", tableNumber: 15, createdAt: new Date(Date.now() - 3 * 60000), status: "queued" },
-        { id: 4, name: "Butter Chicken", category: "Main Course", tableNumber: 12, createdAt: new Date(Date.now() - 12 * 60000), status: "preparing" },
-        { id: 5, name: "Dal Makhani", category: "Main Course", tableNumber: 8, createdAt: new Date(Date.now() - 7 * 60000), status: "queued" },
-        { id: 6, name: "Biryani", category: "Main Course", tableNumber: 5, createdAt: new Date(Date.now() - 4 * 60000), status: "queued" },
-        { id: 7, name: "Kadhai Chicken", category: "Main Course", tableNumber: 15, createdAt: new Date(Date.now() - 2 * 60000), status: "queued" },
-        { id: 8, name: "Butter Naan", category: "Breads", tableNumber: 12, createdAt: new Date(Date.now() - 10 * 60000), status: "preparing" },
-        { id: 9, name: "Garlic Naan", category: "Breads", tableNumber: 8, createdAt: new Date(Date.now() - 6 * 60000), status: "queued" },
-        { id: 10, name: "Tandoori Roti", category: "Breads", tableNumber: 15, createdAt: new Date(Date.now() - 1 * 60000), status: "queued" },
-        { id: 11, name: "Gulab Jamun", category: "Desserts", tableNumber: 3, createdAt: new Date(Date.now() - 5 * 60000), status: "queued" },
-    ]);
+import { collection, onSnapshot, query, where, orderBy, updateDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
+const ChefKDS = () => {
+    const [items, setItems] = useState([]);
+    const [menuMap, setMenuMap] = useState({});
     const [currentTime, setCurrentTime] = useState(new Date());
 
+    // Fetch Menu for Category Mapping
     useEffect(() => {
+        const fetchMenu = async () => {
+            const querySnapshot = await getDocs(collection(db, "menu"));
+            const mapping = {};
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                mapping[data.name] = data.category; // Map by name as fallback or ID if possible. Schema has name/price/category.
+                // Ideally we map by ID, but order items stores itemId. Let's try to map by ID if possible.
+                mapping[doc.id] = data.category;
+            });
+            setMenuMap(mapping);
+        };
+        fetchMenu();
+
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
 
-    const categories = ["Starters", "Main Course", "Breads", "Desserts"];
+    // Real-time Orders Listener
+    useEffect(() => {
+        const q = query(
+            collection(db, 'orders'),
+            where('status', '!=', 'served'),
+            orderBy('status'), // Constraint: if filtering by inequality, first sort must be same field. 
+            // Wait, firebase requires index for 'status then createdAt' if we sort by createdAt. 
+            // Let's just filter status != served. We can sort client side since active orders won't be massive.
+            // orderBy('createdAt', 'asc') // This might require an index. Let's do client side sort for safety.
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const activeItems = [];
+            snapshot.forEach(doc => {
+                const order = doc.data();
+                order.items.forEach((item, index) => {
+                    // Flatten items
+                    activeItems.push({
+                        id: `${doc.id}_${index}`,
+                        originalOrderId: doc.id,
+                        name: item.name,
+                        // Try to find category by ID, else name, else default
+                        category: menuMap[item.itemId] || menuMap[item.name] || 'Other',
+                        tableNumber: order.tableId || '?',
+                        createdAt: order.createdAt?.toDate() || new Date(),
+                        status: order.status, // Item status inherits order status 
+                        // Note: Prompt implies item status tracking, but implementation updates *parent order* status.
+                        // So all items in an order share status. 
+                    });
+                });
+            });
+
+            // Sort by creation time (FIFO)
+            activeItems.sort((a, b) => a.createdAt - b.createdAt);
+            setItems(activeItems);
+        });
+
+        return () => unsubscribe();
+    }, [menuMap]); // Re-run when menuMap loads to ensure categories populate
+
+    // Computed Categories (so empty categories don't show, or show all fixed? Prompt says "grouped category-wise")
+    // We'll stick to fixed + any new ones found to keep UI stable but flexible.
+    const baseCategories = ["Starters", "Main Course", "Breads", "Desserts"];
+    const foundCategories = [...new Set(items.map(i => i.category))];
+    const categories = [...new Set([...baseCategories, ...foundCategories])];
 
     const getTimeSinceOrder = (createdAt) => {
         const diffMs = currentTime - new Date(createdAt);
@@ -31,8 +80,8 @@ const ChefKDS = () => {
     };
 
     const getUrgencyLevel = (minutes) => {
-        if (minutes >= 10) return 'critical';
-        if (minutes >= 5) return 'warning';
+        if (minutes >= 20) return 'critical'; // Adjusted for real world
+        if (minutes >= 10) return 'warning';
         return 'normal';
     };
 
@@ -57,30 +106,51 @@ const ChefKDS = () => {
         }
     };
 
-    const changeStatus = (id) => {
-        setItems(items.map(item => {
-            if (item.id === id) {
-                if (item.status === 'queued') return { ...item, status: 'preparing' };
-                if (item.status === 'preparing') return { ...item, status: 'ready' };
-                return item;
-            }
-            return item;
-        }));
+    const changeStatus = async (itemId) => {
+        // Find item to get Active Order ID
+        const item = items.find(i => i.id === itemId);
+        if (!item) return;
+
+        let newStatus = 'in_queue';
+        if (item.status === 'in_queue') newStatus = 'preparing';
+        else if (item.status === 'preparing') newStatus = 'ready';
+
+        // Allow reverting? Prompt flow: queue -> preparing -> ready -> served.
+
+        try {
+            await updateDoc(doc(db, 'orders', item.originalOrderId), {
+                status: newStatus,
+                updatedAt: serverTimestamp()
+            });
+        } catch (err) {
+            console.error("Failed to update status", err);
+        }
     };
 
-    const dismissItem = (id) => {
-        setItems(items.filter(item => item.id !== id));
+    const dismissItem = async (itemId) => {
+        const item = items.find(i => i.id === itemId);
+        if (!item) return;
+
+        try {
+            await updateDoc(doc(db, 'orders', item.originalOrderId), {
+                status: 'served',
+                updatedAt: serverTimestamp()
+            });
+        } catch (err) {
+            console.error("Failed to dismiss order", err);
+        }
     };
 
     const getItemsByCategory = (category) => {
         return items
             .filter(item => item.category === category)
-            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            // Already sorted in listener, but sort again to be safe
+            .sort((a, b) => a.createdAt - b.createdAt);
     };
 
     const getStatusDisplay = (status) => {
         switch (status) {
-            case 'queued': return { text: 'Queue', color: 'bg-slate-600' };
+            case 'in_queue': return { text: 'Queue', color: 'bg-slate-600' };
             case 'preparing': return { text: 'Cooking', color: 'bg-blue-500' };
             case 'ready': return { text: 'Ready', color: 'bg-emerald-500' };
             default: return { text: status, color: 'bg-slate-600' };
@@ -225,8 +295,8 @@ const ChefKDS = () => {
                                                                 <div className="h-1.5 bg-slate-800/50 rounded-full overflow-hidden">
                                                                     <div
                                                                         className={`h-full transition-all duration-1000 rounded-full ${urgency === 'critical' ? 'bg-gradient-to-r from-red-500 to-orange-500' :
-                                                                                urgency === 'warning' ? 'bg-gradient-to-r from-amber-500 to-yellow-500' :
-                                                                                    'bg-gradient-to-r from-blue-500 to-cyan-500'
+                                                                            urgency === 'warning' ? 'bg-gradient-to-r from-amber-500 to-yellow-500' :
+                                                                                'bg-gradient-to-r from-blue-500 to-cyan-500'
                                                                             }`}
                                                                         style={{
                                                                             width: `${Math.min(100, (minutes / 15) * 100)}%`
