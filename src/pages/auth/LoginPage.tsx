@@ -49,7 +49,11 @@ export default function LoginPage() {
       } else if (role === 'waiter') {
         navigate('/waiter');
       } else {
-        navigate('/home');
+        if (sessionStorage.getItem('postLoginAction') === 'PLACE_ORDER') {
+          navigate('/home');
+        } else {
+          navigate('/home');
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -85,7 +89,11 @@ export default function LoginPage() {
       } else if (role === 'waiter') {
         navigate('/waiter');
       } else {
-        navigate('/home');
+        if (sessionStorage.getItem('postLoginAction') === 'PLACE_ORDER') {
+          navigate('/home');
+        } else {
+          navigate('/home');
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -114,7 +122,11 @@ export default function LoginPage() {
       } else if (role === 'waiter') {
         navigate('/waiter');
       } else {
-        navigate('/home');
+        if (sessionStorage.getItem('postLoginAction') === 'PLACE_ORDER') {
+          navigate('/home');
+        } else {
+          navigate('/home');
+        }
       }
     } catch (err: any) {
       console.error(err);

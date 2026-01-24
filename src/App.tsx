@@ -35,10 +35,12 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
   if (loading) return <SplashScreen />;
 
   if (user) {
-    // User is logged in, redirect to their dashboard
     if (role === "admin") return <Navigate to="/admin" replace />;
     if (role === "chef") return <Navigate to="/chef" replace />;
     if (role === "waiter") return <Navigate to="/waiter" replace />;
+    // if role is customer, they can stay on public routes like /home, so no forced redirect?
+    // Actually, traditionally login page should redirect logged in users.
+    // If they are customer, send them home.
     return <Navigate to="/home" replace />;
   }
 
@@ -61,8 +63,6 @@ const RoleRoute = ({ allowedRoles, children }: { allowedRoles: string[], childre
 
   if (!role || !allowedRoles.includes(role)) {
     console.warn(`Unauthorized access attempt: Role '${role}' tried to access restricted route.`);
-
-    // Redirect to safe hierarchy
     if (role === "chef") return <Navigate to="/chef" replace />;
     if (role === "waiter") return <Navigate to="/waiter" replace />;
     if (role === "admin") return <Navigate to="/admin" replace />;
@@ -77,63 +77,36 @@ const RoleRoute = ({ allowedRoles, children }: { allowedRoles: string[], childre
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* --- Public Routes (Login/Signup) --- */}
-      <Route path="/login" element={
-        <PublicOnly>
-          <LoginPage />
-        </PublicOnly>
-      } />
-      <Route path="/signup" element={
-        <PublicOnly>
-          <SignupPage />
-        </PublicOnly>
-      } />
-      <Route path="/forgot-password" element={
-        <PublicOnly>
-          <ForgotPasswordPage />
-        </PublicOnly>
-      } />
+      {/* 1. Public Auth Routes */}
+      <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
+      <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
+      <Route path="/forgot-password" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
 
-      {/* --- Protected Routes --- */}
+      {/* 2. Public Menu Routes (No Auth Guard) */}
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/home/:tableId" element={<HomePage />} />
+
+      {/* Root Redirect */}
+      <Route path="/" element={<Navigate to="/home" replace />} />
+
+      {/* 3. Protected Dashboard Routes */}
       <Route element={<ProtectedRoute />}>
 
-        {/* Redirect Root to Home (which will then redirect based on role if needed, or stick to customer home) */}
-        {/* We can use a smart root redirect component or specific RoleRoutes */}
-
-        <Route path="/" element={<Navigate to="/home" replace />} />
-
-        {/* Customer / General Access */}
-        <Route path="/home" element={
-          <RoleRoute allowedRoles={['customer', 'admin']}>
-            {/* Admins can view customer view too usually, or strict separation? 
-                   Prompt says: Customer -> Menu. Let's assume 'customer' is the main role for this.
-                   Let's start strictly. */}
-            <HomePage />
-          </RoleRoute>
-        } />
-
-        {/* Support Table Param in Home */}
-        <Route path="/home/:tableId" element={
-          <RoleRoute allowedRoles={['customer']}>
-            <HomePage />
-          </RoleRoute>
-        } />
-
-        {/* Chef KDS */}
+        {/* Chef */}
         <Route path="/chef" element={
           <RoleRoute allowedRoles={['chef', 'admin']}>
             <ChefKDS />
           </RoleRoute>
         } />
 
-        {/* Waiter Dashboard */}
+        {/* Waiter */}
         <Route path="/waiter" element={
           <RoleRoute allowedRoles={['waiter', 'admin']}>
             <WaiterPage />
           </RoleRoute>
         } />
 
-        {/* Admin Dashboard */}
+        {/* Admin */}
         <Route path="/admin" element={
           <RoleRoute allowedRoles={['admin']}>
             <AdminPage />
@@ -142,7 +115,7 @@ const AppRoutes = () => {
 
       </Route>
 
-      {/* --- Catch All --- */}
+      {/* 4. Catch All */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
