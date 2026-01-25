@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, where, setDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, where, setDoc, updateDoc } from 'firebase/firestore';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { useAuth } from '../contexts/AuthContext';
 import { initializeApp } from 'firebase/app';
@@ -126,6 +126,7 @@ const RestaurantAdmin = () => {
         name: '', price: '', quantity: '', image: null, category: 'Main Course',
         newCategory: '' // for adding custom category
     });
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     // Updated initial staff state to match the user's DB schema preferences
     const [newStaff, setNewStaff] = useState({
@@ -214,14 +215,23 @@ const RestaurantAdmin = () => {
 
             const itemData = {
                 name: newMenuItem.name,
-                price: newMenuItem.price.toString(), // Store as string per request
-                quantity: newMenuItem.quantity.toString(), // Store as string per request
+                price: newMenuItem.price.toString(),
+                quantity: newMenuItem.quantity.toString(),
                 category: categoryToSave,
                 image: imageUrl || 'https://source.unsplash.com/random/800x600/?food',
-                createdAt: new Date().toISOString()
             };
 
-            await addDoc(collection(db, 'menu'), itemData);
+            if (editingId) {
+                await updateDoc(doc(db, 'menu', editingId), {
+                    ...itemData,
+                    updatedAt: new Date().toISOString()
+                });
+            } else {
+                await addDoc(collection(db, 'menu'), {
+                    ...itemData,
+                    createdAt: new Date().toISOString()
+                });
+            }
 
             // Update local categories if new one added
             if (newMenuItem.newCategory && !categories.includes(newMenuItem.newCategory)) {
@@ -229,13 +239,31 @@ const RestaurantAdmin = () => {
             }
 
             setNewMenuItem({ name: '', price: '', quantity: '', image: null, category: 'Main Course', newCategory: '' });
+            setEditingId(null);
             setShowAddMenu(false);
-        } catch (error) {
-            console.error("Error adding menu item: ", error);
-            alert("Failed to add item. See console.");
+        } catch (error: any) {
+            console.error("Error adding/updating menu item: ", error);
+            if (error.toString().includes("Failed to fetch") || error.message?.includes("Network")) {
+                alert("Network Error: You appear to be offline. Please check your internet connection.");
+            } else {
+                alert("Failed to save item. " + (error.message || "See console."));
+            }
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const openEditMenu = (item: any) => {
+        setEditingId(item.id);
+        setNewMenuItem({
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image,
+            category: item.category,
+            newCategory: ''
+        });
+        setShowAddMenu(true);
     };
 
     const handleAddStaff = async () => {
@@ -670,7 +698,11 @@ const RestaurantAdmin = () => {
                         >
                             <div className="flex justify-between items-center mb-6">
                                 <div className="flex gap-2">
-                                    <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition" onClick={() => setShowAddMenu(true)}>
+                                    <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition" onClick={() => {
+                                        setEditingId(null);
+                                        setNewMenuItem({ name: '', price: '', quantity: '', image: null, category: 'Main Course', newCategory: '' });
+                                        setShowAddMenu(true);
+                                    }}>
                                         <Plus size={18} className="inline mr-2" /> Add Item
                                     </button>
                                 </div>
@@ -693,7 +725,7 @@ const RestaurantAdmin = () => {
                                             </div>
                                             <p className="text-slate-500 text-sm mb-4">Stock: {item.quantity || '∞'}</p>
                                             <div className="flex justify-between items-center pt-4 border-t border-slate-800">
-                                                <button className="p-2 text-slate-400 hover:text-white transition-colors">
+                                                <button onClick={() => openEditMenu(item)} className="p-2 text-slate-400 hover:text-white transition-colors">
                                                     <Edit2 size={16} />
                                                 </button>
                                                 <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors">
@@ -810,7 +842,11 @@ const RestaurantAdmin = () => {
             </main>
 
             {/* Modals */}
-            <Modal isOpen={showAddMenu} onClose={() => setShowAddMenu(false)} title="Add New Menu Item">
+            <Modal isOpen={showAddMenu} onClose={() => {
+                setShowAddMenu(false);
+                setEditingId(null);
+                setNewMenuItem({ name: '', price: '', quantity: '', image: null, category: 'Main Course', newCategory: '' });
+            }} title={editingId ? "Edit Menu Item" : "Add New Menu Item"}>
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-slate-400 mb-1">Item Name</label>
@@ -875,7 +911,7 @@ const RestaurantAdmin = () => {
                         disabled={isLoading}
                         className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                     >
-                        {isLoading ? 'Saving...' : 'Add Item'}
+                        {isLoading ? 'Saving...' : (editingId ? 'Update Item' : 'Add Item')}
                     </button>
                 </div>
             </Modal>
