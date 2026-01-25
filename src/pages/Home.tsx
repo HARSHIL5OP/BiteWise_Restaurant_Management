@@ -232,10 +232,15 @@ const RestaurantApp = () => {
             });
 
             // Update table status
-            const tablesQuery = query(collection(db, 'tables'), where('tableNumber', '==', tableNumber));
-            const tableDocs = await getDocs(tablesQuery);
-            if (!tableDocs.empty) {
-                await updateDoc(doc(db, 'tables', tableDocs.docs[0].id), { status: 'occupied' });
+            const numericTableNumber = parseInt(tableNumber);
+            if (!isNaN(numericTableNumber)) {
+                const tablesQuery = query(collection(db, 'tables'), where('tableNumber', '==', numericTableNumber));
+                const tableDocs = await getDocs(tablesQuery);
+                if (!tableDocs.empty) {
+                    await updateDoc(doc(db, 'tables', tableDocs.docs[0].id), { status: 'occupied' });
+                }
+            } else {
+                console.warn("Could not parse table number for status update:", tableNumber);
             }
 
             setCart([]);
@@ -292,6 +297,17 @@ const RestaurantApp = () => {
                                 })
                             );
                             await Promise.all(updatePromises);
+
+                            // Update table status to available
+                            const numericTableNumber = parseInt(tableNumber);
+                            if (!isNaN(numericTableNumber)) {
+                                const tablesQuery = query(collection(db, 'tables'), where('tableNumber', '==', numericTableNumber));
+                                const tableSnapshot = await getDocs(tablesQuery);
+                                if (!tableSnapshot.empty) {
+                                    await updateDoc(doc(db, 'tables', tableSnapshot.docs[0].id), { status: 'available' });
+                                }
+                            }
+
                             alert("Payment Successful! Orders moved to history.");
                             setActiveView('history');
                         } else {
