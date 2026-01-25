@@ -198,7 +198,20 @@ const RestaurantAdmin = () => {
     };
 
     const handleAddMenu = async () => {
-        if (!newMenuItem.name || !newMenuItem.price) return;
+        // Validation
+        if (!newMenuItem.name.trim()) {
+            alert("Please enter an Item Name");
+            return;
+        }
+        if (!newMenuItem.price || isNaN(Number(newMenuItem.price)) || Number(newMenuItem.price) <= 0) {
+            alert("Please enter a valid positive Price");
+            return;
+        }
+        if (newMenuItem.quantity && (isNaN(Number(newMenuItem.quantity)) || Number(newMenuItem.quantity) < 0)) {
+            alert("Quantity must be a valid non-negative number (or leave empty for infinite)");
+            return;
+        }
+
         setIsLoading(true);
 
         try {
