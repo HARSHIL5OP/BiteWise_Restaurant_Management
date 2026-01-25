@@ -219,9 +219,22 @@ const KitchenBoard = () => {
                 // Flatten items
                 if (order.items && Array.isArray(order.items)) {
                     order.items.forEach((item, index) => {
+                        // Resolve effective status: Item specific > Order level > Default
+                        let effectiveStatus = item.status;
+
+                        if (!effectiveStatus) {
+                            // Map order status to item status if item status is missing
+                            if (order.status === 'completed') effectiveStatus = 'served';
+                            else if (['in_queue', 'preparing', 'ready', 'served'].includes(order.status)) {
+                                effectiveStatus = order.status as any;
+                            } else {
+                                effectiveStatus = 'in_queue';
+                            }
+                        }
+
                         allItems.push({
                             ...item,
-                            status: item.status || 'in_queue', // Default to in_queue if missing
+                            status: effectiveStatus,
                             orderId: order.id,
                             tableId: order.tableId,
                             waiterName: order.waiterName,

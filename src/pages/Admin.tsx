@@ -23,15 +23,7 @@ import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { firebaseConfig } from '../lib/firebase';
 
 // --- Mock Stats Data (Keep for charts for now) ---
-const MOCK_DATA = [
-    { name: 'Mon', revenue: 4000, orders: 240 },
-    { name: 'Tue', revenue: 3000, orders: 139 },
-    { name: 'Wed', revenue: 2000, orders: 980 },
-    { name: 'Thu', revenue: 2780, orders: 390 },
-    { name: 'Fri', revenue: 1890, orders: 480 },
-    { name: 'Sat', revenue: 2390, orders: 380 },
-    { name: 'Sun', revenue: 3490, orders: 430 },
-];
+
 
 // --- Components ---
 
@@ -112,6 +104,12 @@ const RestaurantAdmin = () => {
     const [logo, setLogo] = useState('🍽️');
     const [isLoading, setIsLoading] = useState(false);
 
+    // Dashboard Metrics State
+    const [orders, setOrders] = useState([]);
+    const [revenue, setRevenue] = useState(0);
+    const [dailyStats, setDailyStats] = useState([]);
+    const [staffCount, setStaffCount] = useState(0);
+
     // Data State
     const [menuItems, setMenuItems] = useState([]);
     const [staff, setStaff] = useState([]);
@@ -165,10 +163,51 @@ const RestaurantAdmin = () => {
                 ...doc.data(),
                 name: `${doc.data().firstName || ''} ${doc.data().lastName || ''}`.trim()
             }));
-            // Filter only relevant roles if needed, or keeping all
             setStaff(users.filter(u => ['chef', 'waiter', 'cashier'].includes(u.role)));
+            setStaffCount(users.filter(u => ['chef', 'waiter', 'cashier'].includes(u.data().role)).length);
         }, (error) => {
             console.error("Staff fetch error:", error);
+        });
+
+        const unsubscribeOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setOrders(fetchedOrders);
+
+            // 1. Calculate Total Revenue (Completed Only)
+            const totalRevenue = fetchedOrders
+                .filter(o => o.status === 'completed')
+                .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+            setRevenue(totalRevenue);
+
+            // 2. Calculate Daily Trends
+            const statsMap = {};
+            fetchedOrders.forEach(order => {
+                if (order.createdAt) {
+                    const date = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
+                    const dayKey = date.toLocaleDateString('en-US', { weekday: 'short' }); // Mon, Tue...
+
+                    if (!statsMap[dayKey]) {
+                        statsMap[dayKey] = { name: dayKey, revenue: 0, orders: 0, sortKey: date.getDay() };
+                    }
+
+                    statsMap[dayKey].orders += 1;
+                    if (order.status === 'completed') {
+                        statsMap[dayKey].revenue += (Number(order.totalAmount) || 0);
+                    }
+                }
+            });
+
+            // Sort by day of week
+            const sortedStats = Object.values(statsMap).sort((a: any, b: any) => {
+                // Adjust for Monday start if needed, currently Sun=0
+                return a.sortKey - b.sortKey;
+            });
+
+            // If empty, show fallback or empty array
+            setDailyStats(sortedStats.length > 0 ? sortedStats : []);
+
+        }, (error) => {
+            console.error("Orders fetch error:", error);
         });
 
         // Fetch Tables
@@ -185,6 +224,7 @@ const RestaurantAdmin = () => {
             unsubscribeMenu();
             unsubscribeStaff();
             unsubscribeTables();
+            unsubscribeOrders();
         };
     }, []);
 
@@ -199,7 +239,20 @@ const RestaurantAdmin = () => {
     };
 
     const handleAddMenu = async () => {
-        if (!newMenuItem.name || !newMenuItem.price) return;
+        // Validation
+        if (!newMenuItem.name.trim()) {
+            alert("Please enter an Item Name");
+            return;
+        }
+        if (!newMenuItem.price || isNaN(Number(newMenuItem.price)) || Number(newMenuItem.price) <= 0) {
+            alert("Please enter a valid positive Price");
+            return;
+        }
+        if (newMenuItem.quantity && (isNaN(Number(newMenuItem.quantity)) || Number(newMenuItem.quantity) < 0)) {
+            alert("Quantity must be a valid non-negative number (or leave empty for infinite)");
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -639,10 +692,10 @@ const RestaurantAdmin = () => {
                         >
                             {/* Stats Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <StatCard title="Total Revenue" value="$12,450" subtext="vs last month" trend={12} icon={DollarSign} />
-                                <StatCard title="Total Orders" value="1,240" subtext="vs last month" trend={8} icon={ShoppingBag} />
-                                <StatCard title="Active Staff" value={staff.length} subtext="Currently on shift" trend={-2} icon={Users} />
-                                <StatCard title="Growth" value="+15.2%" subtext="Overall performance" trend={24} icon={TrendingUp} />
+                                <StatCard title="Total Revenue" value={`$${revenue.toLocaleString()}`} subtext="Lifetime Earnings" trend={12} icon={DollarSign} />
+                                <StatCard title="Total Orders" value={orders.length} subtext="All time" trend={8} icon={ShoppingBag} />
+                                <StatCard title="Active Staff" value={staff.length} subtext="Registered Staff" trend={0} icon={Users} />
+                                <StatCard title="Avg Order Value" value={`$${orders.length > 0 ? Math.round(revenue / orders.filter(o => o.status === 'completed').length || 1) : 0}`} subtext="Per completed order" trend={5} icon={TrendingUp} />
                             </div>
 
                             {/* Charts */}
@@ -651,7 +704,7 @@ const RestaurantAdmin = () => {
                                     <h3 className="text-lg font-bold text-white mb-6">Revenue Analysis</h3>
                                     <div style={{ width: '100%', height: 300 }}>
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={MOCK_DATA}>
+                                            <AreaChart data={dailyStats}>
                                                 <defs>
                                                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                                                         <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -674,7 +727,7 @@ const RestaurantAdmin = () => {
                                     <h3 className="text-lg font-bold text-white mb-6">Popular Categories</h3>
                                     <div style={{ width: '100%', height: 300 }}>
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={MOCK_DATA}>
+                                            <BarChart data={dailyStats}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
                                                 <XAxis dataKey="name" stroke="#64748b" />
                                                 <Tooltip
