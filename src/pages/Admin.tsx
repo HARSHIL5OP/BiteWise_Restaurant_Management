@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import RestaurantFloorBlueprint from '../components/RestaurantFloorBlueprint';
+import KitchenBoard from '../components/KitchenBoard';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -423,6 +424,7 @@ const RestaurantAdmin = () => {
 
                 <div className="space-y-2 flex-1">
                     <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                    <SidebarItem icon={ChefHat} label="Kitchen Live" active={activeTab === 'kitchen'} onClick={() => setActiveTab('kitchen')} />
                     <SidebarItem icon={Grid} label="Tables" active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} />
                     <SidebarItem icon={UtensilsCrossed} label="Menu" active={activeTab === 'menu'} onClick={() => setActiveTab('menu')} />
                     <SidebarItem icon={Users} label="Staff" active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} />
@@ -685,6 +687,19 @@ const RestaurantAdmin = () => {
                                     </div>
                                 </div>
                             </div>
+                        </motion.div>
+                    )}
+
+                    {/* KITCHEN LIVE TAB */}
+                    {activeTab === 'kitchen' && (
+                        <motion.div
+                            key="kitchen"
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.98 }}
+                            className="h-[calc(100vh-140px)]"
+                        >
+                            <KitchenBoard />
                         </motion.div>
                     )}
 
