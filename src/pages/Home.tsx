@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     ShoppingCart, Plus, Minus, Clock, Check, ChefHat, User,
     CreditCard, Smartphone, Wallet, X, ChevronRight, UtensilsCrossed,
-    LogOut, Filter, ArrowLeft, Flame, Search, ChevronDown, ArrowDownAz
+    LogOut, Filter, ArrowLeft, Flame, Search, ChevronDown, ArrowDownAz, Heart
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -403,6 +403,13 @@ const RestaurantApp = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => navigate('/social-impact')}
+                            className="p-2 text-green-500 hover:text-green-600 transition-colors"
+                            title="Social Impact - Food Wastage Control"
+                        >
+                            <Heart className="w-5 h-5 fill-green-500" />
+                        </button>
                         <button
                             onClick={() => {
                                 logout();

@@ -15,6 +15,7 @@ import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage";
 import NotFound from "./pages/NotFound";
 import ChefKDS from "./pages/ChefKDS";
 import WaiterPage from "./pages/WaiterPage";
+import SocialImpact from "./pages/SocialImpact";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +99,7 @@ const AppRoutes = () => {
       <Route path="/home" element={<HomePage />} />
       <Route path="/home/:tableId" element={<HomePage />} />
       <Route path="/" element={<Navigate to="/home" replace />} />
+      <Route path="/social-impact" element={<SocialImpact />} />
 
       {/* --- Protected Routes --- */}
       <Route element={<ProtectedRoute />}>
