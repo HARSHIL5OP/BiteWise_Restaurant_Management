@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Clock, CheckCircle2, Sparkles, LogOut, CheckCheck } from 'lucide-react';
+import { Clock, CheckCircle2, Sparkles, LogOut, CheckCheck, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -14,11 +14,6 @@ const transformOrdersToVirtualItems = (orders: any[]) => {
     orders.forEach(order => {
         if (!order.items) return;
         order.items.forEach((item: any, idx: number) => {
-            // In a real item-level system, each ITEM would be marked ready.
-            // Since our schema is Order-level, we rely on the order status 'ready'.
-            // In the ChefKDS we mark the whole order ready when all items are done.
-            // So here, we display ALL items of a 'ready' order.
-            // Future-proofing: If we had item-level readiness, we'd filter here.
             virtualItems.push({
                 uniqueId: `${order.id}_${idx}`,
                 orderId: order.id,
@@ -26,12 +21,25 @@ const transformOrdersToVirtualItems = (orders: any[]) => {
                 name: item.name,
                 quantity: item.quantity,
                 veg: item.veg,
-                readyAt: order.updatedAt || order.createdAt // Best proxy for "Chef finished" time
+                readyAt: order.updatedAt || order.createdAt
             });
         });
     });
-    return virtualItems.sort((a, b) => a.readyAt.seconds - b.readyAt.seconds); // FIFO: Oldest Ready First
+    // FIFO Sort: Oldest Ready First
+    return virtualItems.sort((a, b) => a.readyAt.seconds - b.readyAt.seconds);
 };
+
+// Group logic: By Table -> then by Time
+const groupItemsByTable = (items: any[]) => {
+    const groups: Record<string, any[]> = {};
+    items.forEach(item => {
+        const tableId = `Table ${item.tableId}`;
+        if (!groups[tableId]) groups[tableId] = [];
+        groups[tableId].push(item);
+    });
+    return groups;
+};
+
 
 const WaiterDashboard = () => {
     const { user, logout } = useAuth();
@@ -39,8 +47,11 @@ const WaiterDashboard = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [orders, setOrders] = useState<any[]>([]);
 
+    // Performance: Analytics state
+    const [completedCount, setCompletedCount] = useState(0);
+
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        const timer = setInterval(() => setCurrentTime(new Date()), 5000); // 5s update is sufficient for minute-level UI
         return () => clearInterval(timer);
     }, []);
 
@@ -48,7 +59,6 @@ const WaiterDashboard = () => {
     useEffect(() => {
         if (!user) return;
 
-        // Listen to orders assigned to me AND status is ready
         const q = query(
             collection(db, 'orders'),
             where('waiterId', '==', user.uid),
@@ -59,7 +69,7 @@ const WaiterDashboard = () => {
             const fetched = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
-                updatedAt: doc.data().updatedAt || doc.data().createdAt // Fallback
+                updatedAt: doc.data().updatedAt || doc.data().createdAt
             }));
             setOrders(fetched);
         });
@@ -69,74 +79,35 @@ const WaiterDashboard = () => {
     // Derived Virtual Items
     const readyItems = useMemo(() => transformOrdersToVirtualItems(orders), [orders]);
 
-    // Actions
-    const handleMarkServed = async (virtualItem: any) => {
-        // Optimistic Removal? We can do it, but db listener is fast enough.
-        // Waiter serves one plate. Since our DB is order-level, 
-        // we check if this is the LAST item of the order to mark order served?
-        // Constraint: "status = 'served' only when all items of that order are served"
-        // Since we don't have item-level status in DB, we have a limitation.
-        // BUT, since the Chef marks the WHOLE order ready only when ALL items are ready...
-        // ... ALL items for this order appear at once here.
-        // So the waiter likely serves the whole table's ready food.
-
-        // Compromise for this schema:
-        // If waiter taps one item, we can't persist "item served" in DB (schema restriction).
-        // Solution: Waiter taps "Mark Served" -> Local State hides it.
-        // When ALL local items for that order are hidden -> Update DB order to 'served'.
-
-        // Implementing Local Hiding
-        // Actually, simpler UX for now with this schema:
-        // Group by Table/Order visually, but keep item cards separate?
-        // Or just let them clear the whole order?
-
-        // Let's stick to the prompt: "Waiter serves items individually".
-        // But since we can't save that state, if they refresh, it comes back. 
-        // That's acceptable for an ephemeral waiter UI.
-
-        // HOWEVER, to be truly useful, let's just mark the WHOLE order served 
-        // if they tap any item? NO, that breaks the "Individual" flow.
-
-        // BETTER: We will assume the "Ready" state implies "sitting on the pass".
-        // When waiter takes it, they mark it served.
-        // Since we can't flag individual items in DB, we will update the ORDER status 
-        // to 'served' ONLY when the waiter clears the last item?
-        // No, that's complex without local storage.
-
-        // Let's go with: Tapping an item marks the ORDER as served?
-        // The ChefKDS groups items. The Waiter usually carries a tray.
-        // If there are 5 items ready for Table 12, chef puts them on pass.
-        // Waiter takes all 5.
-        // So a "Serve All for Table 12" button or individual tapping that clears all?
-
-        // Let's implement individual tapping for the visual "Checking off", 
-        // and when the last one is tapped, we fire the DB update.
-
-        // Since I can't persist partials, I'll use a local 'servedItems' set.
-
-        markItemLocallyServed(virtualItem);
-    };
-
+    // Local Hidden State for Optimistic UI
     const [servedVirtualIds, setServedVirtualIds] = useState<Set<string>>(new Set());
 
-    const markItemLocallyServed = async (item: any) => {
-        // 1. Add to local hidden set
-        const newSet = new Set(servedVirtualIds);
-        newSet.add(item.uniqueId);
-        setServedVirtualIds(newSet);
+    // Filter out served
+    const visibleItems = useMemo(() => readyItems.filter(i => !servedVirtualIds.has(i.uniqueId)), [readyItems, servedVirtualIds]);
 
-        // 2. Check if all items for this order are now served
-        const orderItems = readyItems.filter(i => i.orderId === item.orderId);
-        const allServed = orderItems.every(i => newSet.has(i.uniqueId) || i.uniqueId === item.uniqueId);
+    // Group By Table
+    const tableGroups = useMemo(() => groupItemsByTable(visibleItems), [visibleItems]);
+    const sortedTables = useMemo(() => Object.keys(tableGroups).sort(), [tableGroups]);
+
+
+    // Action Handler
+    const handleMarkServed = async (virtualItem: any) => {
+        // Optimistic update
+        const newSet = new Set(servedVirtualIds);
+        newSet.add(virtualItem.uniqueId);
+        setServedVirtualIds(newSet);
+        setCompletedCount(prev => prev + 1);
+
+        // Logic check: If all items for this order are done, update DB
+        const orderItems = readyItems.filter(i => i.orderId === virtualItem.orderId);
+        const allServed = orderItems.every(i => newSet.has(i.uniqueId) || i.uniqueId === virtualItem.uniqueId);
 
         if (allServed) {
-            // Update Backend
             try {
-                await updateDoc(doc(db, 'orders', item.orderId), {
+                await updateDoc(doc(db, 'orders', virtualItem.orderId), {
                     status: 'served',
                     updatedAt: serverTimestamp()
                 });
-                // Local set clean up for this order not strictly needed as order disappears from 'ready' query
             } catch (err) {
                 console.error("Failed to serve order", err);
             }
@@ -144,119 +115,219 @@ const WaiterDashboard = () => {
     };
 
     const handleLogout = async () => {
-        try { await logout(); navigate('/login'); } catch (e) { console.error(e); }
+        await logout();
+        navigate('/login', { replace: true });
     };
 
-    // Filter out locally served items
-    const visibleItems = readyItems.filter(i => !servedVirtualIds.has(i.uniqueId));
+    // Analytics Calc
+    const avgWait = useMemo(() => {
+        if (visibleItems.length === 0) return 0;
+        const totalMin = visibleItems.reduce((acc, i) => {
+            return acc + Math.floor((currentTime.getTime() - (i.readyAt.seconds * 1000)) / 60000);
+        }, 0);
+        return Math.floor(totalMin / visibleItems.length);
+    }, [visibleItems, currentTime]);
+
+    const delayedCount = useMemo(() => {
+        return visibleItems.filter(i => {
+            const diff = Math.floor((currentTime.getTime() - (i.readyAt.seconds * 1000)) / 60000);
+            return diff > 10;
+        }).length;
+    }, [visibleItems, currentTime]);
+
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans pb-20">
+        <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-32">
+
             {/* --- HEADER --- */}
-            <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm px-4 py-4 mb-2">
-                <div className="flex items-center justify-between max-w-md mx-auto">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
-                            <Sparkles className="text-white w-5 h-5" />
+            <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200 shadow-sm transition-all duration-300">
+                <div className="max-w-xl mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                <span className="text-white font-bold text-lg">W</span>
+                            </div>
+                            <div>
+                                <h1 className="font-bold text-lg text-slate-900 leading-tight">Waitstaff Display</h1>
+                                <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1.5 mt-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Online • Shift Active
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="font-bold text-lg leading-none text-slate-900">Waiter</h1>
-                            <p className="text-xs font-semibold text-slate-500 mt-1">
-                                {currentTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                            </p>
+
+                        <div className="text-right">
+                            <h2 className="text-2xl font-mono font-bold text-slate-900 tracking-tight leading-none">
+                                {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                            </h2>
+                            <p className="text-xs font-medium text-slate-400 mt-1 uppercase tracking-wide">Live Service</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <div className="bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-indigo-100 flex items-center gap-2">
-                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
-                            {visibleItems.length} Ready
+
+                    {/* Analytics Strip */}
+                    <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
+                        <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200 shadow-sm min-w-max">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                            <span className="text-xs font-bold text-slate-700">{visibleItems.length} Ready Items</span>
                         </div>
-                        <button onClick={handleLogout} className="p-2 bg-slate-100 rounded-lg text-slate-400 hover:bg-slate-200">
-                            <LogOut size={18} />
+
+                        <div className="flex items-center gap-2 bg-slate-100 rounded-lg px-3 py-1.5 border border-slate-200 shadow-sm min-w-max">
+                            <TrendingUp size={12} className="text-slate-500" />
+                            <span className="text-xs font-bold text-slate-700">{avgWait}m Avg Wait</span>
+                        </div>
+
+                        {delayedCount > 0 && (
+                            <div className="flex items-center gap-2 bg-rose-50 rounded-lg px-3 py-1.5 border border-rose-100 shadow-sm min-w-max">
+                                <AlertTriangle size={12} className="text-rose-500" />
+                                <span className="text-xs font-bold text-rose-600">{delayedCount} Delayed</span>
+                            </div>
+                        )}
+
+                        <button onClick={handleLogout} className="ml-auto p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                            <LogOut size={16} />
                         </button>
                     </div>
                 </div>
             </header>
 
-            {/* --- LIST --- */}
-            <div className="max-w-md mx-auto px-4 space-y-3">
-                {visibleItems.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-24 text-center">
-                        <div className="w-24 h-24 bg-white rounded-full shadow-sm border border-slate-100 flex items-center justify-center mb-4">
-                            <CheckCheck className="w-10 h-10 text-slate-300" />
-                        </div>
-                        <h2 className="text-xl font-bold text-slate-400">All Served</h2>
-                        <p className="text-sm text-slate-400 mt-1 max-w-[200px]">Great job! Waiting for Chef to finish more items.</p>
-                    </div>
-                ) : (
-                    <AnimatePresence mode="popLayout">
-                        {visibleItems.map((item) => {
-                            // Time Logic
-                            const diffMins = Math.floor((currentTime.getTime() - (item.readyAt.seconds * 1000 || Date.now())) / 60000);
+            {/* --- CONTENT --- */}
+            <div className="max-w-xl mx-auto px-4 mt-6 space-y-8">
+                <AnimatePresence mode="popLayout">
+                    {sortedTables.length === 0 ? (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="flex flex-col items-center justify-center py-20 text-center"
+                        >
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-emerald-100 rounded-full blur-xl opacity-50 animate-pulse"></div>
+                                <div className="w-24 h-24 bg-white rounded-full shadow-lg border border-slate-100 flex items-center justify-center relative z-10">
+                                    <Sparkles className="w-10 h-10 text-emerald-500" />
+                                </div>
+                            </div>
+                            <h2 className="text-2xl font-bold text-slate-800 mt-6">All Caught Up!</h2>
+                            <p className="text-slate-500 mt-2 max-w-[240px] leading-relaxed">
+                                Excellent work. Waiting for the kitchen to prepare new orders.
+                            </p>
+                        </motion.div>
+                    ) : (
+                        sortedTables.map(tableKey => {
+                            const items = tableGroups[tableKey];
+                            // Get oldest time for header
+                            const oldestSeconds = Math.min(...items.map(i => i.readyAt.seconds));
+                            const elapsedHead = Math.floor((currentTime.getTime() - (oldestSeconds * 1000)) / 60000);
 
-                            // Visual State
-                            let statusColor = "border-emerald-500";
-                            let bgColor = "bg-white";
-                            let textColor = "text-slate-600";
-                            let timeBadge = "bg-emerald-50 text-emerald-700";
-
-                            if (diffMins >= 10) {
-                                statusColor = "border-red-500 animate-pulse";
-                                timeBadge = "bg-red-50 text-red-700";
-                            } else if (diffMins >= 5) {
-                                statusColor = "border-amber-500";
-                                timeBadge = "bg-amber-50 text-amber-700";
-                            }
+                            // Urgency Header Color
+                            let headerColor = "text-slate-500";
+                            let timerBg = "bg-slate-100 text-slate-600";
+                            if (elapsedHead > 10) { headerColor = "text-rose-600"; timerBg = "bg-rose-100 text-rose-700"; }
+                            else if (elapsedHead > 5) { headerColor = "text-amber-600"; timerBg = "bg-amber-100 text-amber-700"; }
 
                             return (
                                 <motion.div
                                     layout
-                                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, x: -100, transition: { duration: 0.2 } }}
-                                    key={item.uniqueId}
-                                    className={`relative rounded-2xl p-4 shadow-sm border-l-4 ${statusColor} ${bgColor} flex flex-col gap-3 group active:scale-[0.98] transition-transform select-none`}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.3 } }}
+                                    key={tableKey}
+                                    className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"
                                 >
-                                    {/* Top Row: Table & Time */}
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Table</span>
-                                            <span className="text-4xl font-black text-slate-900 leading-none">{item.tableId}</span>
+                                    {/* --- TABLE HEADER --- */}
+                                    <div className="bg-slate-50/50 border-b border-slate-100 p-4 flex justify-between items-center sticky top-0 backdrop-blur-md">
+                                        <div>
+                                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Table Service</h3>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-2xl font-black text-slate-800 tracking-tight">{tableKey.replace('Table ', '')}</span>
+                                                <span className="text-sm font-bold text-slate-400">/ {items.length} Items</span>
+                                            </div>
                                         </div>
-                                        <div className={`px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 ${timeBadge}`}>
-                                            <Clock size={12} />
-                                            {diffMins}m Ago
+                                        <div className={`px-3 py-1.5 rounded-lg text-sm font-bold font-mono ${timerBg} flex items-center gap-2`}>
+                                            <Clock size={14} />
+                                            {elapsedHead}m
                                         </div>
                                     </div>
 
-                                    {/* Middle: Item Details */}
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <div className={`w-4 h-4 rounded-sm flex items-center justify-center border ${item.veg ? 'border-green-600' : 'border-red-600'}`}>
-                                                <div className={`w-2 h-2 rounded-full ${item.veg ? 'bg-green-600' : 'bg-red-600'}`} />
-                                            </div>
-                                            <h3 className="text-lg font-bold text-slate-800 leading-tight">{item.name}</h3>
-                                        </div>
-                                        {item.quantity > 1 && (
-                                            <div className="inline-block bg-slate-900 text-white text-xs px-2 py-0.5 rounded font-bold">
-                                                x{item.quantity} Servings
-                                            </div>
-                                        )}
+                                    {/* --- ITEMS LIST --- */}
+                                    <div className="p-2">
+                                        <AnimatePresence mode="popLayout">
+                                            {items.map(item => {
+                                                const diff = Math.floor((currentTime.getTime() - (item.readyAt.seconds * 1000 || Date.now())) / 60000);
+
+                                                // Item Urgency
+                                                let borderClass = "border-l-4 border-slate-200";
+                                                let urgencyIcon = null;
+
+                                                if (diff > 15) {
+                                                    borderClass = "border-l-4 border-rose-500 bg-rose-50/10";
+                                                    urgencyIcon = <span className="bg-rose-500 text-white text-[10px] px-1.5 rounded font-bold uppercase tracking-wide">Priority</span>;
+                                                } else if (diff > 10) {
+                                                    borderClass = "border-l-4 border-rose-400";
+                                                } else if (diff > 5) {
+                                                    borderClass = "border-l-4 border-amber-400";
+                                                }
+                                                // Else standard green-ish handled by default or specific class
+
+                                                return (
+                                                    <motion.div
+                                                        layout
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                                                        key={item.uniqueId}
+                                                        className={`relative flex items-center p-3 mb-2 bg-white rounded-xl border border-slate-100 shadow-sm ${borderClass} group overflow-hidden`}
+                                                    >
+                                                        {/* Content */}
+                                                        <div className="flex-1 min-w-0 pr-4">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <div className={`w-3 h-3 rounded-full border-2 ${item.veg ? 'border-emerald-500' : 'border-rose-500'} flex items-center justify-center`}>
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${item.veg ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                                                </div>
+                                                                {urgencyIcon}
+                                                            </div>
+                                                            <h4 className="text-base font-bold text-slate-800 leading-tight truncate">{item.name}</h4>
+                                                            {item.quantity > 1 && (
+                                                                <span className="inline-block mt-1 text-xs font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                                                    x{item.quantity} Servings
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Check Action - Tap to Serve */}
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleMarkServed(item);
+                                                            }}
+                                                            className="w-12 h-12 rounded-full bg-slate-50 hover:bg-emerald-500 border border-slate-200 hover:border-emerald-600 flex items-center justify-center text-slate-300 hover:text-white transition-all shadow-sm active:scale-90"
+                                                        >
+                                                            <CheckCheck size={20} />
+                                                        </button>
+                                                    </motion.div>
+                                                )
+                                            })}
+                                        </AnimatePresence>
                                     </div>
 
-                                    {/* Bottom: Action (Full Width Tap Target logic overlay) */}
-                                    <button
-                                        onClick={() => handleMarkServed(item)}
-                                        className="mt-2 w-full py-3 bg-slate-50 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 font-bold rounded-xl border border-slate-100 hover:border-emerald-200 transition-colors flex items-center justify-center gap-2 uppercase text-sm tracking-wide"
-                                    >
-                                        <CheckCircle2 size={18} />
-                                        Mark Served
-                                    </button>
+                                    {/* Footer Banner */}
+                                    <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-center">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            Verify Before Serving
+                                        </p>
+                                    </div>
                                 </motion.div>
                             );
-                        })}
-                    </AnimatePresence>
-                )}
+                        })
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Floating Quick Stats - Bottom */}
+            <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none z-40">
+                <div className="bg-slate-900/90 backdrop-blur-md text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-4 border border-slate-700 pointer-events-auto transition-transform hover:scale-105 cursor-default">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Session</span>
+                    <div className="w-px h-3 bg-slate-700"></div>
+                    <span className="text-sm font-bold text-emerald-400">{completedCount} Served</span>
+                </div>
             </div>
         </div>
     );

@@ -281,10 +281,7 @@ export default function SignupPage() {
             onClick={handleGoogleSignup}
           />
           {/* Github OAuth */}
-          <GithubButton
-            isLoading={isGithubLoading}
-            onClick={handleGithubSignup}
-          />
+
         </div>
 
         {/* Sign In Link */}

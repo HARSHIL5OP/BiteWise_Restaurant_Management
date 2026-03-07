@@ -11,7 +11,7 @@ interface AuthButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function AuthButton({
-  variant = 'accent',
+  variant = 'primary', // Default to primary for Bitewise main actions
   isLoading = false,
   icon,
   children,
@@ -30,27 +30,30 @@ export function AuthButton({
   return (
     <motion.button
       type={type}
-      className={cn(baseClasses[variant], className)}
+      className={cn(baseClasses[variant], isLoading && 'btn-loading cursor-wait', className)}
       disabled={disabled || isLoading}
       whileHover={!disabled && !isLoading ? { y: -2 } : undefined}
-      whileTap={!disabled && !isLoading ? { scale: 0.98 } : undefined}
+      whileTap={!disabled && !isLoading ? { scale: 0.95 } : undefined}
       onClick={props.onClick}
     >
-      {isLoading ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex items-center justify-center gap-2"
-        >
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span>Please wait...</span>
-        </motion.div>
-      ) : (
-        <span className="flex items-center justify-center gap-2">
-          {icon}
-          {children}
-        </span>
-      )}
+      {/* Loading State content handled by CSS 'btn-loading' shimmer, but we can also overlay/replace text if desired. 
+          The prompt asked for shimmer animation instead of spinner if possible, but keeping spinner as fallback or companion is good practice. 
+          However, the CSS I added handles the shimmer. Let's just make sure the content is visible or slighty dimmed.
+      */}
+      <div className={cn("relative z-10 flex items-center justify-center gap-2", isLoading && "opacity-80")}>
+        {isLoading ? (
+          <span className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin opacity-70" />
+            {children}
+          </span>
+        ) : (
+          <>
+            {children}
+            {/* Check if icon is ArrowRight/specific icon for hover slide, but generic is fine */}
+            {icon && <span className="transition-transform duration-300 group-hover:translate-x-1">{icon}</span>}
+          </>
+        )}
+      </div>
     </motion.button>
   );
 }
@@ -71,7 +74,7 @@ export function GoogleButton({
       onClick={onClick}
       disabled={isLoading}
       className={cn('btn-oauth', className)}
-      whileHover={{ y: -2 }}
+      whileHover={{ y: -2, backgroundColor: "rgba(255,255,255,0.1)" }}
       whileTap={{ scale: 0.98 }}
     >
       {isLoading ? (
@@ -117,7 +120,7 @@ export function GithubButton({
       onClick={onClick}
       disabled={isLoading}
       className={cn('btn-oauth', className)}
-      whileHover={{ y: -2 }}
+      whileHover={{ y: -2, backgroundColor: "rgba(255,255,255,0.1)" }}
       whileTap={{ scale: 0.98 }}
     >
       {isLoading ? (

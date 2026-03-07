@@ -127,8 +127,8 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Sign in to your account to continue"
+      title="Welcome back to Bitewise"
+      subtitle="Smart operations for modern food businesses."
     >
       <form onSubmit={handleLogin} className="space-y-5">
         {/* Error Alert */}
@@ -146,73 +146,101 @@ export default function LoginPage() {
         </AnimatePresence>
 
         {/* Email Input */}
-        <AuthInput
-          label="Email address"
-          type="email"
-          placeholder="you@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          icon={<Mail className="h-5 w-5" />}
-          autoComplete="email"
-          required
-        />
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <AuthInput
+            label="Email address"
+            type="email"
+            placeholder=" "
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            icon={<Mail className="h-5 w-5" />}
+            autoComplete="email"
+            required
+          />
+        </motion.div>
 
         {/* Password Input */}
-        <AuthInput
-          label="Password"
-          type="password"
-          placeholder="Enter your password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          icon={<Lock className="h-5 w-5" />}
-          autoComplete="current-password"
-          required
-        />
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <AuthInput
+            label="Password"
+            type="password"
+            placeholder=" "
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            icon={<Lock className="h-5 w-5" />}
+            autoComplete="current-password"
+            required
+          />
+        </motion.div>
 
         {/* Forgot Password Link */}
-        <div className="flex justify-end">
+        <motion.div
+          className="flex justify-end"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
           <Link
             to="/forgot-password"
             className="auth-link text-sm"
           >
             Forgot password?
           </Link>
-        </div>
+        </motion.div>
 
         {/* Login Button */}
-        <AuthButton
-          type="submit"
-          isLoading={isLoading}
-          icon={<ArrowRight className="h-5 w-5" />}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
         >
-          Sign in
-        </AuthButton>
+          <AuthButton
+            type="submit"
+            variant="primary"
+            isLoading={isLoading}
+            icon={<ArrowRight className="h-5 w-5" />}
+          >
+            Sign in
+          </AuthButton>
+        </motion.div>
 
         {/* Divider */}
-        <div className="auth-divider">
+        <motion.div
+          className="auth-divider"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+        >
           <span>or continue with</span>
-        </div>
+        </motion.div>
 
-        <div className="space-y-3">
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
           {/* Google OAuth */}
           <GoogleButton
             isLoading={isGoogleLoading}
             onClick={handleGoogleLogin}
           />
-
-          {/* GitHub OAuth */}
-          <GithubButton
-            isLoading={isGithubLoading}
-            onClick={handleGithubLogin}
-          />
-        </div>
+        </motion.div>
 
         {/* Sign Up Link */}
         <motion.p
           className="text-center text-sm text-muted-foreground"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
+          transition={{ delay: 0.7 }}
         >
           Don't have an account?{' '}
           <Link to="/signup" className="auth-link">

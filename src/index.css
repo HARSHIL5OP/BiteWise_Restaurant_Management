@@ -6,137 +6,142 @@
 
 @layer base {
   :root {
-    /* Core Cafe Palette - Light Mode */
-    --background: 40 33% 98%;
-    --foreground: 30 10% 15%;
+    /* Bitewise Design System - Intelligent Hospitality Operations */
+
+    /* Core Palette - Light Mode (Clean, Professional) */
+    --background: 210 20% 98%;
+    --foreground: 220 20% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 30 10% 15%;
+    --card-foreground: 220 20% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 30 10% 15%;
+    --popover-foreground: 220 20% 10%;
 
-    /* Primary - Warm Espresso */
-    --primary: 30 25% 20%;
-    --primary-foreground: 40 33% 98%;
+    /* Primary - Deep Navy/Charcoal */
+    --primary: 220 30% 12%;
+    --primary-foreground: 210 20% 98%;
 
-    /* Secondary - Cream */
-    --secondary: 40 30% 94%;
-    --secondary-foreground: 30 25% 20%;
+    /* Secondary - Cool Grey */
+    --secondary: 220 15% 96%;
+    --secondary-foreground: 220 30% 12%;
 
-    /* Muted - Soft Latte */
-    --muted: 35 20% 92%;
-    --muted-foreground: 30 10% 45%;
+    /* Muted - Subtle Slate */
+    --muted: 220 15% 96%;
+    --muted-foreground: 220 10% 45%;
 
-    /* Accent - Warm Amber/Caramel */
-    --accent: 32 95% 55%;
-    --accent-foreground: 30 25% 12%;
+    /* Accent - Refined Amber (Bitewise Brand) */
+    --accent: 35 90% 50%;
+    --accent-foreground: 0 0% 100%;
 
     /* Status Colors */
-    --destructive: 0 72% 51%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 70% 45%;
+    --success: 150 70% 40%;
     --success-foreground: 0 0% 100%;
 
     /* Borders & Inputs */
-    --border: 35 20% 88%;
-    --input: 35 20% 88%;
-    --ring: 32 95% 55%;
+    --border: 220 15% 90%;
+    --input: 220 15% 90%;
+    --ring: 35 90% 50%;
+    /* Amber focus ring */
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
+    /* Clean, modern radius */
 
-    /* Cafe Gradients */
-    --gradient-warm: linear-gradient(135deg, hsl(32, 95%, 55%) 0%, hsl(25, 90%, 50%) 100%);
-    --gradient-espresso: linear-gradient(135deg, hsl(30, 25%, 20%) 0%, hsl(25, 30%, 15%) 100%);
-    --gradient-cream: linear-gradient(135deg, hsl(40, 33%, 98%) 0%, hsl(35, 30%, 92%) 100%);
-    --gradient-glow: radial-gradient(ellipse at center, hsl(32, 95%, 55%, 0.15) 0%, transparent 70%);
+    /* Bitewise Gradients */
+    --gradient-warm: linear-gradient(135deg, hsl(35, 90%, 50%) 0%, hsl(45, 95%, 55%) 100%);
+    --gradient-brand: linear-gradient(135deg, hsl(220, 30%, 12%) 0%, hsl(220, 25%, 18%) 100%);
+    --gradient-subtle: linear-gradient(135deg, hsl(210, 20%, 98%) 0%, hsl(220, 15%, 94%) 100%);
+    --gradient-glow: radial-gradient(circle at center, hsl(35, 90%, 50%, 0.15) 0%, transparent 70%);
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px hsl(30 10% 15% / 0.05);
-    --shadow-md: 0 4px 12px hsl(30 10% 15% / 0.08);
-    --shadow-lg: 0 12px 40px hsl(30 10% 15% / 0.12);
-    --shadow-glow: 0 0 40px hsl(32 95% 55% / 0.2);
+    --shadow-sm: 0 1px 2px hsl(220 20% 10% / 0.05);
+    --shadow-md: 0 4px 12px hsl(220 20% 10% / 0.08);
+    --shadow-lg: 0 12px 40px hsl(220 20% 10% / 0.12);
+    --shadow-glow: 0 0 40px hsl(35 90% 50% / 0.2);
 
     /* Glass Effect */
-    --glass-bg: hsl(0 0% 100% / 0.8);
-    --glass-border: hsl(0 0% 100% / 0.5);
+    --glass-bg: hsl(0 0% 100% / 0.9);
+    --glass-border: hsl(220 20% 10% / 0.05);
 
-    /* Sidebar (keeping for compatibility) */
-    --sidebar-background: 40 33% 98%;
-    --sidebar-foreground: 30 10% 45%;
-    --sidebar-primary: 30 25% 20%;
-    --sidebar-primary-foreground: 40 33% 98%;
-    --sidebar-accent: 35 20% 92%;
-    --sidebar-accent-foreground: 30 25% 20%;
-    --sidebar-border: 35 20% 88%;
-    --sidebar-ring: 32 95% 55%;
+    /* Sidebar */
+    --sidebar-background: 210 20% 98%;
+    --sidebar-foreground: 220 10% 45%;
+    --sidebar-primary: 220 30% 12%;
+    --sidebar-primary-foreground: 210 20% 98%;
+    --sidebar-accent: 220 15% 96%;
+    --sidebar-accent-foreground: 220 30% 12%;
+    --sidebar-border: 220 15% 90%;
+    --sidebar-ring: 35 90% 50%;
   }
 
   .dark {
-    /* Core Cafe Palette - Dark Mode (Cafe Night Vibe) */
-    --background: 25 20% 8%;
-    --foreground: 40 20% 95%;
+    /* Core Palette - Dark Mode (Intelligent, Data-Driven) */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
 
-    --card: 25 18% 12%;
-    --card-foreground: 40 20% 95%;
+    --card: 222 47% 13%;
+    /* Slightly lighter than bg */
+    --card-foreground: 210 40% 98%;
 
-    --popover: 25 18% 12%;
-    --popover-foreground: 40 20% 95%;
+    --popover: 222 47% 13%;
+    --popover-foreground: 210 40% 98%;
 
-    /* Primary - Light Cream on Dark */
-    --primary: 40 20% 95%;
-    --primary-foreground: 25 20% 8%;
+    /* Primary - White/Off-white for contrast */
+    --primary: 210 40% 98%;
+    --primary-foreground: 222 47% 11%;
 
-    /* Secondary - Deep Espresso */
-    --secondary: 25 15% 18%;
-    --secondary-foreground: 40 20% 95%;
+    /* Secondary - Dark Slate */
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
 
-    /* Muted - Coffee Grounds */
-    --muted: 25 12% 20%;
-    --muted-foreground: 35 15% 55%;
+    /* Muted - Muted Slate */
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
 
-    /* Accent - Warm Amber (brighter in dark) */
-    --accent: 35 100% 58%;
-    --accent-foreground: 25 20% 8%;
+    /* Accent - Refined Amber */
+    --accent: 35 95% 58%;
+    --accent-foreground: 222 47% 11%;
 
     /* Status Colors */
-    --destructive: 0 65% 55%;
+    --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 65% 50%;
+    --success: 142 70% 50%;
     --success-foreground: 0 0% 100%;
 
     /* Borders & Inputs */
-    --border: 25 12% 22%;
-    --input: 25 12% 22%;
-    --ring: 35 100% 58%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 35 95% 58%;
 
-    /* Dark Mode Gradients */
-    --gradient-warm: linear-gradient(135deg, hsl(35, 100%, 58%) 0%, hsl(28, 95%, 52%) 100%);
-    --gradient-espresso: linear-gradient(135deg, hsl(25, 20%, 12%) 0%, hsl(25, 25%, 8%) 100%);
-    --gradient-cream: linear-gradient(135deg, hsl(25, 18%, 14%) 0%, hsl(25, 15%, 10%) 100%);
-    --gradient-glow: radial-gradient(ellipse at center, hsl(35, 100%, 58%, 0.12) 0%, transparent 70%);
+    /* Bitewise Dark Gradients */
+    --gradient-warm: linear-gradient(135deg, hsl(35, 95%, 58%) 0%, hsl(40, 95%, 62%) 100%);
+    --gradient-brand: linear-gradient(135deg, hsl(222, 47%, 12%) 0%, hsl(222, 50%, 8%) 100%);
+    --gradient-subtle: linear-gradient(135deg, hsl(222, 47%, 14%) 0%, hsl(222, 47%, 10%) 100%);
+    --gradient-glow: radial-gradient(circle at center, hsl(35, 95%, 58%, 0.1) 0%, transparent 60%);
 
     /* Shadows */
-    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.2);
-    --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.3);
-    --shadow-lg: 0 12px 40px hsl(0 0% 0% / 0.4);
-    --shadow-glow: 0 0 60px hsl(35 100% 58% / 0.15);
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 12px hsl(0 0% 0% / 0.4);
+    --shadow-lg: 0 12px 40px hsl(0 0% 0% / 0.5);
+    --shadow-glow: 0 0 60px hsl(35 95% 58% / 0.1);
 
-    /* Glass Effect */
-    --glass-bg: hsl(25 18% 12% / 0.85);
-    --glass-border: hsl(40 20% 95% / 0.1);
+    /* Glass Effect (Enhanced for Dark Mode) */
+    --glass-bg: hsl(222 47% 13% / 0.6);
+    --glass-border: hsl(210 40% 98% / 0.08);
 
     /* Sidebar */
-    --sidebar-background: 25 20% 8%;
-    --sidebar-foreground: 35 15% 55%;
-    --sidebar-primary: 40 20% 95%;
-    --sidebar-primary-foreground: 25 20% 8%;
-    --sidebar-accent: 25 15% 18%;
-    --sidebar-accent-foreground: 40 20% 95%;
-    --sidebar-border: 25 12% 22%;
-    --sidebar-ring: 35 100% 58%;
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 20%;
+    --sidebar-ring: 35 95% 58%;
   }
 }
 
@@ -157,88 +162,93 @@
 }
 
 @layer components {
-  /* Auth Card Glass Effect */
+
+  /* Auth Card Glass Effect - Refined */
   .auth-card {
-    @apply relative overflow-hidden rounded-2xl border border-border/50 bg-card/80 p-8 backdrop-blur-xl;
+    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-md;
     box-shadow: var(--shadow-lg);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .auth-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
   }
 
   .auth-card::before {
     content: '';
-    @apply absolute inset-0 -z-10 opacity-50;
+    @apply absolute inset-0 -z-10 opacity-30 pointer-events-none;
     background: var(--gradient-glow);
   }
 
-  /* Premium Input Styles */
+  /* Premium Bitewise Input Styles */
   .auth-input {
-    @apply h-12 w-full rounded-xl border border-border bg-background/50 px-4 text-base transition-all duration-200;
-    @apply placeholder:text-muted-foreground/60;
-    @apply hover:border-accent/50;
-    @apply focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none;
+    @apply h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 pt-4 text-base transition-all duration-200 text-foreground;
+    @apply placeholder:text-muted-foreground/0;
+    @apply hover:border-white/20;
+    @apply focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/50 focus:outline-none focus:bg-white/10;
   }
 
-  .auth-input:focus {
-    box-shadow: 0 0 0 4px hsl(var(--accent) / 0.1), var(--shadow-sm);
-  }
-
-  /* Primary Button */
+  /* Primary Button - Gradient & Glow */
   .btn-primary {
-    @apply relative h-12 w-full overflow-hidden rounded-xl font-semibold text-primary-foreground transition-all duration-300;
-    @apply bg-primary hover:opacity-90;
-    @apply active:scale-[0.98];
+    @apply relative h-12 w-full overflow-hidden rounded-xl font-bold text-white transition-all duration-300 shadow-lg;
+    background: linear-gradient(to right, #f59e0b, #d97706);
+    /* amber-500 to amber-600 */
+    @apply hover:brightness-110 hover:shadow-orange-500/20 hover:-translate-y-0.5;
+    @apply active:scale-95 active:shadow-none;
     @apply disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
-  .btn-primary::before {
-    content: '';
-    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
-    background: var(--gradient-warm);
+  /* Loading Shimmer Effect */
+  .btn-loading {
+    @apply relative overflow-hidden pointer-events-none;
   }
 
-  .btn-primary:hover::before {
-    @apply opacity-100;
+  .btn-loading::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: shimmer 1.5s infinite;
   }
 
   /* Accent Button */
   .btn-accent {
     @apply relative h-12 w-full overflow-hidden rounded-xl font-semibold transition-all duration-300;
-    background: var(--gradient-warm);
-    @apply text-white;
-    @apply hover:shadow-lg hover:-translate-y-0.5;
-    @apply active:scale-[0.98] active:translate-y-0;
-    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0;
+    @apply border border-accent/20 bg-accent/10 text-accent;
+    @apply hover:bg-accent/20 hover:border-accent/40;
+    @apply active:scale-[0.98];
   }
 
   /* Ghost Button */
   .btn-ghost {
     @apply h-12 w-full rounded-xl font-medium transition-all duration-200;
-    @apply text-foreground/80 hover:text-foreground;
-    @apply hover:bg-secondary;
+    @apply text-muted-foreground hover:text-foreground;
+    @apply hover:bg-white/5;
     @apply active:scale-[0.98];
   }
 
-  /* OAuth Button */
+  /* OAuth Button - Glassy */
   .btn-oauth {
-    @apply h-12 w-full rounded-xl border border-border bg-background/50 font-medium transition-all duration-200;
+    @apply h-12 w-full rounded-xl border border-white/10 bg-white/5 text-foreground font-medium transition-all duration-200;
     @apply flex items-center justify-center gap-3;
-    @apply hover:bg-secondary hover:border-accent/30;
+    @apply hover:bg-white/10 hover:border-white/20;
     @apply active:scale-[0.98];
   }
 
-  /* Divider with text */
+  /* Divider */
   .auth-divider {
-    @apply flex items-center gap-4 text-sm text-muted-foreground;
+    @apply flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground/60 my-6;
   }
 
   .auth-divider::before,
   .auth-divider::after {
     content: '';
-    @apply flex-1 h-px bg-border;
+    @apply flex-1 h-px bg-white/10;
   }
 
   /* Link styles */
   .auth-link {
-    @apply text-accent hover:text-accent/80 font-medium transition-colors duration-200 underline-offset-4 hover:underline;
+    @apply text-amber-500 hover:text-amber-400 font-medium transition-colors duration-200 hover:underline decoration-amber-500/30 underline-offset-4;
   }
 
   /* Password strength meter */
@@ -272,6 +282,7 @@
 }
 
 @layer utilities {
+
   /* Smooth theme transition */
   .theme-transition {
     @apply transition-colors duration-300 ease-in-out;
@@ -296,25 +307,39 @@
 
 /* Keyframe Animations */
 @keyframes blob {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate(0, 0) scale(1);
   }
+
   25% {
     transform: translate(20px, -30px) scale(1.1);
   }
+
   50% {
     transform: translate(-20px, 20px) scale(0.9);
   }
+
   75% {
     transform: translate(30px, 10px) scale(1.05);
   }
 }
 
 @keyframes float {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }

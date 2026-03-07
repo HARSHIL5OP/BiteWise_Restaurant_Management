@@ -1,6 +1,6 @@
 import { useState, forwardRef, InputHTMLAttributes } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AuthInputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -16,15 +16,15 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
     const [isFocused, setIsFocused] = useState(false);
     const isPassword = type === 'password';
 
+    // We can use the 'group' class or local simple state/css for floating labels
+    // The CSS logic for floating label is in index.css relying on :placeholder-shown
+
     return (
-      <div className="space-y-2">
-        <label className="block text-sm font-medium text-foreground">
-          {label}
-        </label>
-        <div className="relative">
+      <div className="space-y-1">
+        <div className="relative group input-group">
           {/* Icon */}
           {icon && (
-            <div className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+            <div className={`pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200 ${isFocused || props.value ? 'text-amber-500' : 'text-slate-400'}`}>
               {icon}
             </div>
           )}
@@ -35,23 +35,42 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
             type={isPassword ? (showPassword ? 'text' : 'password') : type}
             className={cn(
               'auth-input',
-              icon && 'pl-12',
+              icon && 'pl-11', // Adjust padding for icon
               isPassword && 'pr-12',
-              error && 'border-destructive focus:border-destructive focus:ring-destructive/20',
-              success && 'border-success focus:border-success focus:ring-success/20',
+              error && 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20',
+              success && 'border-emerald-500/50 focus:border-emerald-500 focus:ring-emerald-500/20',
               className
             )}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
+            onFocus={(e) => {
+              setIsFocused(true);
+              props.onFocus?.(e);
+            }}
+            onBlur={(e) => {
+              setIsFocused(false);
+              props.onBlur?.(e);
+            }}
+            placeholder=" " // Required for :placeholder-shown CSS trick
             {...props}
           />
+
+          {/* Floating Label */}
+          <label
+            className={cn(
+              "input-label pointer-events-none absolute left-4 transition-all duration-200 ease-out origin-[0]",
+              icon ? "left-11" : "left-4",
+              // Initial state (centered) handled by index.css, mostly
+            )}
+          >
+            {label}
+          </label>
+
 
           {/* Password Toggle */}
           {isPassword && (
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-white"
               tabIndex={-1}
             >
               <AnimatePresence mode="wait" initial={false}>
@@ -80,30 +99,16 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
             </button>
           )}
 
-          {/* Focus glow effect */}
-          <AnimatePresence>
-            {isFocused && !error && (
-              <motion.div
-                className="absolute inset-0 -z-10 rounded-xl"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                style={{
-                  background: 'radial-gradient(ellipse at center, hsl(var(--accent) / 0.1) 0%, transparent 70%)',
-                }}
-              />
-            )}
-          </AnimatePresence>
         </div>
 
         {/* Error Message */}
         <AnimatePresence>
           {error && (
             <motion.div
-              className="flex items-center gap-2 text-sm text-destructive"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -5 }}
+              className="flex items-center gap-2 text-sm text-red-400 pl-1"
+              initial={{ opacity: 0, height: 0, y: -5 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -5 }}
               transition={{ duration: 0.2 }}
             >
               <AlertCircle className="h-4 w-4" />
