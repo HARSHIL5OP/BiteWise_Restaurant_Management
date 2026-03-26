@@ -17,6 +17,8 @@ import ChefKDS from "./pages/ChefKDS";
 import WaiterPage from "./pages/WaiterPage";
 import SocialImpact from "./pages/SocialImpact";
 import MainAdminPage from "./pages/main-admin";
+import CustomerHome from "./pages/customer/index";
+import RestaurantDetail from "./pages/customer/RestaurantDetail";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +106,10 @@ const AppRoutes = () => {
       
       {/* --- Main Admin Dashboard UI (No Auth Required) --- */}
       <Route path="/main-admin" element={<MainAdminPage />} />
+
+      {/* --- Customer Flow (Restaurant Browsing UI) --- */}
+      <Route path="/customer" element={<CustomerHome />} />
+      <Route path="/customer/restaurant/:id" element={<RestaurantDetail />} />
 
       {/* --- Protected Routes --- */}
       <Route element={<ProtectedRoute />}>

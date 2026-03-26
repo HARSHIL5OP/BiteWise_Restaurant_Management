@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 
 import DashboardOverview from "./components/DashboardOverview";
 import RestaurantManagement from "./components/RestaurantManagement";
-import AddRestaurant from "./components/AddRestaurant";
+import AddRestaurantPage from "./AddRestaurantPage";
 import NGOManagement from "./components/NGOManagement";
 import DonationTracking from "./components/DonationTracking";
 import Analytics from "./components/Analytics";
@@ -55,7 +55,7 @@ export default function MainAdminPage() {
     switch (activeTab) {
       case "dashboard": return <DashboardOverview />;
       case "restaurants": return <RestaurantManagement />;
-      case "add-restaurant": return <AddRestaurant />;
+      case "add-restaurant": return <AddRestaurantPage />;
       case "ngos": return <NGOManagement />;
       case "donations": return <DonationTracking />;
       case "analytics": return <Analytics />;
