@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import ChefKDS from "./pages/ChefKDS";
 import WaiterPage from "./pages/WaiterPage";
 import SocialImpact from "./pages/SocialImpact";
+import MainAdminPage from "./pages/main-admin";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +101,9 @@ const AppRoutes = () => {
       <Route path="/home/:tableId" element={<HomePage />} />
       <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/social-impact" element={<SocialImpact />} />
+      
+      {/* --- Main Admin Dashboard UI (No Auth Required) --- */}
+      <Route path="/main-admin" element={<MainAdminPage />} />
 
       {/* --- Protected Routes --- */}
       <Route element={<ProtectedRoute />}>
