@@ -7,8 +7,10 @@ export interface RestaurantData {
   description: string;
   logoUrl: string;
   bannerImage: string;
-  ownerName: string;
-  ownerEmail: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
   password?: string;
   location: {
     address: string;
@@ -29,25 +31,28 @@ export const addRestaurant = async (data: RestaurantData) => {
     if (!data.password) throw new Error("Password is required for new restaurant owners");
     
     // 1. Create user in Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, data.ownerEmail, data.password);
+    const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
     const uid = userCredential.user.uid;
 
-    // 2. Save User in Firestore
+    // 2. Save User in Firestore completely matching schema
     const userRef = doc(db, "users", uid);
     await setDoc(userRef, {
-      userId: uid,
-      name: data.ownerName,
-      email: data.ownerEmail,
-      role: "restaurant_admin",
-      restaurantId: "",
-      createdAt: serverTimestamp()
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      phone: data.phone,
+      role: "owner",
+      profileImage: "",
+      loyaltyPoints: 0,
+      createdAt: serverTimestamp(),
+      lastLogin: serverTimestamp(),
+      isVerified: false
     });
 
     // 3. Create Restaurant
     const restaurantRef = doc(collection(db, "restaurants"));
     
     const newDoc = {
-      restaurantId: restaurantRef.id,
       name: data.name,
       description: data.description,
       logoUrl: data.logoUrl || "",
@@ -66,7 +71,8 @@ export const addRestaurant = async (data: RestaurantData) => {
         close: data.operatingHours.close
       },
       averageRating: 0,
-      restaurantStatus: "approved",
+      totalOrders: 0,
+      status: "pending",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       isDeleted: false
@@ -74,12 +80,7 @@ export const addRestaurant = async (data: RestaurantData) => {
 
     await setDoc(restaurantRef, newDoc);
 
-    // 4. Update user with Restaurant ID
-    await updateDoc(userRef, {
-      restaurantId: restaurantRef.id
-    });
-
-    return newDoc.restaurantId;
+    return restaurantRef.id;
   } catch (error) {
     console.error("Error adding restaurant: ", error);
     throw error;
@@ -94,7 +95,7 @@ export const getAllRestaurants = async () => {
         id: doc.id,
         ...doc.data()
       }))
-      .filter((r: any) => !r.isDeleted && r.restaurantStatus === "approved");
+      .filter((r: any) => !r.isDeleted && r.status === "approved" || r.restaurantStatus === "approved"); // keeping restaurantStatus fallback for old items
   } catch (error) {
     console.error("Error fetching restaurants: ", error);
     throw error;

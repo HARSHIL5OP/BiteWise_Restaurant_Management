@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChefHat, Clock, Flame, CheckCircle, AlertCircle, LogOut, Sun, Moon, Info } from 'lucide-react';
@@ -246,9 +246,10 @@ const CategoryLane = ({ title, items, itemStates, onAction }) => {
 // --- MAIN PAGE ---
 
 const ChefKDS = () => {
-    const { logout } = useAuth();
+    const { logout, userProfile } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
+    const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
     const [orders, setOrders] = useState([]);
     const [menuData, setMenuData] = useState({});
     const [itemStates, setItemStates] = useState({});
@@ -262,7 +263,8 @@ const ChefKDS = () => {
 
     // 1. Fetch Menu for Categorization
     useEffect(() => {
-        const unsubscribe = onSnapshot(collection(db, 'menu'), (snapshot) => {
+        if (!restaurantId) return;
+        const unsubscribe = onSnapshot(collection(db, 'restaurants', restaurantId, 'menu'), (snapshot) => {
             const menuMap = {};
             snapshot.docs.forEach(doc => {
                 const data = doc.data();
@@ -275,15 +277,24 @@ const ChefKDS = () => {
 
     // 2. Fetch Active Orders
     useEffect(() => {
+        if (!restaurantId) return;
         const q = query(
-            collection(db, 'orders'),
+            collection(db, 'restaurants', restaurantId, 'orders'),
             where('status', 'in', ['in_queue', 'preparing'])
         );
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
+            const fetchedOrdersPromises = snapshot.docs.map(async (docRef) => {
+                const data = docRef.data();
+                const itemsSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'orders', docRef.id, 'items'));
+                const items = itemsSnap.docs.map(i => i.data());
+
+                return {
+                    id: docRef.id,
+                    ...data,
+                    items
+                };
+            });
+            const fetched = await Promise.all(fetchedOrdersPromises);
             setOrders(fetched);
         });
         return () => unsubscribe();
@@ -305,7 +316,7 @@ const ChefKDS = () => {
 
                 if (allReady) {
                     try {
-                        await updateDoc(doc(db, 'orders', order.id), {
+                        await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', order.id), {
                             status: 'ready',
                             updatedAt: serverTimestamp()
                         });
@@ -318,7 +329,7 @@ const ChefKDS = () => {
         } else if (currentStatus === 'queued') {
             const order = orders.find(o => o.id === item.orderId);
             if (order && order.status === 'in_queue') {
-                updateDoc(doc(db, 'orders', order.id), { status: 'preparing' }).catch(console.error);
+                updateDoc(doc(db, 'restaurants', restaurantId, 'orders', order.id), { status: 'preparing' }).catch(console.error);
             }
         }
 

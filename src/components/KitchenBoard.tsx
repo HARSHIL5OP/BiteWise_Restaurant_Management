@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { X, Clock, User, UtensilsCrossed, CheckCircle, AlertCircle, ChefHat } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 // --- TYPES ---
 
@@ -190,6 +191,8 @@ const DetailModal = ({ item, order, onClose }: { item: FlattenedItem | null; ord
 // --- MAIN BOARD COMPONENT ---
 
 const KitchenBoard = () => {
+    const { userProfile } = useAuth();
+    const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
     const [flattenedItems, setFlattenedItems] = useState<FlattenedItem[]>([]);
     const [rawOrders, setRawOrders] = useState<Record<string, Order>>({});
     const [selectedItem, setSelectedItem] = useState<FlattenedItem | null>(null);
@@ -201,29 +204,31 @@ const KitchenBoard = () => {
         // Assuming 'completed' order status means entirely done. But items can be 'served'.
         // Let's fetch where status != 'archived' if that existed, or just orderBy time.
 
+        if (!restaurantId) return;
+
         const q = query(
-            collection(db, 'orders'),
+            collection(db, 'restaurants', restaurantId, 'orders'),
             orderBy('createdAt', 'desc')
             // limit(50) // Optional performance limit
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
             const ordersMap: Record<string, Order> = {};
             const allItems: FlattenedItem[] = [];
 
-            snapshot.docs.forEach(doc => {
-                const data = doc.data() as Omit<Order, 'id'>;
-                const order = { id: doc.id, ...data };
+            await Promise.all(snapshot.docs.map(async (docRef) => {
+                const data = docRef.data() as Omit<Order, 'id'>;
+                const order = { id: docRef.id, ...data };
                 ordersMap[order.id] = order;
 
-                // Flatten items
-                if (order.items && Array.isArray(order.items)) {
-                    order.items.forEach((item, index) => {
-                        // Resolve effective status: Item specific > Order level > Default
-                        let effectiveStatus = item.status;
+                const itemsQuery = query(collection(db, 'restaurants', restaurantId, 'orders', order.id, 'items'));
+                const itemsDocs = await getDocs(itemsQuery);
+                const itemsData = itemsDocs.docs.map(d => d.data() as OrderItem);
 
+                if (itemsData.length > 0) {
+                    itemsData.forEach((item, index) => {
+                        let effectiveStatus = item.status;
                         if (!effectiveStatus) {
-                            // Map order status to item status if item status is missing
                             if (order.status === 'completed') effectiveStatus = 'served';
                             else if (['in_queue', 'preparing', 'ready', 'served'].includes(order.status)) {
                                 effectiveStatus = order.status as any;
@@ -237,13 +242,13 @@ const KitchenBoard = () => {
                             status: effectiveStatus,
                             orderId: order.id,
                             tableId: order.tableId,
-                            waiterName: order.waiterName,
+                            waiterName: order.waiterId, // using waiterId conceptually
                             orderCreatedAt: order.createdAt,
                             uniqueId: `${order.id}-${index}`
                         });
                     });
                 }
-            });
+            }));
 
             // Re-sort items by order creation time (FIFO)
             // Re-sort items by order creation time (FIFO)

@@ -42,12 +42,14 @@ export default function LoginPage() {
       const role = userData?.role || 'customer';
 
       toast.success("Login successful");
-      if (role === 'admin') {
-        navigate('/admin');
+      if (role === 'main-admin') {
+        navigate('/main-admin');
       } else if (role === 'chef') {
         navigate('/chef');
       } else if (role === 'waiter') {
         navigate('/waiter');
+      } else if (role === 'restaurant_admin') {
+        navigate('/admin');
       } else {
         navigate('/home');
       }

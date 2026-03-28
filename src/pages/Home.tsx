@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     collection, onSnapshot, addDoc, serverTimestamp, query,
-    where, updateDoc, doc, getDocs
+    where, updateDoc, doc, getDocs, setDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -76,10 +76,12 @@ const RestaurantApp = () => {
     }, [tableId]);
 
     const tableNumber = tableId || sessionStorage.getItem('currentTable') || "12";
+    // Using a default/fallback restaurantId for customer-facing pages when not in URL
+    const restaurantId = 'DEFAULT_RESTAURANT';
 
     // --- DATA FETCHING ---
     useEffect(() => {
-        const unsubscribe = onSnapshot(collection(db, 'menu'), (snapshot) => {
+        const unsubscribe = onSnapshot(collection(db, 'restaurants', restaurantId, 'menu'), (snapshot) => {
             const rawItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
             // Group by category
@@ -111,20 +113,27 @@ const RestaurantApp = () => {
         let unsubscribeOrders = () => { };
         if (user) {
             const q = query(
-                collection(db, 'orders'),
+                collection(db, 'restaurants', restaurantId, 'orders'),
                 where('customerId', '==', user.uid)
             );
 
-            unsubscribeOrders = onSnapshot(q, (snapshot) => {
-                const fetchedOrders = snapshot.docs.map(doc => {
-                    const data = doc.data();
+            unsubscribeOrders = onSnapshot(q, async (snapshot) => {
+                const fetchedOrdersPromises = snapshot.docs.map(async (docRef) => {
+                    const data = docRef.data() as any;
+                    const itemsSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'orders', docRef.id, 'items'));
+                    const items = itemsSnap.docs.map(i => i.data());
+
                     return {
-                        id: doc.id,
+                        id: docRef.id,
                         ...data,
+                        items,
                         time: data.createdAt?.toDate() || new Date(),
                         estimatedTime: 20
                     };
-                }).sort((a, b) => b.time - a.time);
+                });
+                
+                const fetchedOrders = (await Promise.all(fetchedOrdersPromises))
+                    .sort((a, b) => b.time.getTime() - a.time.getTime());
 
                 setOrders(fetchedOrders.filter(o => o.status !== 'completed'));
                 setHistory(fetchedOrders.filter(o => o.status === 'completed'));
@@ -161,7 +170,7 @@ const RestaurantApp = () => {
     // --- ORDER LOGIC ---
     const assignWaiter = async (): Promise<{ waiterId: string | null; waiterName: string | null }> => {
         try {
-            const waitersQuery = query(collection(db, 'users'), where('role', '==', 'waiter'));
+            const waitersQuery = query(collection(db, 'restaurants', restaurantId, 'staff'), where('role', '==', 'waiter'));
             const waitersSnapshot = await getDocs(waitersQuery);
 
             if (waitersSnapshot.empty) {
@@ -174,7 +183,7 @@ const RestaurantApp = () => {
             }));
 
             const workloadPromises = waiters.map(async (waiter) => {
-                const q = query(collection(db, 'orders'), where('waiterId', '==', waiter.id));
+                const q = query(collection(db, 'restaurants', restaurantId, 'orders'), where('waiterId', '==', waiter.id));
                 const snapshot = await getDocs(q);
                 const activeCount = snapshot.docs.filter(d => d.data().status !== 'served').length;
                 return { waiter, load: activeCount };
@@ -210,34 +219,52 @@ const RestaurantApp = () => {
 
         try {
             const totalAmount = cartTotal;
-            const { waiterId, waiterName } = await assignWaiter();
+            const { waiterId } = await assignWaiter();
 
-            await addDoc(collection(db, 'orders'), {
+            const orderRef = doc(collection(db, 'restaurants', restaurantId, 'orders'));
+            await setDoc(orderRef, {
+                orderId: orderRef.id,
                 tableId: tableNumber,
+                orderNumber: Math.floor(1000 + Math.random() * 9000).toString(),
                 customerId: user.uid,
-                createdBy: user.uid,
                 waiterId: waiterId,
-                waiterName: waiterName,
+                restaurantId: restaurantId,
                 status: 'in_queue',
+                orderSource: 'dine_in',
+                subtotal: totalAmount,
+                tax: 0,
+                discount: 0,
                 totalAmount: totalAmount,
+                paymentStatus: 'pending',
+                paymentId: null,
+                notes: "",
                 createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-                items: cart.map(item => ({
-                    itemId: item.id,
-                    name: item.name,
-                    price: item.price,
-                    quantity: item.quantity,
-                    veg: item.veg ?? true
-                }))
+                preparedAt: null,
+                servedAt: null,
+                completedAt: null
             });
+
+            for (const item of cart) {
+               const itemRef = doc(collection(db, 'restaurants', restaurantId, 'orders', orderRef.id, 'items'));
+               await setDoc(itemRef, {
+                   itemId: itemRef.id,
+                   orderId: orderRef.id,
+                   menuItemId: item.id,
+                   name: item.name,
+                   price: item.price,
+                   quantity: item.quantity,
+                   notes: '',
+                   status: 'pending'
+               });
+            }
 
             // Update table status
             const numericTableNumber = parseInt(tableNumber);
             if (!isNaN(numericTableNumber)) {
-                const tablesQuery = query(collection(db, 'tables'), where('tableNumber', '==', numericTableNumber));
+                const tablesQuery = query(collection(db, 'restaurants', restaurantId, 'tables'), where('tableNumber', '==', numericTableNumber));
                 const tableDocs = await getDocs(tablesQuery);
                 if (!tableDocs.empty) {
-                    await updateDoc(doc(db, 'tables', tableDocs.docs[0].id), { status: 'occupied' });
+                    await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableDocs.docs[0].id), { status: 'occupied' });
                 }
             } else {
                 console.warn("Could not parse table number for status update:", tableNumber);
@@ -290,7 +317,7 @@ const RestaurantApp = () => {
                         const verifyData = await verifyRes.json();
                         if (verifyData.success) {
                             const updatePromises = orders.map(order =>
-                                updateDoc(doc(db, 'orders', order.id), {
+                                updateDoc(doc(db, 'restaurants', restaurantId, 'orders', order.id), {
                                     status: 'completed',
                                     paymentId: response.razorpay_payment_id,
                                     updatedAt: serverTimestamp()
@@ -301,10 +328,10 @@ const RestaurantApp = () => {
                             // Update table status to available
                             const numericTableNumber = parseInt(tableNumber);
                             if (!isNaN(numericTableNumber)) {
-                                const tablesQuery = query(collection(db, 'tables'), where('tableNumber', '==', numericTableNumber));
+                                const tablesQuery = query(collection(db, 'restaurants', restaurantId, 'tables'), where('tableNumber', '==', numericTableNumber));
                                 const tableSnapshot = await getDocs(tablesQuery);
                                 if (!tableSnapshot.empty) {
-                                    await updateDoc(doc(db, 'tables', tableSnapshot.docs[0].id), { status: 'available' });
+                                    await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableSnapshot.docs[0].id), { status: 'available' });
                                 }
                             }
 

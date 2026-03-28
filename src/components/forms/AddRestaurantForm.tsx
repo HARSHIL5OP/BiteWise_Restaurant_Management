@@ -31,8 +31,10 @@ import { addRestaurant } from "@/services/restaurantService";
 const formSchema = z.object({
   name: z.string().min(2, "Restaurant Name must be at least 2 characters"),
   description: z.string().min(5, "Description must be at least 5 characters"),
-  ownerName: z.string().min(2, "Owner name is required"),
-  ownerEmail: z.string().email("Invalid email address"),
+  firstName: z.string().min(2, "First name is required"),
+  lastName: z.string().min(2, "Last name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone number must be at least 10 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   logoUrl: z.string().optional(),
   bannerImage: z.string().optional(),
@@ -57,8 +59,10 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
     defaultValues: {
       name: "",
       description: "",
-      ownerName: "",
-      ownerEmail: "",
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
       password: "",
       logoUrl: "",
       bannerImage: "",
@@ -87,8 +91,10 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
         description: values.description,
         logoUrl: values.logoUrl || "",
         bannerImage: values.bannerImage || "",
-        ownerName: values.ownerName,
-        ownerEmail: values.ownerEmail,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        email: values.email,
+        phone: values.phone,
         password: values.password,
         location: {
           address: values.address,
@@ -155,12 +161,12 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
 
             <FormField
               control={form.control}
-              name="ownerName"
+              name="firstName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-slate-300">Owner Name</FormLabel>
+                  <FormLabel className="text-slate-300">First Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="E.g. John Doe" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                    <Input placeholder="E.g. John" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
                   </FormControl>
                   <FormMessage className="text-red-400" />
                 </FormItem>
@@ -169,12 +175,40 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
 
             <FormField
               control={form.control}
-              name="ownerEmail"
+              name="lastName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-slate-300">Owner Email</FormLabel>
+                  <FormLabel className="text-slate-300">Last Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="E.g. Doe" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                  </FormControl>
+                  <FormMessage className="text-red-400" />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-slate-300">Email Address</FormLabel>
                   <FormControl>
                     <Input type="email" placeholder="owner@bitewise.com" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                  </FormControl>
+                  <FormMessage className="text-red-400" />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-slate-300">Phone Number</FormLabel>
+                  <FormControl>
+                    <Input type="tel" placeholder="+1 234 567 8900" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
                   </FormControl>
                   <FormMessage className="text-red-400" />
                 </FormItem>

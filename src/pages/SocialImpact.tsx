@@ -35,7 +35,8 @@ const ngoPartners = [
 
 const SocialImpact = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, userProfile } = useAuth();
+    const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
     const [donationForm, setDonationForm] = useState({
         foodType: '',
         quantity: '',
@@ -54,7 +55,7 @@ const SocialImpact = () => {
 
         setLoading(true);
         try {
-            await addDoc(collection(db, 'food_donations'), {
+            await addDoc(collection(db, 'restaurants', restaurantId, 'food_donations'), {
                 ...donationForm,
                 userId: user?.uid || 'anonymous',
                 status: 'pending',

@@ -101,9 +101,11 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 // --- Main Component ---
 
 const RestaurantAdmin = () => {
-    const { logout } = useAuth();
+    const { logout, userProfile } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
+
+    const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
 
     // App State
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -129,7 +131,7 @@ const RestaurantAdmin = () => {
     const [showSettings, setShowSettings] = useState(false);
 
     const [newMenuItem, setNewMenuItem] = useState({
-        name: '', price: '', quantity: '', image: null, category: 'Main Course',
+        name: '', price: '', image: null as any, category: 'Main Course',
         newCategory: '' // for adding custom category
     });
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -151,7 +153,9 @@ const RestaurantAdmin = () => {
 
     // Fetch Data on Mount
     useEffect(() => {
-        const unsubscribeMenu = onSnapshot(collection(db, 'menu'), (snapshot) => {
+        if (!restaurantId) return;
+
+        const unsubscribeMenu = onSnapshot(collection(db, 'restaurants', restaurantId, 'menu'), (snapshot) => {
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setMenuItems(items);
 
@@ -164,7 +168,7 @@ const RestaurantAdmin = () => {
             console.error("Menu fetch error:", error);
         });
 
-        const unsubscribeStaff = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const unsubscribeStaff = onSnapshot(collection(db, 'restaurants', restaurantId, 'staff'), (snapshot) => {
             const users = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
@@ -176,7 +180,7 @@ const RestaurantAdmin = () => {
             console.error("Staff fetch error:", error);
         });
 
-        const unsubscribeOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+        const unsubscribeOrders = onSnapshot(collection(db, 'restaurants', restaurantId, 'orders'), (snapshot) => {
             const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setOrders(fetchedOrders);
 
@@ -218,7 +222,7 @@ const RestaurantAdmin = () => {
         });
 
         // Fetch Tables
-        const unsubscribeTables = onSnapshot(collection(db, 'tables'), (snapshot) => {
+        const unsubscribeTables = onSnapshot(collection(db, 'restaurants', restaurantId, 'tables'), (snapshot) => {
             const tablesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             // Sort by table number
             tablesData.sort((a: any, b: any) => parseInt(a.tableNumber) - parseInt(b.tableNumber));
@@ -255,10 +259,6 @@ const RestaurantAdmin = () => {
             alert("Please enter a valid positive Price");
             return;
         }
-        if (newMenuItem.quantity && (isNaN(Number(newMenuItem.quantity)) || Number(newMenuItem.quantity) < 0)) {
-            alert("Quantity must be a valid non-negative number (or leave empty for infinite)");
-            return;
-        }
 
         setIsLoading(true);
 
@@ -274,21 +274,28 @@ const RestaurantAdmin = () => {
             // Determine category
             const categoryToSave = newMenuItem.newCategory ? newMenuItem.newCategory : newMenuItem.category;
 
+            const menuItemRef = editingId ? doc(db, 'restaurants', restaurantId, 'menu', editingId) : doc(collection(db, 'restaurants', restaurantId, 'menu'));
+            
             const itemData = {
+                menuItemId: menuItemRef.id,
+                restaurantId: restaurantId,
                 name: newMenuItem.name,
-                price: newMenuItem.price.toString(),
-                quantity: newMenuItem.quantity.toString(),
+                description: "",
+                price: parseFloat(newMenuItem.price) || 0,
                 category: categoryToSave,
                 image: imageUrl || 'https://source.unsplash.com/random/800x600/?food',
+                veg: true,
+                spicyLevel: 0,
+                preparationTime: 15,
+                calories: 0,
+                isAvailable: true,
+                isRecommended: false,
             };
 
             if (editingId) {
-                await updateDoc(doc(db, 'menu', editingId), {
-                    ...itemData,
-                    updatedAt: new Date().toISOString()
-                });
+                await updateDoc(menuItemRef, itemData);
             } else {
-                await addDoc(collection(db, 'menu'), {
+                await setDoc(menuItemRef, {
                     ...itemData,
                     createdAt: new Date().toISOString()
                 });
@@ -299,7 +306,7 @@ const RestaurantAdmin = () => {
                 setCategories([...categories, newMenuItem.newCategory]);
             }
 
-            setNewMenuItem({ name: '', price: '', quantity: '', image: null, category: 'Main Course', newCategory: '' });
+            setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
             setEditingId(null);
             setShowAddMenu(false);
         } catch (error: any) {
@@ -319,7 +326,6 @@ const RestaurantAdmin = () => {
         setNewMenuItem({
             name: item.name,
             price: item.price,
-            quantity: item.quantity,
             image: item.image,
             category: item.category,
             newCategory: ''
@@ -347,19 +353,36 @@ const RestaurantAdmin = () => {
             // keeping it simple with signOut.
 
             // 2. Add User Details to Firestore
-            const staffData = {
+            const userFirestoreData = {
                 firstName: newStaff.firstName,
                 lastName: newStaff.lastName,
                 email: newStaff.email,
+                phone: "",
                 role: newStaff.role,
-                shift: newStaff.shift,
-                phone: "", // Added default to match schema
+                profileImage: "",
+                loyaltyPoints: 0,
                 createdAt: new Date().toISOString(),
-                // Note: We do NOT store the password in Firestore for security
+                lastLogin: new Date().toISOString(),
+                isVerified: false
             };
 
-            // Use setDoc with the UID to link Auth and Firestore
-            await setDoc(doc(db, 'users', uid), staffData);
+            const staffFirestoreData = {
+                staffId: uid,
+                userId: uid,
+                restaurantId: restaurantId,
+                role: newStaff.role,
+                permissions: ["user"],
+                shift: newStaff.shift,
+                salary: 0,
+                status: "active",
+                joinedAt: new Date().toISOString()
+            };
+
+            // Use setDoc with the UID to link Auth and Firestore (global user root)
+            await setDoc(doc(db, 'users', uid), userFirestoreData);
+            
+            // Also store in restaurant subcollection
+            await setDoc(doc(db, 'restaurants', restaurantId, 'staff', uid), staffFirestoreData);
 
             setNewStaff({ firstName: '', lastName: '', email: '', password: '', role: 'waiter', shift: 'Morning' });
             setShowAddStaff(false);
@@ -377,19 +400,20 @@ const RestaurantAdmin = () => {
 
     const handleDeleteMenu = async (id) => {
         if (confirm('Are you sure you want to delete this item?')) {
-            await deleteDoc(doc(db, 'menu', id));
+            await deleteDoc(doc(db, 'restaurants', restaurantId, 'menu', id));
         }
     };
 
     const handleDeleteStaff = async (id) => {
         if (confirm('Are you sure you want to remove this staff member?')) {
-            await deleteDoc(doc(db, 'users', id));
+            await deleteDoc(doc(db, 'restaurants', restaurantId, 'staff', id));
+            await deleteDoc(doc(db, 'users', id)); // Optional: also remove from global collection
         }
     };
 
     const handleDeleteTable = async (id) => {
         if (confirm('Are you sure you want to delete this table?')) {
-            await deleteDoc(doc(db, 'tables', id));
+            await deleteDoc(doc(db, 'restaurants', restaurantId, 'tables', id));
         }
     };
 
@@ -448,17 +472,21 @@ const RestaurantAdmin = () => {
             const qrUrl = await uploadToCloudinary(qrFile);
 
             // 4. Save to Firestore
+            const tableRef = doc(collection(db, 'restaurants', restaurantId, 'tables'));
             const tableData = {
+                tableId: tableRef.id,
+                restaurantId: restaurantId,
                 tableNumber: tableNum,
                 capacity: parseInt(newTable.capacity),
                 status: 'available',
                 qrUrl: qrUrl,
-                createdAt: new Date().toISOString()
+                floor: 1,
+                blueprintX: 0,
+                blueprintY: 0,
+                lastOccupiedAt: null
             };
 
-            // Using table number as ID for easier lookup/deduplication if needed, or auto-id
-            // Requirement says tableNumber must be unique. Let's use auto-ID but we already checked uniqueness.
-            await addDoc(collection(db, 'tables'), tableData);
+            await setDoc(tableRef, tableData);
 
             setNewTable({ tableNumber: '', capacity: '4' });
             setShowAddTable(false);
@@ -737,7 +765,7 @@ const RestaurantAdmin = () => {
                                                 </defs>
                                                 <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#1e293b"} />
                                                 <XAxis dataKey="name" stroke="#64748b" />
-                                                <YAxis stroke="#64748b" prefix="$" />
+                                                <YAxis stroke="#64748b" />
                                                 <Tooltip
                                                     contentStyle={{
                                                         backgroundColor: theme === 'light' ? '#ffffff' : '#0f172a',
@@ -804,7 +832,7 @@ const RestaurantAdmin = () => {
                                 <div className="flex gap-2">
                                     <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition active:scale-95 shadow-lg shadow-indigo-500/20" onClick={() => {
                                         setEditingId(null);
-                                        setNewMenuItem({ name: '', price: '', quantity: '', image: null, category: 'Main Course', newCategory: '' });
+                                        setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
                                         setShowAddMenu(true);
                                     }}>
                                         <Plus size={18} className="inline mr-2" /> Add Item
@@ -827,7 +855,7 @@ const RestaurantAdmin = () => {
                                                 <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1">{item.name}</h3>
                                                 <span className="font-bold text-indigo-600 dark:text-indigo-400">${item.price}</span>
                                             </div>
-                                            <p className="text-slate-500 text-sm mb-4">Stock: <span className={item.quantity === '0' ? 'text-rose-500 font-bold' : ''}>{item.quantity || '∞'}</span></p>
+                                            <p className="text-slate-500 text-sm mb-4"><span className={item.isAvailable === false ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold'}>{item.isAvailable === false ? 'Out of Stock' : 'Available'}</span></p>
                                             <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
                                                 <button onClick={() => openEditMenu(item)} className="p-2 text-slate-400 hover:text-indigo-500 dark:hover:text-white transition-colors bg-slate-50 dark:bg-slate-800 rounded-lg">
                                                     <Edit2 size={16} />
@@ -875,7 +903,7 @@ const RestaurantAdmin = () => {
                                                 <div key={member.id} className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center gap-4 hover:border-indigo-500/30 hover:shadow-md transition-all">
                                                     <img src={member.avatar || `https://ui-avatars.com/api/?name=${member.name}&background=random`} alt={member.name} className="w-12 h-12 rounded-full ring-2 ring-slate-100 dark:ring-slate-800" />
                                                     <div className="flex-1">
-                                                        <h4 className="font-semibold text-slate-900 dark:text-white">{member.name}</h4>
+                                                        <h4 className="font-semibold text-slate-900 dark:text-white">{member.firstName} {member.lastName}</h4>
                                                         <p className="text-xs text-slate-500 capitalize">{member.shift} Shift</p>
                                                     </div>
                                                     <button onClick={() => handleDeleteStaff(member.id)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors">
@@ -949,7 +977,7 @@ const RestaurantAdmin = () => {
             <Modal isOpen={showAddMenu} onClose={() => {
                 setShowAddMenu(false);
                 setEditingId(null);
-                setNewMenuItem({ name: '', price: '', quantity: '', image: null, category: 'Main Course', newCategory: '' });
+                setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
             }} title={editingId ? "Edit Menu Item" : "Add New Menu Item"}>
                 <div className="space-y-4">
                     <div>
@@ -958,19 +986,11 @@ const RestaurantAdmin = () => {
                             placeholder="e.g. Spicy Ramen"
                             value={newMenuItem.name} onChange={e => setNewMenuItem({ ...newMenuItem, name: e.target.value })} />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Price ($)</label>
-                            <input type="text" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors"
-                                placeholder="0.00"
-                                value={newMenuItem.price} onChange={e => setNewMenuItem({ ...newMenuItem, price: e.target.value })} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Quantity</label>
-                            <input type="text" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors"
-                                placeholder="e.g. 50 servings"
-                                value={newMenuItem.quantity} onChange={e => setNewMenuItem({ ...newMenuItem, quantity: e.target.value })} />
-                        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Price ($)</label>
+                        <input type="text" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors"
+                            placeholder="0.00"
+                            value={newMenuItem.price} onChange={e => setNewMenuItem({ ...newMenuItem, price: e.target.value })} />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Category</label>

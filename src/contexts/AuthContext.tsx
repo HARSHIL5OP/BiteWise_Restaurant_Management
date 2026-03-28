@@ -16,19 +16,25 @@ import {
   UserCredential,
 } from "firebase/auth";
 import { auth, db, googleProvider, githubProvider } from "@/lib/firebase";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp, collectionGroup, query, where, getDocs } from "firebase/firestore";
 
 // --- Types ---
 
 type UserRole = "customer" | "cashier" | "waiter" | "chef" | "restaurant_admin";
 
 export interface UserProfile {
-  uid: string;
+  uid: string; // React state only
+  restaurantId?: string; // React state only
+  firstName: string;
+  lastName: string;
   email: string | null;
+  phone: string;
   role: UserRole;
+  profileImage: string;
+  loyaltyPoints: number;
   createdAt: any;
-  firstName?: string;
-  lastName?: string;
+  lastLogin: any;
+  isVerified: boolean;
 }
 
 interface AuthContextType {
@@ -84,7 +90,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const snap = await getDoc(userRef);
 
         if (snap.exists()) {
-          const profile = snap.data() as UserProfile;
+          const profileData = snap.data();
+          let currentRestaurantId = undefined;
+          
+          if (profileData.role !== 'customer') {
+            try {
+              const staffQuery = query(collectionGroup(db, 'staff'), where('userId', '==', currentUser.uid));
+              const staffSnap = await getDocs(staffQuery);
+              if (!staffSnap.empty) {
+                  currentRestaurantId = staffSnap.docs[0].data().restaurantId;
+              }
+            } catch (err) {
+              console.error("Error fetching staff collection group for restaurantId:", err);
+            }
+          }
+
+          const profile: UserProfile = {
+             uid: currentUser.uid,
+             restaurantId: currentRestaurantId,
+             firstName: profileData.firstName || "",
+             lastName: profileData.lastName || "",
+             email: profileData.email || null,
+             phone: profileData.phone || "",
+             role: profileData.role || "customer",
+             profileImage: profileData.profileImage || "",
+             loyaltyPoints: profileData.loyaltyPoints || 0,
+             createdAt: profileData.createdAt || null,
+             lastLogin: profileData.lastLogin || null,
+             isVerified: profileData.isVerified || false
+          };
           setUserProfile(profile);
         } else {
           // Profile pending (signup race condition) or missing
@@ -113,19 +147,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const authUser = userCredential.user;
 
-    const newProfile: UserProfile = {
-      uid: authUser.uid,
+    const newFirestoreData = {
+      firstName: additionalData?.firstName || "",
+      lastName: additionalData?.lastName || "",
       email: authUser.email,
-      role: "customer", // Default role
+      phone: "",
+      role: "customer" as UserRole, // Default role
+      profileImage: "",
+      loyaltyPoints: 0,
       createdAt: serverTimestamp(),
-      ...additionalData,
+      lastLogin: serverTimestamp(),
+      isVerified: false
     };
 
     // Create profile Source of Truth
-    await setDoc(doc(db, "users", authUser.uid), newProfile);
+    await setDoc(doc(db, "users", authUser.uid), newFirestoreData);
 
     // Optimistic update to avoid flicker before Firestore listener fires
-    setUserProfile(newProfile);
+    setUserProfile({ uid: authUser.uid, restaurantId: undefined, ...newFirestoreData });
 
     return userCredential;
   };
@@ -141,18 +180,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const snap = await getDoc(ref);
     if (!snap.exists()) {
-      const profile: UserProfile = {
-        uid: authUser.uid,
-        email: authUser.email,
-        role: "customer",
-        createdAt: serverTimestamp(),
+      const newFirestoreData = {
         firstName: authUser.displayName?.split(" ")[0] || "",
         lastName: authUser.displayName?.split(" ").slice(1).join(" ") || "",
+        email: authUser.email,
+        phone: "",
+        role: "customer" as UserRole,
+        profileImage: authUser.photoURL || "",
+        loyaltyPoints: 0,
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+        isVerified: true
       };
-      await setDoc(ref, profile);
-      setUserProfile(profile);
+      await setDoc(ref, newFirestoreData);
+      setUserProfile({ uid: authUser.uid, restaurantId: undefined, ...newFirestoreData });
     } else {
-      setUserProfile(snap.data() as UserProfile);
+      // Use the logic in onAuthStateChanged to populate all fields accurately
+      // but here we just wait for listener or fake it.
     }
     return result;
   };
@@ -164,18 +208,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const snap = await getDoc(ref);
     if (!snap.exists()) {
-      const profile: UserProfile = {
-        uid: authUser.uid,
-        email: authUser.email,
-        role: "customer",
-        createdAt: serverTimestamp(),
+      const newFirestoreData = {
         firstName: authUser.displayName || "",
         lastName: "",
+        email: authUser.email,
+        phone: "",
+        role: "customer" as UserRole,
+        profileImage: authUser.photoURL || "",
+        loyaltyPoints: 0,
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+        isVerified: true
       };
-      await setDoc(ref, profile);
-      setUserProfile(profile);
+      await setDoc(ref, newFirestoreData);
+      setUserProfile({ uid: authUser.uid, restaurantId: undefined, ...newFirestoreData });
     } else {
-      setUserProfile(snap.data() as UserProfile);
+      // Handled by listener
     }
     return result;
   };

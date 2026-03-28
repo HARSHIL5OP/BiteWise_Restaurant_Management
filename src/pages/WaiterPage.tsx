@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Clock, CheckCircle2, Sparkles, LogOut, CheckCheck, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { collection, onSnapshot, query, where, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, updateDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -42,8 +42,9 @@ const groupItemsByTable = (items: any[]) => {
 
 
 const WaiterDashboard = () => {
-    const { user, logout } = useAuth();
+    const { user, userProfile, logout } = useAuth();
     const navigate = useNavigate();
+    const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
     const [currentTime, setCurrentTime] = useState(new Date());
     const [orders, setOrders] = useState<any[]>([]);
 
@@ -57,20 +58,29 @@ const WaiterDashboard = () => {
 
     // Fetch Ready Orders
     useEffect(() => {
-        if (!user) return;
+        if (!user || !restaurantId) return;
 
         const q = query(
-            collection(db, 'orders'),
+            collection(db, 'restaurants', restaurantId, 'orders'),
             where('waiterId', '==', user.uid),
             where('status', '==', 'ready')
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const fetched = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                updatedAt: doc.data().updatedAt || doc.data().createdAt
-            }));
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
+            const fetchedOrdersPromises = snapshot.docs.map(async (docRef) => {
+                const data = docRef.data();
+                const itemsSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'orders', docRef.id, 'items'));
+                const items = itemsSnap.docs.map(i => i.data());
+
+                return {
+                    id: docRef.id,
+                    ...data,
+                    items,
+                    updatedAt: data.updatedAt || data.createdAt
+                };
+            });
+            
+            const fetched = await Promise.all(fetchedOrdersPromises);
             setOrders(fetched);
         });
         return () => unsubscribe();
@@ -104,7 +114,7 @@ const WaiterDashboard = () => {
 
         if (allServed) {
             try {
-                await updateDoc(doc(db, 'orders', virtualItem.orderId), {
+                await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', virtualItem.orderId), {
                     status: 'served',
                     updatedAt: serverTimestamp()
                 });
