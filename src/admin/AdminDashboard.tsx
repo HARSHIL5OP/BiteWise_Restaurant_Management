@@ -113,7 +113,7 @@ const AdminDashboard = () => {
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
 
-    const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
+    const restaurantId = userProfile?.restaurantId;
 
     // App State
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -276,7 +276,12 @@ const AdminDashboard = () => {
     };
 
     const handleAddMenu = async () => {
-        // Validation
+        // Enforce rigid subcollection security
+        if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT') {
+            alert("Security Error: No valid restaurant ID found for your user context.");
+            return;
+        }
+
         if (!newMenuItem.name.trim()) {
             alert("Please enter an Item Name");
             return;
@@ -360,6 +365,12 @@ const AdminDashboard = () => {
     };
 
     const handleAddStaff = async () => {
+        // Enforce rigid subcollection security
+        if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT') {
+            alert("Security Error: No valid restaurant ID found for your user context.");
+            return;
+        }
+
         if (!newStaff.firstName || !newStaff.email || !newStaff.password) {
             alert("Please fill in all required fields (Name, Email, Password)");
             return;
@@ -384,7 +395,7 @@ const AdminDashboard = () => {
                 lastName: newStaff.lastName,
                 email: newStaff.email,
                 phone: "",
-                role: newStaff.role,
+                role: "staff",
                 profileImage: "",
                 loyaltyPoints: 0,
                 createdAt: new Date().toISOString(),
@@ -462,6 +473,12 @@ const AdminDashboard = () => {
     };
 
     const handleAddTable = async () => {
+        // Enforce rigid subcollection security
+        if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT') {
+            alert("Security Error: No valid restaurant ID found for your user context.");
+            return;
+        }
+
         if (!newTable.tableNumber || !newTable.capacity) {
             alert("Please fill all table details");
             return;
@@ -549,11 +566,15 @@ const AdminDashboard = () => {
                     <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4 transition-colors duration-300">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-md">
-                                JD
+                                {userProfile?.firstName?.charAt(0) || 'U'}{userProfile?.lastName?.charAt(0) || ''}
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-slate-900 dark:text-white">John Doe</p>
-                                <p className="text-xs text-slate-500">Super Admin</p>
+                                <p className="text-sm font-semibold text-slate-900 dark:text-white capitalize">
+                                  {userProfile?.firstName || 'User'} {userProfile?.lastName || ''}
+                                </p>
+                                <p className="text-xs text-slate-500 capitalize">
+                                  {userProfile?.role === 'restaurant_admin' ? 'Restaurant Admin' : userProfile?.role || 'Admin'}
+                                </p>
                             </div>
                         </div>
                     </div>

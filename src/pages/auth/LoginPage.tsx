@@ -48,7 +48,7 @@ export default function LoginPage() {
         navigate('/chef');
       } else if (role === 'waiter') {
         navigate('/waiter');
-      } else if (role === 'restaurant_admin') {
+      } else if (role === 'restaurant_admin' || role === 'admin') {
         navigate('/admin');
       } else {
         navigate('/home');
@@ -80,7 +80,7 @@ export default function LoginPage() {
       const role = userData?.role || 'customer';
 
       toast.success("Login successful");
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'restaurant_admin') {
         navigate('/admin');
       } else if (role === 'chef') {
         navigate('/chef');
@@ -109,7 +109,7 @@ export default function LoginPage() {
       const role = userData?.role || 'customer';
 
       toast.success("Login successful");
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'restaurant_admin') {
         navigate('/admin');
       } else if (role === 'chef') {
         navigate('/chef');

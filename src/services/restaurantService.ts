@@ -41,7 +41,7 @@ export const addRestaurant = async (data: RestaurantData) => {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone,
-      role: "owner",
+      role: "restaurant_admin",
       profileImage: "",
       loyaltyPoints: 0,
       createdAt: serverTimestamp(),

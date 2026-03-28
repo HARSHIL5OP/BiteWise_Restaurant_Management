@@ -20,11 +20,12 @@ import { doc, setDoc, getDoc, serverTimestamp, collectionGroup, query, where, ge
 
 // --- Types ---
 
-type UserRole = "customer" | "cashier" | "waiter" | "chef" | "restaurant_admin";
+type UserRole = "customer" | "staff" | "ngo" | "main-admin" | "restaurant_admin";
 
 export interface UserProfile {
   uid: string; // React state only
   restaurantId?: string; // React state only
+  staffRole?: string; // e.g. 'chef', 'waiter', 'cashier'
   firstName: string;
   lastName: string;
   email: string | null;
@@ -92,22 +93,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (snap.exists()) {
           const profileData = snap.data();
           let currentRestaurantId = undefined;
+          let currentStaffRole = undefined;
           
           if (profileData.role !== 'customer') {
             try {
-              const staffQuery = query(collectionGroup(db, 'staff'), where('userId', '==', currentUser.uid));
-              const staffSnap = await getDocs(staffQuery);
-              if (!staffSnap.empty) {
-                  currentRestaurantId = staffSnap.docs[0].data().restaurantId;
+              if (profileData.role === 'restaurant_admin' || profileData.role === 'owner') {
+                  const { collection, query, where, getDocs } = await import('firebase/firestore');
+                  const restQuery = query(collection(db, 'restaurants'), where('ownerId', '==', currentUser.uid));
+                  const restSnap = await getDocs(restQuery);
+                  if (!restSnap.empty) {
+                      currentRestaurantId = restSnap.docs[0].id;
+                  }
+              } else {
+                  const staffQuery = query(collectionGroup(db, 'staff'), where('userId', '==', currentUser.uid));
+                  const staffSnap = await getDocs(staffQuery);
+                  if (!staffSnap.empty) {
+                      currentRestaurantId = staffSnap.docs[0].data().restaurantId;
+                      currentStaffRole = staffSnap.docs[0].data().role;
+                  }
               }
             } catch (err) {
-              console.error("Error fetching staff collection group for restaurantId:", err);
+              console.error("Error fetching restaurantId mapping for user:", err);
             }
           }
 
           const profile: UserProfile = {
              uid: currentUser.uid,
              restaurantId: currentRestaurantId,
+             staffRole: currentStaffRole,
              firstName: profileData.firstName || "",
              lastName: profileData.lastName || "",
              email: profileData.email || null,

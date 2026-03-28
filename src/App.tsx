@@ -34,16 +34,20 @@ const SplashScreen = () => (
 );
 
 const PublicOnly = ({ children }: { children: JSX.Element }) => {
-  const { user, role, loading } = useAuth();
+  const { user, role, userProfile, loading } = useAuth();
 
-  if (loading) return <SplashScreen />;
+  if (loading || (user && !userProfile)) return <SplashScreen />;
 
   if (user) {
-    if (role === "restaurant_admin") {
-      return <Navigate to="/admin" replace />;
+    if (role === "main-admin") return <Navigate to="/main-admin" replace />;
+    if (role === "restaurant_admin") return <Navigate to="/admin" replace />;
+    if (role === "ngo") return <Navigate to="/social-impact" replace />;
+    if (role === "staff") {
+      if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
+      if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
+      // Fallback if staffRole isn't populated yet
+      if (!userProfile?.staffRole) return <SplashScreen />;
     }
-    if (role === "chef") return <Navigate to="/chef" replace />;
-    if (role === "waiter") return <Navigate to="/waiter" replace />;
     return <Navigate to="/home" replace />;
   }
 
@@ -51,9 +55,9 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
 };
 
 const ProtectedRoute = () => {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
 
-  if (loading) return <SplashScreen />;
+  if (loading || (user && !userProfile)) return <SplashScreen />;
   if (!user) return <Navigate to="/login" replace />;
 
   return <Outlet />;
@@ -61,24 +65,32 @@ const ProtectedRoute = () => {
 
 const RoleRoute = ({
   allowedRoles,
+  allowedStaffRoles,
   children,
 }: {
   allowedRoles: string[];
+  allowedStaffRoles?: string[];
   children: JSX.Element;
 }) => {
-  const { role, loading } = useAuth();
+  const { user, role, userProfile, loading } = useAuth();
 
-  if (loading) return <SplashScreen />;
+  if (loading || (user && !userProfile)) return <SplashScreen />;
 
-  if (!role || !allowedRoles.includes(role)) {
+  const isRoleAllowed = role && allowedRoles.includes(role);
+  const isStaffRoleAllowed = allowedStaffRoles && role === 'staff' && userProfile?.staffRole && allowedStaffRoles.includes(userProfile.staffRole);
+
+  if (!isRoleAllowed && !isStaffRoleAllowed) {
     console.warn(
-      `Unauthorized access attempt: Role '${role}' tried to access restricted route.`
+      `Unauthorized access attempt: Role '${role}' (StaffRole: '${userProfile?.staffRole}') tried to access restricted route.`
     );
 
-    // ✅ FIXED ADMIN ROLE HERE
-    if (role === "chef") return <Navigate to="/chef" replace />;
-    if (role === "waiter") return <Navigate to="/waiter" replace />;
+    if (role === "main-admin") return <Navigate to="/main-admin" replace />;
     if (role === "restaurant_admin") return <Navigate to="/admin" replace />;
+    if (role === "ngo") return <Navigate to="/social-impact" replace />;
+    if (role === "staff") {
+      if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
+      if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
+    }
 
     return <Navigate to="/home" replace />;
   }
@@ -137,7 +149,7 @@ const AppRoutes = () => {
         <Route
           path="/chef"
           element={
-            <RoleRoute allowedRoles={["chef", "restaurant_admin"]}>
+            <RoleRoute allowedRoles={["restaurant_admin"]} allowedStaffRoles={["chef"]}>
               <ChefKDS />
             </RoleRoute>
           }
@@ -147,7 +159,7 @@ const AppRoutes = () => {
         <Route
           path="/waiter"
           element={
-            <RoleRoute allowedRoles={["waiter", "restaurant_admin"]}>
+            <RoleRoute allowedRoles={["restaurant_admin"]} allowedStaffRoles={["waiter"]}>
               <WaiterPage />
             </RoleRoute>
           }
