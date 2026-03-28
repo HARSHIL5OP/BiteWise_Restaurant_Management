@@ -31,7 +31,9 @@ import { addRestaurant } from "@/services/restaurantService";
 const formSchema = z.object({
   name: z.string().min(2, "Restaurant Name must be at least 2 characters"),
   description: z.string().min(5, "Description must be at least 5 characters"),
-  ownerId: z.string().min(1, "Owner ID is required"),
+  ownerName: z.string().min(2, "Owner name is required"),
+  ownerEmail: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   logoUrl: z.string().optional(),
   bannerImage: z.string().optional(),
   address: z.string().min(3, "Address is required"),
@@ -55,7 +57,9 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
     defaultValues: {
       name: "",
       description: "",
-      ownerId: "",
+      ownerName: "",
+      ownerEmail: "",
+      password: "",
       logoUrl: "",
       bannerImage: "",
       address: "",
@@ -83,7 +87,9 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
         description: values.description,
         logoUrl: values.logoUrl || "",
         bannerImage: values.bannerImage || "",
-        ownerId: values.ownerId,
+        ownerName: values.ownerName,
+        ownerEmail: values.ownerEmail,
+        password: values.password,
         location: {
           address: values.address,
           city: values.city,
@@ -149,12 +155,40 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
 
             <FormField
               control={form.control}
-              name="ownerId"
+              name="ownerName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-slate-300">Owner ID / Name</FormLabel>
+                  <FormLabel className="text-slate-300">Owner Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="User Reference ID" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                    <Input placeholder="E.g. John Doe" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                  </FormControl>
+                  <FormMessage className="text-red-400" />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="ownerEmail"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-slate-300">Owner Email</FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="owner@bitewise.com" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                  </FormControl>
+                  <FormMessage className="text-red-400" />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-slate-300">Account Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="******" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
                   </FormControl>
                   <FormMessage className="text-red-400" />
                 </FormItem>

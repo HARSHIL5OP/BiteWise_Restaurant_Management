@@ -39,8 +39,9 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
   if (loading) return <SplashScreen />;
 
   if (user) {
-    // User is logged in, redirect to their dashboard
-    if (role === "admin") return <Navigate to="/admin" replace />;
+    if (role === "restaurant_admin") {
+      return <Navigate to="/admin" replace />;
+    }
     if (role === "chef") return <Navigate to="/chef" replace />;
     if (role === "waiter") return <Navigate to="/waiter" replace />;
     return <Navigate to="/home" replace />;
@@ -58,18 +59,27 @@ const ProtectedRoute = () => {
   return <Outlet />;
 };
 
-const RoleRoute = ({ allowedRoles, children }: { allowedRoles: string[], children: JSX.Element }) => {
+const RoleRoute = ({
+  allowedRoles,
+  children,
+}: {
+  allowedRoles: string[];
+  children: JSX.Element;
+}) => {
   const { role, loading } = useAuth();
 
   if (loading) return <SplashScreen />;
 
   if (!role || !allowedRoles.includes(role)) {
-    console.warn(`Unauthorized access attempt: Role '${role}' tried to access restricted route.`);
+    console.warn(
+      `Unauthorized access attempt: Role '${role}' tried to access restricted route.`
+    );
 
-    // Redirect to safe hierarchy
+    // ✅ FIXED ADMIN ROLE HERE
     if (role === "chef") return <Navigate to="/chef" replace />;
     if (role === "waiter") return <Navigate to="/waiter" replace />;
-    if (role === "admin") return <Navigate to="/admin" replace />;
+    if (role === "restaurant_admin") return <Navigate to="/admin" replace />;
+
     return <Navigate to="/home" replace />;
   }
 
@@ -81,63 +91,80 @@ const RoleRoute = ({ allowedRoles, children }: { allowedRoles: string[], childre
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* --- Public Routes (Login/Signup) --- */}
-      <Route path="/login" element={
-        <PublicOnly>
-          <LoginPage />
-        </PublicOnly>
-      } />
-      <Route path="/signup" element={
-        <PublicOnly>
-          <SignupPage />
-        </PublicOnly>
-      } />
-      <Route path="/forgot-password" element={
-        <PublicOnly>
-          <ForgotPasswordPage />
-        </PublicOnly>
-      } />
+      {/* --- Public Routes --- */}
+      <Route
+        path="/login"
+        element={
+          <PublicOnly>
+            <LoginPage />
+          </PublicOnly>
+        }
+      />
+      <Route
+        path="/signup"
+        element={
+          <PublicOnly>
+            <SignupPage />
+          </PublicOnly>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <PublicOnly>
+            <ForgotPasswordPage />
+          </PublicOnly>
+        }
+      />
 
-      {/* --- Public Home Routes --- */}
+      {/* --- Public Home --- */}
       <Route path="/home" element={<HomePage />} />
       <Route path="/home/:tableId" element={<HomePage />} />
       <Route path="/" element={<Navigate to="/home" replace />} />
       <Route path="/social-impact" element={<SocialImpact />} />
-      
-      {/* --- Main Admin Dashboard UI (No Auth Required) --- */}
+
+      {/* --- Main Admin --- */}
       <Route path="/main-admin" element={<MainAdminPage />} />
 
-      {/* --- Customer Flow (Restaurant Browsing UI) --- */}
+      {/* --- Customer --- */}
       <Route path="/customer" element={<CustomerHome />} />
       <Route path="/customer/restaurant/:id" element={<RestaurantDetail />} />
 
       {/* --- Protected Routes --- */}
       <Route element={<ProtectedRoute />}>
 
-        {/* Chef KDS */}
-        <Route path="/chef" element={
-          <RoleRoute allowedRoles={['chef', 'admin']}>
-            <ChefKDS />
-          </RoleRoute>
-        } />
+        {/* Chef */}
+        <Route
+          path="/chef"
+          element={
+            <RoleRoute allowedRoles={["chef", "restaurant_admin"]}>
+              <ChefKDS />
+            </RoleRoute>
+          }
+        />
 
-        {/* Waiter Dashboard */}
-        <Route path="/waiter" element={
-          <RoleRoute allowedRoles={['waiter', 'admin']}>
-            <WaiterPage />
-          </RoleRoute>
-        } />
+        {/* Waiter */}
+        <Route
+          path="/waiter"
+          element={
+            <RoleRoute allowedRoles={["waiter", "restaurant_admin"]}>
+              <WaiterPage />
+            </RoleRoute>
+          }
+        />
 
-        {/* Admin Dashboard */}
-        <Route path="/admin" element={
-          <RoleRoute allowedRoles={['admin']}>
-            <AdminPage />
-          </RoleRoute>
-        } />
-
+        {/* Admin */}
+        <Route
+          path="/admin"
+          element={
+            <RoleRoute allowedRoles={["restaurant_admin"]}>
+              <AdminPage />
+            </RoleRoute>
+          }
+        />
       </Route>
 
-      {/* --- Catch All --- */}
+      {/* --- 404 --- */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -150,7 +177,12 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
             <AppRoutes />
           </BrowserRouter>
         </TooltipProvider>

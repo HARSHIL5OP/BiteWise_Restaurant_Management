@@ -20,7 +20,7 @@ import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 
 // --- Types ---
 
-type UserRole = "customer" | "cashier" | "waiter" | "chef" | "admin";
+type UserRole = "customer" | "cashier" | "waiter" | "chef" | "restaurant_admin";
 
 export interface UserProfile {
   uid: string;

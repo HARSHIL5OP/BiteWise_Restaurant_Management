@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { Coffee, Pizza, Leaf, Store, UtensilsCrossed, Wine, PartyPopper } from "lucide-react";
 import RestaurantCard from "@/components/customer/RestaurantCard";
 import { LocationBar, SearchBar, CategoryChip, SectionHeader, OfferBanner } from "@/components/customer/SharedUI";
+import { getAllRestaurants } from "@/services/restaurantService";
 
 const CATEGORIES = [
   { label: "Cafes", icon: <Coffee className="w-6 h-6" /> },
@@ -66,6 +68,24 @@ const DUMMY_RESTAURANTS = [
 const LOCATIONS = ["Bodakdev", "Thaltej", "Navrangpura", "Satellite", "Prahlad Nagar", "Vastrapur"];
 
 export default function CustomerHome() {
+  const [restaurants, setRestaurants] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await getAllRestaurants();
+        setRestaurants(data);
+      } catch (err) {
+        console.error("Error fetching restaurants:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   return (
     <div className="bg-[#0A0F1C] min-h-screen text-slate-200 pb-20 font-sans max-w-md mx-auto shadow-[0_0_50px_rgba(0,0,0,0.5)] border-x border-slate-900 overflow-x-hidden relative scroll-smooth selection:bg-orange-500/30">
       
@@ -137,14 +157,39 @@ export default function CustomerHome() {
       <div className="border-t border-slate-800/80 bg-gradient-to-b from-slate-900/30 to-[#0A0F1C] pt-6 rounded-t-[3rem]">
         <div className="px-4 mb-4 flex items-center justify-between">
           <h2 className="text-2xl font-black text-slate-100 flex items-center gap-2">
-            78 places to <span className="bg-orange-500 text-white px-2 py-0.5 rounded-lg rotate-2 shadow-lg">dine out</span>
+            {loading ? "Loading..." : restaurants.length} places to <span className="bg-orange-500 text-white px-2 py-0.5 rounded-lg rotate-2 shadow-lg">dine out</span>
           </h2>
         </div>
 
         <div className="px-4 space-y-5 pb-6">
-          {DUMMY_RESTAURANTS.map((rest) => (
-            <RestaurantCard key={rest.id} {...rest} />
-          ))}
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse bg-slate-900 border border-slate-800 rounded-2xl h-[300px] w-full"></div>
+            ))
+          ) : restaurants.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-slate-400 font-medium">No restaurants available yet</p>
+            </div>
+          ) : (
+            restaurants.map((restaurant) => {
+              const dummyImage = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=800";
+              return (
+                <RestaurantCard
+                  key={restaurant.id}
+                  id={restaurant.id}
+                  name={restaurant.name || "Sample Restaurant"}
+                  image={restaurant.bannerImage || dummyImage}
+                  rating={restaurant.averageRating || 4.2}
+                  reviews="1.2k"
+                  cuisine={restaurant.cuisineType?.join(", ") || "Multi Cuisine"}
+                  price={restaurant.priceRange || "₹1,200 for two"}
+                  location={restaurant.location?.city || "Ahmedabad"}
+                  distance={restaurant.location?.address ? "1.2 km" : "Unknown"}
+                  offers={["Flat 20% OFF", "Free Dessert"]} // Keep dummy offers
+                />
+              );
+            })
+          )}
         </div>
       </div>
 

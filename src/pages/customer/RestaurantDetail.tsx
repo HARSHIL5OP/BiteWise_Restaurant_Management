@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Heart, Share2, Star, MapPin, 
@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { getRestaurantById } from "@/services/restaurantService";
 
 const AMENITIES = [
   { icon: <Car className="w-5 h-5 text-slate-400" />, label: "Valet Parking" },
@@ -18,12 +19,51 @@ export default function RestaurantDetail() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("offers");
 
-  // Dummy logic to match id to some content
-  const isSpiceSymphony = id === "r2";
-  const name = isSpiceSymphony ? "Spice Symphony" : "The Mocha Grill";
-  const imgUrl = isSpiceSymphony 
-    ? "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&q=80&w=1200" 
-    : "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200";
+  const [restaurant, setRestaurant] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRestaurant = async () => {
+      try {
+        const data = await getRestaurantById(id as string);
+        setRestaurant(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) fetchRestaurant();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="bg-[#0A0F1C] min-h-screen text-slate-200 font-sans max-w-md mx-auto pt-10 px-4">
+        <div className="animate-pulse bg-slate-900 h-64 rounded-2xl w-full mb-4"></div>
+        <div className="animate-pulse bg-slate-900 h-32 rounded-2xl w-full"></div>
+      </div>
+    );
+  }
+
+  if (!restaurant) {
+    return (
+      <div className="bg-[#0A0F1C] min-h-screen text-slate-200 font-sans max-w-md mx-auto flex items-center justify-center">
+        <p className="text-xl font-bold text-slate-400">Restaurant not found</p>
+      </div>
+    );
+  }
+
+  const dummyHeroImage = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=1200";
+  const imgUrl = restaurant?.bannerImage || dummyHeroImage;
+  const name = restaurant?.name || "Sample Restaurant";
+  const rating = restaurant?.averageRating || 4.2;
+  const cuisine = restaurant?.cuisineType?.join(", ") || "Multi Cuisine";
+  const price = restaurant?.priceRange || "₹₹";
+  const address = restaurant?.location?.address || "Ahmedabad";
+  const timing = (restaurant?.operatingHours?.open && restaurant?.operatingHours?.close)
+    ? `${restaurant?.operatingHours?.open} - ${restaurant?.operatingHours?.close}`
+    : "11:00 AM - 11:00 PM";
 
   return (
     <div className="bg-[#0A0F1C] min-h-screen text-slate-200 font-sans max-w-md mx-auto shadow-[0_0_50px_rgba(0,0,0,0.5)] border-x border-slate-900 overflow-x-hidden relative scroll-smooth selection:bg-orange-500/30 pb-24">
@@ -64,11 +104,11 @@ export default function RestaurantDetail() {
           <div className="flex justify-between items-start gap-4">
             <div>
               <h1 className="text-2xl font-black text-white leading-tight">{name}</h1>
-              <p className="text-sm text-slate-400 mt-1 line-clamp-1">{isSpiceSymphony ? "North Indian, Mughlai" : "Continental, Italian, Desserts"}</p>
+              <p className="text-sm text-slate-400 mt-1 line-clamp-1">{cuisine}</p>
             </div>
             <div className="flex flex-col items-center bg-emerald-600/10 border border-emerald-500/20 text-emerald-500 rounded-2xl px-3 py-1.5 shadow-sm shrink-0">
               <div className="flex items-center gap-1 font-black text-lg">
-                4.8 <Star className="w-4 h-4 fill-current" />
+                {rating} <Star className="w-4 h-4 fill-current" />
               </div>
               <span className="text-[10px] font-medium tracking-wide">3.4k REVIEWS</span>
             </div>
@@ -77,18 +117,18 @@ export default function RestaurantDetail() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-5 py-3 border-y border-slate-800/60">
             <div className="flex items-center gap-1.5 text-sm text-slate-300 font-medium">
               <Clock className="w-4 h-4 text-orange-500" />
-              11:00 AM - 11:30 PM
+              {timing}
             </div>
             <div className="w-1 h-1 rounded-full bg-slate-700"></div>
             <div className="text-sm font-medium text-slate-300">
-              ₹1,800 for two
+              {price}
             </div>
           </div>
 
           <div className="flex items-start gap-2 mt-4 text-sm text-slate-400">
             <MapPin className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
             <p className="leading-snug">
-              Shop 15, Ground Floor, Central Mall, Thaltej, Ahmedabad
+              {address}
               <span className="block mt-1 font-semibold text-orange-400">1.2 km away</span>
             </p>
           </div>
@@ -213,7 +253,7 @@ export default function RestaurantDetail() {
                   <div className="w-4 h-4 bg-orange-500 rounded-full shadow-[0_0_15px_rgba(249,115,22,1)]" />
                 </div>
                 <div className="absolute bottom-3 left-3 right-3 bg-[#0F172A]/90 backdrop-blur-md p-3 rounded-xl border border-slate-800 z-20 text-xs text-slate-300 text-center font-medium shadow-xl">
-                  Shop 15, Ground Floor, Central Mall
+                  {address}
                 </div>
               </div>
             </div>
