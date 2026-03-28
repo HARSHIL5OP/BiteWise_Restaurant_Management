@@ -15,13 +15,21 @@ import {
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, where, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, getDoc, deleteDoc, doc, onSnapshot, query, where, setDoc, updateDoc } from 'firebase/firestore';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
+
+import StaffList from './staff/StaffList';
+import AddStaffForm from './staff/AddStaffForm';
+import MenuList from './menu/MenuList';
+import AddMenuForm from './menu/AddMenuForm';
+import TableList from './tables/TableList';
+import AddTableForm from './tables/AddTableForm';
+import OrderList from './orders/OrderList';
 
 // --- Mock Stats Data (Keep for charts for now) ---
 
@@ -100,7 +108,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 
 // --- Main Component ---
 
-const RestaurantAdmin = () => {
+const AdminDashboard = () => {
     const { logout, userProfile } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
@@ -168,14 +176,32 @@ const RestaurantAdmin = () => {
             console.error("Menu fetch error:", error);
         });
 
-        const unsubscribeStaff = onSnapshot(collection(db, 'restaurants', restaurantId, 'staff'), (snapshot) => {
-            const users = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                name: `${doc.data().firstName || ''} ${doc.data().lastName || ''}`.trim()
-            }));
-            setStaff(users.filter(u => ['chef', 'waiter', 'cashier'].includes(u.role)));
-            setStaffCount(users.filter(u => ['chef', 'waiter', 'cashier'].includes(u.data().role)).length);
+        const unsubscribeStaff = onSnapshot(collection(db, 'restaurants', restaurantId, 'staff'), async (snapshot) => {
+            try {
+                const staffPromises = snapshot.docs.map(async (docSnap) => {
+                    const staffData = docSnap.data();
+                    const userRef = doc(db, 'users', staffData.userId);
+                    const userSnap = await getDoc(userRef);
+                    const userData = userSnap.exists() ? userSnap.data() : {};
+                    
+                    return {
+                        id: docSnap.id,
+                        ...staffData,
+                        firstName: userData.firstName || '',
+                        lastName: userData.lastName || '',
+                        email: userData.email || '',
+                        name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim()
+                    };
+                });
+                
+                const resolvedStaff = await Promise.all(staffPromises);
+                const filteredStaff = resolvedStaff.filter((u: any) => ['chef', 'waiter', 'cashier'].includes(u.role));
+                
+                setStaff(filteredStaff);
+                setStaffCount(filteredStaff.length);
+            } catch (err) {
+                console.error("Error resolving user data for staff:", err);
+            }
         }, (error) => {
             console.error("Staff fetch error:", error);
         });
@@ -367,7 +393,6 @@ const RestaurantAdmin = () => {
             };
 
             const staffFirestoreData = {
-                staffId: uid,
                 userId: uid,
                 restaurantId: restaurantId,
                 role: newStaff.role,
@@ -591,145 +616,13 @@ const RestaurantAdmin = () => {
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="space-y-8"
                         >
-                            <div className="flex justify-between items-center">
-                                <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Table Management</h1>
-                                <button
-                                    onClick={() => {
-                                        const maxNum = tables.reduce((max, t) => Math.max(max, parseInt(t.tableNumber) || 0), 0);
-                                        setNewTable({ ...newTable, tableNumber: (maxNum + 1).toString(), capacity: '4' });
-                                        setShowAddTable(true);
-                                    }}
-                                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 flex items-center gap-2 transition-all active:scale-95"
-                                >
-                                    <Plus size={20} /> Add Table
-                                </button>
-                            </div>
-
-                            {/* Table Stats */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
-                                    <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg text-indigo-600 dark:text-indigo-400">
-                                        <Grid size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Tables</p>
-                                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{tables.length}</h3>
-                                    </div>
-                                </div>
-                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
-                                    <div className="p-3 bg-slate-100 dark:bg-white/10 rounded-lg text-slate-600 dark:text-white">
-                                        <div className="w-6 h-6 rounded-full border-2 border-slate-400 dark:border-white/50" />
-                                    </div>
-                                    <div>
-                                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Available</p>
-                                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{tables.filter(t => t.status === 'available').length}</h3>
-                                    </div>
-                                </div>
-                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
-                                    <div className="p-3 bg-rose-50 dark:bg-red-500/10 rounded-lg text-rose-600 dark:text-red-400">
-                                        <User size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Occupied</p>
-                                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{tables.filter(t => t.status === 'occupied').length}</h3>
-                                    </div>
-                                </div>
-                                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
-                                    <div className="p-3 bg-amber-50 dark:bg-orange-500/10 rounded-lg text-amber-600 dark:text-orange-400">
-                                        <Clock size={24} />
-                                    </div>
-                                    <div>
-                                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Reserved</p>
-                                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{tables.filter(t => t.status === 'reserved').length}</h3>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Table Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {tables.map(table => (
-                                    <div
-                                        key={table.id}
-                                        className={`
-                                            relative bg-white dark:bg-slate-900 border rounded-2xl p-6 transition-all duration-300 hover:shadow-xl group
-                                            ${table.status === 'available' ? 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600' : ''}
-                                            ${table.status === 'occupied' ? 'border-rose-100 dark:border-red-500/20 bg-rose-50/50 dark:bg-red-500/5' : ''}
-                                            ${table.status === 'reserved' ? 'border-amber-100 dark:border-orange-500/20 bg-amber-50/50 dark:bg-orange-500/5' : ''}
-                                        `}
-                                    >
-                                        {/* Delete Button (visible on hover) */}
-                                        <button
-                                            onClick={() => handleDeleteTable(table.id)}
-                                            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                                            title="Delete Table"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div>
-                                                <h3 className="text-3xl font-black text-slate-800 dark:text-white mb-1 tracking-tight">T-{table.tableNumber}</h3>
-                                                <p className="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-1">
-                                                    <Users size={14} /> {table.capacity} Seats
-                                                </p>
-                                            </div>
-                                            <div className={`
-                                                px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
-                                                ${table.status === 'available' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' : ''}
-                                                ${table.status === 'occupied' ? 'bg-rose-100 text-rose-600 dark:bg-red-500 dark:text-white' : ''}
-                                                ${table.status === 'reserved' ? 'bg-amber-100 text-amber-600 dark:bg-orange-500 dark:text-white' : ''}
-                                            `}>
-                                                {table.status}
-                                            </div>
-                                        </div>
-
-                                        {/* QR Code Preview */}
-                                        <div className="bg-slate-50 dark:bg-white p-3 rounded-xl w-fit mx-auto mb-4 group-hover:scale-105 transition-transform duration-300 shadow-inner">
-                                            <img
-                                                src={table.qrUrl}
-                                                alt={`QR T-${table.tableNumber}`}
-                                                className="w-24 h-24 object-contain opacity-90 group-hover:opacity-100 mix-blend-multiply dark:mix-blend-normal"
-                                            />
-                                        </div>
-
-                                        <div className="flex gap-2">
-                                            <a
-                                                href={table.qrUrl}
-                                                download={`Table-${table.tableNumber}-QR.png`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <Download size={14} /> PNG
-                                            </a>
-                                            <button
-                                                onClick={() => {
-                                                    const printWindow = window.open('', '_blank');
-                                                    printWindow.document.write(`
-                                                        <html>
-                                                            <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
-                                                                <h1>Table ${table.tableNumber}</h1>
-                                                                <img src="${table.qrUrl}" width="300" />
-                                                                <p>Scan to Order</p>
-                                                            </body>
-                                                        </html>
-                                                    `);
-                                                    printWindow.document.close();
-                                                    printWindow.print();
-                                                }}
-                                                className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <Printer size={14} /> Print
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Floor Plan Blueprint */}
-                            <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-8">
-                                <RestaurantFloorBlueprint tables={tables} />
-                            </div>
+                            <TableList
+                                tables={tables}
+                                handleDeleteTable={handleDeleteTable}
+                                setShowAddTable={setShowAddTable}
+                                setNewTable={setNewTable}
+                                newTable={newTable}
+                            />
                         </motion.div>
                     )}
 
@@ -828,46 +721,14 @@ const RestaurantAdmin = () => {
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
                         >
-                            <div className="flex justify-between items-center mb-6">
-                                <div className="flex gap-2">
-                                    <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition active:scale-95 shadow-lg shadow-indigo-500/20" onClick={() => {
-                                        setEditingId(null);
-                                        setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
-                                        setShowAddMenu(true);
-                                    }}>
-                                        <Plus size={18} className="inline mr-2" /> Add Item
-                                    </button>
-                                </div>
-                                <div className="text-slate-500 dark:text-slate-400 text-sm font-medium">{menuItems.length} Items Found</div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                                {menuItems.map(item => (
-                                    <div key={item.id} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden hover:border-indigo-500/50 transition-all hover:shadow-xl hover:-translate-y-1">
-                                        <div className="h-48 overflow-hidden relative">
-                                            <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                            <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm">
-                                                {item.category}
-                                            </div>
-                                        </div>
-                                        <div className="p-5">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1">{item.name}</h3>
-                                                <span className="font-bold text-indigo-600 dark:text-indigo-400">${item.price}</span>
-                                            </div>
-                                            <p className="text-slate-500 text-sm mb-4"><span className={item.isAvailable === false ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold'}>{item.isAvailable === false ? 'Out of Stock' : 'Available'}</span></p>
-                                            <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
-                                                <button onClick={() => openEditMenu(item)} className="p-2 text-slate-400 hover:text-indigo-500 dark:hover:text-white transition-colors bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                                    <Edit2 size={16} />
-                                                </button>
-                                                <button onClick={() => handleDeleteMenu(item.id)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all rounded-lg">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <MenuList
+                                menuItems={menuItems}
+                                openEditMenu={openEditMenu}
+                                handleDeleteMenu={handleDeleteMenu}
+                                setShowAddMenu={setShowAddMenu}
+                                setEditingId={setEditingId}
+                                setNewMenuItem={setNewMenuItem}
+                            />
                         </motion.div>
                     )}
 
@@ -878,48 +739,13 @@ const RestaurantAdmin = () => {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                         >
-                            <div className="flex justify-between items-center mb-8">
-                                <button className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/25 flex items-center active:scale-95" onClick={() => setShowAddStaff(true)}>
-                                    <Plus size={18} className="mr-2" /> Add Staff Member
-                                </button>
-                            </div>
-
-                            <div className="space-y-8">
-                                {[
-                                    { title: 'Chefs', data: chefs, icon: ChefHat, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-amber-100 dark:bg-amber-500/10' },
-                                    { title: 'Waiters', data: waiters, icon: User, color: 'text-blue-600 dark:text-blue-500', bg: 'bg-blue-100 dark:bg-blue-500/10' },
-                                    { title: 'Cashiers', data: cashiers, icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-500/10' }
-                                ].map((group) => (
-                                    <div key={group.title}>
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className={`p-2 rounded-lg ${group.bg} ${group.color}`}>
-                                                <group.icon size={20} />
-                                            </div>
-                                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{group.title} <span className="text-slate-500 text-sm font-normal">({group.data.length})</span></h3>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                            {group.data.map(member => (
-                                                <div key={member.id} className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 p-4 rounded-xl flex items-center gap-4 hover:border-indigo-500/30 hover:shadow-md transition-all">
-                                                    <img src={member.avatar || `https://ui-avatars.com/api/?name=${member.name}&background=random`} alt={member.name} className="w-12 h-12 rounded-full ring-2 ring-slate-100 dark:ring-slate-800" />
-                                                    <div className="flex-1">
-                                                        <h4 className="font-semibold text-slate-900 dark:text-white">{member.firstName} {member.lastName}</h4>
-                                                        <p className="text-xs text-slate-500 capitalize">{member.shift} Shift</p>
-                                                    </div>
-                                                    <button onClick={() => handleDeleteStaff(member.id)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors">
-                                                        <X size={16} />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            {group.data.length === 0 && (
-                                                <div className="col-span-full py-8 text-center border border-dashed border-slate-300 dark:border-slate-800 rounded-xl text-slate-500">
-                                                    No {group.title.toLowerCase()} added yet.
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <StaffList
+                                chefs={chefs}
+                                waiters={waiters}
+                                cashiers={cashiers}
+                                handleDeleteStaff={handleDeleteStaff}
+                                setShowAddStaff={setShowAddStaff}
+                            />
                         </motion.div>
                     )}
 
@@ -979,183 +805,35 @@ const RestaurantAdmin = () => {
                 setEditingId(null);
                 setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
             }} title={editingId ? "Edit Menu Item" : "Add New Menu Item"}>
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Item Name</label>
-                        <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors"
-                            placeholder="e.g. Spicy Ramen"
-                            value={newMenuItem.name} onChange={e => setNewMenuItem({ ...newMenuItem, name: e.target.value })} />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Price ($)</label>
-                        <input type="text" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors"
-                            placeholder="0.00"
-                            value={newMenuItem.price} onChange={e => setNewMenuItem({ ...newMenuItem, price: e.target.value })} />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Category</label>
-                        <select className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none mb-2 transition-colors"
-                            value={newMenuItem.category} onChange={e => setNewMenuItem({ ...newMenuItem, category: e.target.value, newCategory: '' })}>
-                            {categories.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                            <option value="new">+ Add New Category</option>
-                        </select>
-                        {newMenuItem.category === 'new' && (
-                            <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none animate-in fade-in slide-in-from-top-2 transition-colors"
-                                placeholder="Enter new category name..."
-                                value={newMenuItem.newCategory} onChange={e => setNewMenuItem({ ...newMenuItem, newCategory: e.target.value })} />
-                        )}
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Item Image</label>
-                        <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center hover:border-indigo-500/50 transition-colors cursor-pointer relative group bg-slate-50 dark:bg-slate-950/50">
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => setNewMenuItem({ ...newMenuItem, image: e.target.files[0] })}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
-                            <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-indigo-500">
-                                {newMenuItem.image ? (
-                                    <span className="text-sm font-medium text-emerald-500">
-                                        {typeof newMenuItem.image === 'object' ? newMenuItem.image.name : 'Image Selected'}
-                                    </span>
-                                ) : (
-                                    <>
-                                        <Upload size={24} />
-                                        <span className="text-sm">Click to upload image</span>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleAddMenu}
-                        disabled={isLoading}
-                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95"
-                    >
-                        {isLoading ? 'Saving...' : (editingId ? 'Update Item' : 'Add Item')}
-                    </button>
-                </div>
+                <AddMenuForm
+                    newMenuItem={newMenuItem}
+                    setNewMenuItem={setNewMenuItem}
+                    handleAddMenu={handleAddMenu}
+                    categories={categories}
+                    isLoading={isLoading}
+                    editingId={editingId}
+                />
             </Modal>
 
             <Modal isOpen={showAddStaff} onClose={() => setShowAddStaff(false)} title="Add Staff Member">
-                <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">First Name</label>
-                            <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
-                                placeholder="John"
-                                value={newStaff.firstName} onChange={e => setNewStaff({ ...newStaff, firstName: e.target.value })} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Last Name</label>
-                            <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
-                                placeholder="Doe"
-                                value={newStaff.lastName} onChange={e => setNewStaff({ ...newStaff, lastName: e.target.value })} />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Role</label>
-                            <select className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
-                                value={newStaff.role} onChange={e => setNewStaff({ ...newStaff, role: e.target.value })}>
-                                <option value="waiter">Waiter</option>
-                                <option value="chef">Chef</option>
-                                <option value="cashier">Cashier</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Shift</label>
-                            <select className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
-                                value={newStaff.shift} onChange={e => setNewStaff({ ...newStaff, shift: e.target.value })}>
-                                <option>Morning</option>
-                                <option>Evening</option>
-                                <option>Full Day</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Email</label>
-                        <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
-                            placeholder="email@example.com"
-                            value={newStaff.email} onChange={e => setNewStaff({ ...newStaff, email: e.target.value })} />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Password</label>
-                        <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
-                            type="password"
-                            placeholder="••••••••"
-                            value={newStaff.password} onChange={e => setNewStaff({ ...newStaff, password: e.target.value })} />
-                    </div>
-                    <button
-                        onClick={handleAddStaff}
-                        disabled={isLoading}
-                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 disabled:opacity-50 shadow-lg shadow-indigo-500/20 active:scale-95"
-                    >
-                        {isLoading ? 'Adding...' : 'Add Staff'}
-                    </button>
-                </div>
+                <AddStaffForm
+                    newStaff={newStaff}
+                    setNewStaff={setNewStaff}
+                    handleAddStaff={handleAddStaff}
+                    isLoading={isLoading}
+                />
             </Modal>
 
             {/* Add Table Modal */}
             <Modal isOpen={showAddTable} onClose={() => setShowAddTable(false)} title="Add New Table">
-                <div className="space-y-6">
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-4 transition-colors">
-                        <div className="bg-white p-2 rounded-lg shadow-sm">
-                            <img
-                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://odoo-cafe-project-eight.vercel.app/home/${newTable.tableNumber || ''}`}
-                                alt="QR Preview"
-                                className="w-16 h-16"
-                            />
-                        </div>
-                        <div>
-                            <p className="text-slate-900 dark:text-white font-bold text-sm">Auto-Generated QR</p>
-                            <p className="text-slate-500 text-xs">Based on unique Table ID</p>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Table Number</label>
-                        <input
-                            type="number"
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none font-mono text-lg transition-colors"
-                            placeholder="e.g. 12"
-                            value={newTable.tableNumber}
-                            onChange={e => setNewTable({ ...newTable, tableNumber: e.target.value })}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Seating Capacity</label>
-                        <div className="grid grid-cols-4 gap-2">
-                            {[2, 4, 6, 8].map(cap => (
-                                <button
-                                    key={cap}
-                                    onClick={() => setNewTable({ ...newTable, capacity: cap.toString() })}
-                                    className={`py-2 rounded-lg font-bold border transition-all ${newTable.capacity === cap.toString()
-                                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/20'
-                                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-indigo-500 dark:hover:border-slate-600 hover:text-indigo-600 dark:hover:text-white'
-                                        }`}
-                                >
-                                    {cap}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={handleAddTable}
-                        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 shadow-lg shadow-indigo-500/20 active:scale-95"
-                    >
-                        Create Table
-                    </button>
-                </div>
+                <AddTableForm
+                    newTable={newTable}
+                    setNewTable={setNewTable}
+                    handleAddTable={handleAddTable}
+                />
             </Modal>
         </div>
     );
 };
 
-export default RestaurantAdmin;
+export default AdminDashboard;
