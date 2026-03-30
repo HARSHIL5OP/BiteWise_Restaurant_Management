@@ -33,7 +33,7 @@ const BLUEPRINT_LAYOUT = [
     { tableId: "T16", capacity: 8, position: { x: 380, y: 500 } },
 ];
 
-const RestaurantFloorBlueprint = ({ tables: propTables = [], isCustomerView = false }: any) => {
+const RestaurantFloorBlueprint = ({ tables: propTables = [], isCustomerView = false, onBookTable }: any) => {
     const { theme } = useTheme();
     const [selectedTable, setSelectedTable] = useState<any>(null);
     const [hoveredTable, setHoveredTable] = useState(null);
@@ -331,7 +331,14 @@ const RestaurantFloorBlueprint = ({ tables: propTables = [], isCustomerView = fa
                                     </div>
                                 </div>
                                 <button 
-                                    onClick={() => isCustomerView ? toast.success("Table Booking Flow Coming Soon!") : null}
+                                    onClick={() => {
+                                        if (isCustomerView && onBookTable) {
+                                            onBookTable(selectedTable);
+                                            setSelectedTable(null);
+                                        } else {
+                                            toast.success("Table Booking Flow Coming Soon!");
+                                        }
+                                    }}
                                     className="px-6 py-3 bg-white text-blue-600 rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
                                 >
                                     Proceed to Book

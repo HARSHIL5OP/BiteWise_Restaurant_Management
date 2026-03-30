@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 import RestaurantFloorBlueprint from "@/components/RestaurantFloorBlueprint";
 import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 
 export default function CustomerTableView() {
   const { id } = useParams(); // restaurantId
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [tables, setTables] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,6 +33,63 @@ export default function CustomerTableView() {
     }
     if (id) fetchTables();
   }, [id]);
+
+  const handleBookTable = async (table: any) => {
+    if (!user) {
+      toast.error("Please login to book a table");
+      return;
+    }
+    
+    // Disable if not available
+    if (table.status !== "available") {
+        toast.error("Table not available");
+        return;
+    }
+
+    try {
+      // 🔥 STEP A: CREATE RESERVATION
+      await addDoc(collection(db, "reservations"), {
+        restaurantId: id,
+        customerId: user.uid,
+        tableId: table.tableId || table.id,
+        reservationTime: new Date(), 
+        partySize: table.capacity,
+        notes: "",
+        status: "confirmed",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // 🔥 STEP B: UPDATE TABLE STATUS
+      const tableRef = doc(
+        db,
+        "restaurants",
+        id as string,
+        "tables",
+        table.id
+      );
+
+      await updateDoc(tableRef, {
+        status: "reserved",
+        updatedAt: serverTimestamp()
+      });
+
+      // 🔥 STEP C: UPDATE UI
+      setTables(prev =>
+        prev.map(t =>
+          t.id === table.id
+            ? { ...t, status: "reserved" }
+            : t
+        )
+      );
+
+      // 🔥 SUCCESS FEEDBACK
+      toast.success(`Table ${table.tableId || table.id} booked successfully!`);
+    } catch (error) {
+      console.error("Booking failed:", error);
+      toast.error("Failed to book table");
+    }
+  };
 
   if (loading) {
     return (
@@ -64,7 +124,7 @@ export default function CustomerTableView() {
       {/* Scrollable Blueprint wrapper mapped directly to Mobile-View framing */}
       <div className="flex-1 overflow-x-auto overflow-y-auto no-scrollbar pb-10 bg-slate-950/50">
         <div className="min-w-[1000px] h-full p-4 transform scale-90 origin-top-left sm:scale-100 sm:p-0">
-          <RestaurantFloorBlueprint tables={tables} isCustomerView={true} />
+          <RestaurantFloorBlueprint tables={tables} isCustomerView={true} onBookTable={handleBookTable} />
         </div>
       </div>
     </div>
