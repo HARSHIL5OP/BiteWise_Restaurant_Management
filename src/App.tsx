@@ -20,6 +20,7 @@ import MainAdminPage from "./pages/main-admin";
 import CustomerHome from "./pages/customer/index";
 import RestaurantDetail from "./pages/customer/RestaurantDetail";
 import CustomerTableView from "./pages/customer/CustomerTableView";
+import NgoLayout from "./ngo/NgoLayout";
 
 const queryClient = new QueryClient();
 
@@ -42,7 +43,7 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
   if (user) {
     if (role === "main-admin") return <Navigate to="/main-admin" replace />;
     if (role === "restaurant_admin") return <Navigate to="/admin" replace />;
-    if (role === "ngo") return <Navigate to="/social-impact" replace />;
+    if (role === "ngo") return <Navigate to="/ngo" replace />;
     if (role === "staff") {
       if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
       if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
@@ -89,7 +90,7 @@ const RoleRoute = ({
 
     if (role === "main-admin") return <Navigate to="/main-admin" replace />;
     if (role === "restaurant_admin") return <Navigate to="/admin" replace />;
-    if (role === "ngo") return <Navigate to="/social-impact" replace />;
+    if (role === "ngo") return <Navigate to="/ngo" replace />;
     if (role === "staff") {
       if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
       if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
@@ -143,6 +144,9 @@ const AppRoutes = () => {
       {/* --- Main Admin --- */}
       <Route path="/main-admin" element={<MainAdminPage />} />
 
+      {/* --- NGO --- */}
+      <Route path="/ngo" element={<NgoLayout />} />
+
       {/* --- Customer --- */}
       <Route path="/customer" element={
         <RoleRoute allowedRoles={["customer"]}>
@@ -192,6 +196,7 @@ const AppRoutes = () => {
             </RoleRoute>
           }
         />
+
       </Route>
 
       {/* --- 404 --- */}
