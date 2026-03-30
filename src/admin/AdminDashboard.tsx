@@ -258,11 +258,23 @@ const AdminDashboard = () => {
             console.error("Tables fetch error:", error);
         });
 
+        // Fetch Restaurant details
+        const unsubscribeRestaurant = onSnapshot(doc(db, 'restaurants', restaurantId), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.name) setRestaurantName(data.name);
+                // Only updating name here as per instructions, logo is an emoji currently
+            }
+        }, (error) => {
+             console.error("Restaurant fetch error:", error);
+        });
+
         return () => {
             unsubscribeMenu();
             unsubscribeStaff();
             unsubscribeTables();
             unsubscribeOrders();
+            unsubscribeRestaurant();
         };
     }, []);
 
@@ -495,10 +507,23 @@ const AdminDashboard = () => {
         }
     };
 
-    const saveSettings = () => {
-        setRestaurantName(tempSettings.name);
-        setLogo(tempSettings.logo);
-        setShowSettings(false);
+    const saveSettings = async () => {
+        if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT') {
+            alert("Security Error: No valid restaurant ID found for your user context.");
+            return;
+        }
+
+        try {
+            await updateDoc(doc(db, 'restaurants', restaurantId), {
+                name: tempSettings.name
+            });
+            setRestaurantName(tempSettings.name);
+            setLogo(tempSettings.logo);
+            setShowSettings(false);
+        } catch (error) {
+            console.error("Error updating settings:", error);
+            alert("Failed to save settings.");
+        }
     };
 
     // Helper to convert Data URL to Blob/File for Cloudinary
