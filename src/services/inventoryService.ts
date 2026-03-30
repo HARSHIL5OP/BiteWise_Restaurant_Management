@@ -1,6 +1,6 @@
 import { db } from '../lib/firebase';
 import {
-    collection, doc, getDocs, addDoc, updateDoc, setDoc, serverTimestamp, Timestamp
+    collection, doc, getDocs, addDoc, updateDoc, setDoc, serverTimestamp, Timestamp, deleteDoc
 } from 'firebase/firestore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -120,16 +120,29 @@ export async function restockInventoryItem(
 
 // ─── D. Add Ingredients to Menu Item ─────────────────────────────────────────
 
+export async function getMenuIngredients(restaurantId: string, menuItemId: string): Promise<IngredientEntry[]> {
+    const snap = await getDocs(collection(db, 'restaurants', restaurantId, 'menu', menuItemId, 'ingredients'));
+    return snap.docs.map(d => d.data() as IngredientEntry);
+}
+
 export async function saveMenuIngredients(
     restaurantId: string,
     menuItemId: string,
     ingredients: IngredientEntry[]
 ): Promise<void> {
+    const colRef = collection(db, 'restaurants', restaurantId, 'menu', menuItemId, 'ingredients');
+    
+    // 1. Delete existing ingredients
+    const existingSnap = await getDocs(colRef);
+    const deletePromises = existingSnap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(deletePromises);
+
+    // 2. Save new ingredients
     for (const ing of ingredients) {
         validateUnit(ing.unit);
         if (ing.quantityUsed <= 0) throw new Error(`quantityUsed for "${ing.name}" must be positive.`);
 
-        const ingRef = doc(collection(db, 'restaurants', restaurantId, 'menu', menuItemId, 'ingredients'));
+        const ingRef = doc(colRef);
         const payload: IngredientEntry = {
             inventoryId: ing.inventoryId,
             name: ing.name,

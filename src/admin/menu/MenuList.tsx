@@ -1,7 +1,7 @@
 import React from 'react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye } from 'lucide-react';
 
-const MenuList = ({ menuItems, openEditMenu, handleDeleteMenu, setShowAddMenu, setEditingId, setNewMenuItem }: any) => {
+const MenuList = ({ menuItems, openEditMenu, handleDeleteMenu, setShowAddMenu, setEditingId, setNewMenuItem, openViewMenu }: any) => {
     return (
         <div>
             <div className="flex justify-between items-center mb-6">
@@ -33,6 +33,9 @@ const MenuList = ({ menuItems, openEditMenu, handleDeleteMenu, setShowAddMenu, s
                             </div>
                             <p className="text-slate-500 text-sm mb-4"><span className={item.isAvailable === false ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold'}>{item.isAvailable === false ? 'Out of Stock' : 'Available'}</span></p>
                             <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
+                                <button onClick={() => openViewMenu(item)} className="p-2 text-slate-400 hover:text-indigo-500 dark:hover:text-white transition-colors bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                    <Eye size={16} />
+                                </button>
                                 <button onClick={() => openEditMenu(item)} className="p-2 text-slate-400 hover:text-indigo-500 dark:hover:text-white transition-colors bg-slate-50 dark:bg-slate-800 rounded-lg">
                                     <Edit2 size={16} />
                                 </button>

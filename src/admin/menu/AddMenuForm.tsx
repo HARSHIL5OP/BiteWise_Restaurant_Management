@@ -10,6 +10,7 @@ interface Props {
     isLoading: boolean;
     editingId: string | null;
     inventoryItems: InventoryItem[];
+    initialIngredients?: DraftIngredient[];
 }
 
 const fieldCls = "w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors text-sm";
@@ -25,11 +26,21 @@ type DraftIngredient = {
 const emptyIngredient = (): DraftIngredient => ({ inventoryId: '', name: '', unit: '', quantityUsed: '' });
 
 const AddMenuForm: React.FC<Props> = ({
-    newMenuItem, setNewMenuItem, handleAddMenu, categories, isLoading, editingId, inventoryItems
+    newMenuItem, setNewMenuItem, handleAddMenu, categories, isLoading, editingId, inventoryItems, initialIngredients
 }) => {
     const [ingredients, setIngredients] = useState<DraftIngredient[]>([]);
     const [showIngredients, setShowIngredients] = useState(false);
     const [ingError, setIngError] = useState('');
+
+    React.useEffect(() => {
+        if (initialIngredients && initialIngredients.length > 0) {
+            setIngredients(initialIngredients);
+            setShowIngredients(true);
+        } else {
+            setIngredients([]);
+            setShowIngredients(false);
+        }
+    }, [initialIngredients]);
 
     const addIngredientRow = () => setIngredients(prev => [...prev, emptyIngredient()]);
 

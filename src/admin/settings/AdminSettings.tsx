@@ -4,6 +4,7 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Upload, Save, RotateCcw, Building2, MapPin, Clock, DollarSign, Image as ImageIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { uploadToCloudinary } from '../../lib/cloudinary';
 
 const AdminSettings = () => {
     const { userProfile } = useAuth();
@@ -14,8 +15,8 @@ const AdminSettings = () => {
     const [formData, setFormData] = useState({
         name: '',
         description: '',
-        logoUrl: '',
-        bannerImage: '',
+        logoUrl: '' as any,
+        bannerImage: '' as any,
         location: {
             city: '',
             lat: 0,
@@ -107,13 +108,23 @@ const AdminSettings = () => {
         setMessage({ type: '', text: '' });
 
         try {
+            let finalLogoUrl = formData.logoUrl;
+            if (formData.logoUrl && typeof formData.logoUrl === 'object') {
+                finalLogoUrl = await uploadToCloudinary(formData.logoUrl);
+            }
+
+            let finalBannerImage = formData.bannerImage;
+            if (formData.bannerImage && typeof formData.bannerImage === 'object') {
+                finalBannerImage = await uploadToCloudinary(formData.bannerImage);
+            }
+
             const updatedFields = {
                 name: formData.name,
                 description: formData.description,
-                logoUrl: formData.logoUrl,
-                bannerImage: formData.bannerImage,
+                logoUrl: finalLogoUrl,
+                bannerImage: finalBannerImage,
                 location: formData.location,
-                cuisineType: formData.cuisineType.split(',').map(c => c.trim()).filter(Boolean),
+                cuisineType: formData.cuisineType.split(',').map((c: string) => c.trim()).filter(Boolean),
                 priceRange: `${formData.priceRangeMin}-${formData.priceRangeMax}`,
                 operatingHours: formData.operatingHours,
                 updatedAt: serverTimestamp()
@@ -340,46 +351,62 @@ const AdminSettings = () => {
                         
                         <div className="space-y-6">
                             <div>
-                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Logo URL</label>
-                                <div className="flex flex-col items-center gap-4 mb-3">
-                                    <div className="w-24 h-24 rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center text-4xl shadow-sm">
+                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Logo</label>
+                                <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center hover:border-indigo-500/50 transition-colors cursor-pointer relative group bg-slate-50 dark:bg-slate-950/50">
+                                    <input type="file" accept="image/*"
+                                        onChange={e => setFormData({ ...formData, logoUrl: e.target?.files?.[0] || formData.logoUrl })}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                    <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-indigo-500">
                                         {formData.logoUrl ? (
-                                             formData.logoUrl.startsWith('http') || formData.logoUrl.startsWith('data:') 
-                                                ? <img src={formData.logoUrl} alt="Logo preview" className="w-full h-full object-cover" />
-                                                : <span>{formData.logoUrl}</span> // Fallback if logo is just an emoji
+                                            <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm mx-auto">
+                                                {typeof formData.logoUrl === 'string' ? (
+                                                    formData.logoUrl.startsWith('http') || formData.logoUrl.startsWith('data:')
+                                                        ? <img src={formData.logoUrl} alt="Logo preview" className="w-full h-full object-cover" />
+                                                        : <span className="text-3xl flex items-center justify-center h-full bg-slate-100 dark:bg-slate-800">{formData.logoUrl}</span>
+                                                ) : (
+                                                    <img src={URL.createObjectURL(formData.logoUrl)} alt="Logo upload preview" className="w-full h-full object-cover" />
+                                                )}
+                                            </div>
                                         ) : (
-                                            <Upload className="text-slate-400" />
+                                            <>
+                                                <Upload size={24} />
+                                                <span className="text-sm">Click to upload logo image</span>
+                                            </>
+                                        )}
+                                        {formData.logoUrl && typeof formData.logoUrl === 'object' && (
+                                            <span className="text-xs font-medium text-emerald-500 mt-1">Image Selected</span>
                                         )}
                                     </div>
                                 </div>
-                                <input
-                                    name="logoUrl"
-                                    value={formData.logoUrl}
-                                    onChange={handleChange}
-                                    placeholder="Logo image URL or Emoji..."
-                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm"
-                                />
                             </div>
                             
                             <div>
-                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Banner Image URL</label>
-                                <div className="w-full h-32 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-3 shadow-sm relative group">
-                                    {formData.bannerImage ? (
-                                        <img src={formData.bannerImage} alt="Banner preview" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <div className="text-center text-slate-400">
-                                            <ImageIcon className="mx-auto mb-2 opacity-50" size={24} />
-                                            <span className="text-xs">No banner image</span>
-                                        </div>
-                                    )}
+                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Banner Image</label>
+                                <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center hover:border-indigo-500/50 transition-colors cursor-pointer relative group bg-slate-50 dark:bg-slate-950/50">
+                                    <input type="file" accept="image/*"
+                                        onChange={e => setFormData({ ...formData, bannerImage: e.target?.files?.[0] || formData.bannerImage })}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                                    
+                                    <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-indigo-500 relative">
+                                        {formData.bannerImage ? (
+                                            <div className="w-full h-32 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                                                {typeof formData.bannerImage === 'string' ? (
+                                                    <img src={formData.bannerImage} alt="Banner preview" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <img src={URL.createObjectURL(formData.bannerImage)} alt="Banner upload preview" className="w-full h-full object-cover" />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="py-4">
+                                                <ImageIcon size={24} className="mx-auto mb-2 opacity-50" />
+                                                <span className="text-sm">Click to upload banner image</span>
+                                            </div>
+                                        )}
+                                        {formData.bannerImage && typeof formData.bannerImage === 'object' && (
+                                            <span className="text-xs font-medium text-emerald-500 mt-1">Banner Image Selected</span>
+                                        )}
+                                    </div>
                                 </div>
-                                <input
-                                    name="bannerImage"
-                                    value={formData.bannerImage}
-                                    onChange={handleChange}
-                                    placeholder="https://..."
-                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition text-sm"
-                                />
                             </div>
                         </div>
                     </div>
@@ -389,12 +416,14 @@ const AdminSettings = () => {
                         <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-4 tracking-tight uppercase text-slate-500">Card Preview</h3>
                         <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm relative group">
                              <div className="h-24 w-full bg-slate-200 dark:bg-slate-700 relative">
-                                {formData.bannerImage && <img src={formData.bannerImage} className="w-full h-full object-cover" alt="Banner" />}
+                                {formData.bannerImage && (
+                                    <img src={typeof formData.bannerImage === 'string' ? formData.bannerImage : URL.createObjectURL(formData.bannerImage)} className="w-full h-full object-cover" alt="Banner" />
+                                )}
                                 <div className="absolute -bottom-4 left-4 w-12 h-12 rounded-full border-2 border-white dark:border-slate-800 bg-white dark:bg-slate-700 flex items-center justify-center overflow-hidden text-2xl">
-                                    {formData.logoUrl && formData.logoUrl.startsWith('http') ? (
-                                         <img src={formData.logoUrl} className="w-full h-full object-cover" alt="Logo" />
+                                    {formData.logoUrl && (typeof formData.logoUrl === 'string' ? formData.logoUrl.startsWith('http') : true) ? (
+                                         <img src={typeof formData.logoUrl === 'string' ? formData.logoUrl : URL.createObjectURL(formData.logoUrl)} className="w-full h-full object-cover" alt="Logo" />
                                     ) : (
-                                        formData.logoUrl || '🍽️'
+                                        typeof formData.logoUrl === 'string' ? formData.logoUrl : '🍽️'
                                     )}
                                 </div>
                              </div>

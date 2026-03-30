@@ -16,7 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, addDoc, getDocs, getDoc, deleteDoc, doc, onSnapshot, query, where, setDoc, updateDoc } from 'firebase/firestore';
-import { saveMenuIngredients, IngredientEntry } from '../services/inventoryService';
+import { saveMenuIngredients, IngredientEntry, getMenuIngredients } from '../services/inventoryService';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -28,6 +28,7 @@ import StaffList from './staff/StaffList';
 import AddStaffForm from './staff/AddStaffForm';
 import MenuList from './menu/MenuList';
 import AddMenuForm from './menu/AddMenuForm';
+import ViewMenuItem from './menu/ViewMenuItem';
 import TableList from './tables/TableList';
 import AddTableForm from './tables/AddTableForm';
 import OrderList from './orders/OrderList';
@@ -161,6 +162,12 @@ const AdminDashboard = () => {
     });
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+    const [menuIngredientsForEdit, setMenuIngredientsForEdit] = useState<any[]>([]);
+
+    const [showViewMenu, setShowViewMenu] = useState(false);
+    const [viewingItem, setViewingItem] = useState<any>(null);
+    const [viewingIngredients, setViewingIngredients] = useState<any[]>([]);
+    const [isViewingLoading, setIsViewingLoading] = useState(false);
 
     // Updated initial staff state to match the user's DB schema preferences
     const [newStaff, setNewStaff] = useState({
@@ -397,7 +404,7 @@ const AdminDashboard = () => {
         }
     };
 
-    const openEditMenu = (item: any) => {
+    const openEditMenu = async (item: any) => {
         setEditingId(item.id);
         setNewMenuItem({
             name: item.name,
@@ -406,7 +413,36 @@ const AdminDashboard = () => {
             category: item.category,
             newCategory: ''
         });
+        
+        try {
+            const ings = await getMenuIngredients(restaurantId, item.id);
+            setMenuIngredientsForEdit(ings.map(i => ({
+                inventoryId: i.inventoryId,
+                name: i.name,
+                unit: i.unit,
+                quantityUsed: String(i.quantityUsed)
+            })));
+        } catch (e) {
+            console.error("Failed to fetch ingredients", e);
+            setMenuIngredientsForEdit([]);
+        }
+
         setShowAddMenu(true);
+    };
+
+    const openViewMenu = async (item: any) => {
+        setViewingItem(item);
+        setShowViewMenu(true);
+        setIsViewingLoading(true);
+        setViewingIngredients([]); // reset
+        try {
+            const ings = await getMenuIngredients(restaurantId, item.id);
+            setViewingIngredients(ings);
+        } catch (e) {
+            console.error("Failed to fetch ingredients", e);
+        } finally {
+            setIsViewingLoading(false);
+        }
     };
 
     const openEditStaff = (member: any) => {
@@ -894,6 +930,7 @@ const AdminDashboard = () => {
                                 setShowAddMenu={setShowAddMenu}
                                 setEditingId={setEditingId}
                                 setNewMenuItem={setNewMenuItem}
+                                openViewMenu={openViewMenu}
                             />
                         </motion.div>
                     )}
@@ -987,10 +1024,22 @@ const AdminDashboard = () => {
             </main>
 
             {/* Modals */}
+            <Modal isOpen={showViewMenu} onClose={() => {
+                setShowViewMenu(false);
+                setViewingItem(null);
+            }} title="View Menu Item">
+                <ViewMenuItem
+                    item={viewingItem}
+                    ingredients={viewingIngredients}
+                    isLoading={isViewingLoading}
+                />
+            </Modal>
+
             <Modal isOpen={showAddMenu} onClose={() => {
                 setShowAddMenu(false);
                 setEditingId(null);
                 setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
+                setMenuIngredientsForEdit([]);
             }} title={editingId ? "Edit Menu Item" : "Add New Menu Item"}>
                 <AddMenuForm
                     newMenuItem={newMenuItem}
@@ -1000,6 +1049,7 @@ const AdminDashboard = () => {
                     isLoading={isLoading}
                     editingId={editingId}
                     inventoryItems={inventoryItems}
+                    initialIngredients={menuIngredientsForEdit}
                 />
             </Modal>
 
