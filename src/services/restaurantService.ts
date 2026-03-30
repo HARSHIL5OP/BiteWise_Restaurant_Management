@@ -95,7 +95,7 @@ export const getAllRestaurants = async () => {
         id: doc.id,
         ...doc.data()
       }))
-      .filter((r: any) => !r.isDeleted && r.status === "approved" || r.restaurantStatus === "approved"); // keeping restaurantStatus fallback for old items
+      .filter((r: any) => !r.isDeleted);
   } catch (error) {
     console.error("Error fetching restaurants: ", error);
     throw error;
@@ -115,6 +115,20 @@ export const getRestaurantById = async (id: string) => {
     };
   } catch (error) {
     console.error("Error fetching restaurant: ", error);
+    throw error;
+  }
+};
+
+export const getRestaurantMenu = async (restaurantId: string) => {
+  try {
+    const menuRef = collection(db, "restaurants", restaurantId, "menu");
+    const snapshot = await getDocs(menuRef);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error(`Error fetching menu for ${restaurantId}: `, error);
     throw error;
   }
 };

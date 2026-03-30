@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { getRestaurantById } from "@/services/restaurantService";
+import { getRestaurantById, getRestaurantMenu } from "@/services/restaurantService";
 
 const AMENITIES = [
   { icon: <Car className="w-5 h-5 text-slate-400" />, label: "Valet Parking" },
@@ -26,7 +26,12 @@ export default function RestaurantDetail() {
     const fetchRestaurant = async () => {
       try {
         const data = await getRestaurantById(id as string);
-        setRestaurant(data);
+        if (data) {
+          const menu = await getRestaurantMenu(id as string);
+          setRestaurant({ ...data, menu });
+        } else {
+          setRestaurant(null);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -190,7 +195,9 @@ export default function RestaurantDetail() {
         {activeTab === 'menu' && (
           <section className="space-y-4">
             <h3 className="text-lg font-bold text-white">Menu Highlights</h3>
-            <div className="grid grid-cols-2 gap-3">
+            
+            {/* Dummy Sections Kept */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
               {["Starters", "Main Course", "Breads", "Desserts"].map((cat, i) => (
                 <div key={i} className="relative h-32 rounded-2xl overflow-hidden border border-slate-800 shadow-md group cursor-pointer active:scale-95 transition-all">
                   <div className="absolute inset-0 bg-slate-900/50 group-hover:bg-slate-900/40 transition-colors z-10"></div>
@@ -203,8 +210,70 @@ export default function RestaurantDetail() {
                 </div>
               ))}
             </div>
-            <button className="w-full py-4 bg-slate-900 border border-slate-800 rounded-2xl text-orange-500 font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors active:scale-[0.98]">
-              View Full Menu <ChevronRight className="w-4 h-4" />
+
+            {/* 🔥 Dynamic Menu Listing */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-white mt-8 mb-4">All Items</h3>
+              {restaurant.menu?.length > 0 ? (
+                restaurant.menu.map((item: any) => {
+                  const dummyFood = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80";
+                  
+                  // Inline MenuItemCard component
+                  return (
+                    <div key={item.id} className={`flex items-start gap-4 p-4 rounded-2xl border ${item.isAvailable ?? true ? 'border-slate-800 bg-slate-900/40' : 'border-slate-800/50 bg-slate-900/20 opacity-70'} backdrop-blur-sm transition-all shadow-lg active:scale-[0.98]`}>
+                      <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0 border border-slate-800/60 shadow-inner relative">
+                        <img 
+                          src={item.image || dummyFood} 
+                          alt={item.name || "Dish"} 
+                          className="w-full h-full object-cover" 
+                        />
+                        {/* Veg / Non-Veg Indicator Overlay */}
+                        <div className="absolute top-2 left-2 p-0.5 bg-white/90 rounded-[4px] shadow-sm backdrop-blur-md">
+                          <div className={`w-3 h-3 border border-slate-300 rounded-[2px] flex items-center justify-center ${item.veg ?? true ? 'border-emerald-500' : 'border-red-500'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${item.veg ?? true ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex-1 flex flex-col justify-between h-full py-0.5">
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                              {item.category || "Main Course"}
+                            </span>
+                            <h4 className="text-white font-bold text-base leading-tight line-clamp-2">
+                              {item.name || "Dish"}
+                            </h4>
+                          </div>
+                          <p className="text-white font-black text-lg shrink-0">₹{item.price || 100}</p>
+                        </div>
+                        
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-xs text-orange-400 font-medium">Bestseller</span>
+                          <button 
+                            disabled={!(item.isAvailable ?? true)}
+                            className={`px-4 py-1.5 rounded-xl font-bold text-xs uppercase transition-all shadow-md ${
+                              item.isAvailable ?? true 
+                                ? 'bg-orange-500/10 text-orange-500 hover:bg-orange-500 hover:text-white border border-orange-500/20 shadow-[0_4px_15px_rgba(249,115,22,0.1)]' 
+                                : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                            }`}
+                          >
+                            {(item.isAvailable ?? true) ? "Add" : "Out"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-8 text-center bg-slate-900/30 rounded-2xl border border-slate-800/50 border-dashed">
+                  <p className="text-slate-400 font-medium text-sm">No items in menu yet.</p>
+                </div>
+              )}
+            </div>
+
+            <button className="w-full py-4 mt-6 bg-slate-900 border border-slate-800 rounded-2xl text-orange-500 font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors active:scale-[0.98]">
+              View Full Menu PDF <ChevronRight className="w-4 h-4" />
             </button>
           </section>
         )}
@@ -264,7 +333,10 @@ export default function RestaurantDetail() {
 
       {/* Sticky Bottom Pre-book Button */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md px-4 pb-6 pt-4 bg-gradient-to-t from-[#0A0F1C] via-[#0A0F1C]/90 to-transparent z-50">
-        <button className="w-full bg-slate-100 hover:bg-white text-[#0A0F1C] font-black py-4 rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+        <button 
+          onClick={() => navigate(`/customer/restaurant/${id}/tables`)}
+          className="w-full bg-slate-100 hover:bg-white text-[#0A0F1C] font-black py-4 rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+        >
           <CheckCircle2 className="w-5 h-5" /> Book a Table with Offers
         </button>
       </div>

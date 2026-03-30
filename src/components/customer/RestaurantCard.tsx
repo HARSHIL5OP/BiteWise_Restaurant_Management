@@ -29,7 +29,7 @@ export default function RestaurantCard({
 }: RestaurantCardProps) {
   return (
     <Link to={`/customer/restaurant/${id}`} className="block">
-      <div className="bg-[#0F172A] rounded-2xl overflow-hidden border border-slate-800 shadow-lg active:scale-[0.98] transition-all duration-200 group">
+      <div className="bg-white dark:bg-[#0F172A] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-lg active:scale-[0.98] transition-all duration-300 group">
         
         {/* Image Container */}
         <div className="relative h-48 w-full overflow-hidden">
@@ -58,26 +58,26 @@ export default function RestaurantCard({
         </div>
 
         {/* Content Section */}
-        <div className="p-4">
+        <div className="p-4 transition-colors duration-300">
           <div className="flex justify-between items-start mb-1">
-            <h3 className="text-lg font-bold text-slate-100 line-clamp-1">{name}</h3>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 line-clamp-1 transition-colors duration-300">{name}</h3>
             <div className="flex items-center gap-1 bg-emerald-600 text-white px-1.5 py-0.5 rounded-lg text-xs font-bold shadow-sm shrink-0">
               <Star className="w-3 h-3 fill-current" />
               {rating}
             </div>
           </div>
 
-          <p className="text-sm text-slate-400 line-clamp-1 mb-2">
+          <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1 mb-2 transition-colors duration-300">
             {cuisine} • {price}
           </p>
 
-          <div className="flex items-center gap-4 border-t border-slate-800/60 pt-3 mt-3">
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
-              <MapPin className="w-3.5 h-3.5 text-slate-500" />
+          <div className="flex items-center gap-4 border-t border-slate-100 dark:border-slate-800/60 pt-3 mt-3 transition-colors duration-300">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 transition-colors duration-300">
+              <MapPin className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
               <span className="truncate max-w-[120px]">{location}</span>
             </div>
-            <div className="w-1 h-1 rounded-full bg-slate-700"></div>
-            <div className="text-xs font-medium text-slate-300 bg-slate-800 px-2 py-1 rounded-md">
+            <div className="w-1 h-1 rounded-full bg-slate-200 dark:bg-slate-700 transition-colors duration-300"></div>
+            <div className="text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md transition-colors duration-300">
               {distance}
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Users, Info } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { toast } from 'sonner';
 
 // Static blueprint data defining positions
 const BLUEPRINT_LAYOUT = [
@@ -32,9 +33,9 @@ const BLUEPRINT_LAYOUT = [
     { tableId: "T16", capacity: 8, position: { x: 380, y: 500 } },
 ];
 
-const RestaurantFloorBlueprint = ({ tables: propTables = [] }) => {
+const RestaurantFloorBlueprint = ({ tables: propTables = [], isCustomerView = false }: any) => {
     const { theme } = useTheme();
-    const [selectedTable, setSelectedTable] = useState(null);
+    const [selectedTable, setSelectedTable] = useState<any>(null);
     const [hoveredTable, setHoveredTable] = useState(null);
 
     // Merge propTables with BLUEPRINT_LAYOUT
@@ -76,9 +77,11 @@ const RestaurantFloorBlueprint = ({ tables: propTables = [] }) => {
 
     const getSelectedColor = () => ({ table: '#3b82f6', chair: '#60a5fa', border: '#2563eb' });
 
-    const handleTableClick = (table) => {
+    const handleTableClick = (table: any) => {
         if (table.status === 'available') {
             setSelectedTable(selectedTable?.tableId === table.tableId ? null : table);
+        } else if (isCustomerView) {
+            toast.error("This table is currently not available.");
         }
     };
 
@@ -327,7 +330,10 @@ const RestaurantFloorBlueprint = ({ tables: propTables = [] }) => {
                                         <div className="text-2xl font-bold">{selectedTable.capacity} Guests</div>
                                     </div>
                                 </div>
-                                <button className="px-6 py-3 bg-white text-blue-600 rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200">
+                                <button 
+                                    onClick={() => isCustomerView ? toast.success("Table Booking Flow Coming Soon!") : null}
+                                    className="px-6 py-3 bg-white text-blue-600 rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+                                >
                                     Proceed to Book
                                 </button>
                             </div>

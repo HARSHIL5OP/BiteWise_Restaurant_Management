@@ -19,6 +19,7 @@ import SocialImpact from "./pages/SocialImpact";
 import MainAdminPage from "./pages/main-admin";
 import CustomerHome from "./pages/customer/index";
 import RestaurantDetail from "./pages/customer/RestaurantDetail";
+import CustomerTableView from "./pages/customer/CustomerTableView";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,8 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
       // Fallback if staffRole isn't populated yet
       if (!userProfile?.staffRole) return <SplashScreen />;
     }
+    if (role === "customer") return <Navigate to="/customer" replace />;
+
     return <Navigate to="/home" replace />;
   }
 
@@ -91,6 +94,8 @@ const RoleRoute = ({
       if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
       if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
     }
+
+    if (role === "customer") return <Navigate to="/customer" replace />;
 
     return <Navigate to="/home" replace />;
   }
@@ -139,8 +144,21 @@ const AppRoutes = () => {
       <Route path="/main-admin" element={<MainAdminPage />} />
 
       {/* --- Customer --- */}
-      <Route path="/customer" element={<CustomerHome />} />
-      <Route path="/customer/restaurant/:id" element={<RestaurantDetail />} />
+      <Route path="/customer" element={
+        <RoleRoute allowedRoles={["customer"]}>
+          <CustomerHome />
+        </RoleRoute>
+      } />
+      <Route path="/customer/restaurant/:id" element={
+        <RoleRoute allowedRoles={["customer"]}>
+          <RestaurantDetail />
+        </RoleRoute>
+      } />
+      <Route path="/customer/restaurant/:id/tables" element={
+        <RoleRoute allowedRoles={["customer"]}>
+          <CustomerTableView />
+        </RoleRoute>
+      } />
 
       {/* --- Protected Routes --- */}
       <Route element={<ProtectedRoute />}>
