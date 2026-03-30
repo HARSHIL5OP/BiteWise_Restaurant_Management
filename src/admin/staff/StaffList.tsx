@@ -1,7 +1,7 @@
 import React from 'react';
-import { ChefHat, User, DollarSign, X, Plus } from 'lucide-react';
+import { ChefHat, User, DollarSign, X, Plus, Edit2 } from 'lucide-react';
 
-const StaffList = ({ chefs, waiters, cashiers, handleDeleteStaff, setShowAddStaff }: any) => {
+const StaffList = ({ chefs, waiters, cashiers, handleDeleteStaff, setShowAddStaff, openEditStaff }: any) => {
     return (
         <div>
             <div className="flex justify-between items-center mb-8">
@@ -32,9 +32,14 @@ const StaffList = ({ chefs, waiters, cashiers, handleDeleteStaff, setShowAddStaf
                                         <h4 className="font-semibold text-slate-900 dark:text-white">{member.firstName} {member.lastName}</h4>
                                         <p className="text-xs text-slate-500 capitalize">{member.shift} Shift</p>
                                     </div>
-                                    <button onClick={() => handleDeleteStaff(member.id)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors">
-                                        <X size={16} />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => openEditStaff(member)} className="p-2 text-slate-400 hover:text-indigo-500 transition-colors">
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => handleDeleteStaff(member.id)} className="p-2 text-slate-400 hover:text-rose-500 transition-colors">
+                                            <X size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                             {group.data.length === 0 && (

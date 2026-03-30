@@ -143,6 +143,7 @@ const AdminDashboard = () => {
         newCategory: '' // for adding custom category
     });
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
 
     // Updated initial staff state to match the user's DB schema preferences
     const [newStaff, setNewStaff] = useState({
@@ -364,10 +365,51 @@ const AdminDashboard = () => {
         setShowAddMenu(true);
     };
 
+    const openEditStaff = (member: any) => {
+        setEditingStaffId(member.id);
+        setNewStaff({
+            firstName: member.firstName,
+            lastName: member.lastName,
+            email: member.email,
+            password: '',
+            role: member.role,
+            shift: member.shift || 'Morning'
+        });
+        setShowAddStaff(true);
+    };
+
     const handleAddStaff = async () => {
         // Enforce rigid subcollection security
         if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT') {
             alert("Security Error: No valid restaurant ID found for your user context.");
+            return;
+        }
+
+        if (editingStaffId) {
+            if (!newStaff.firstName || !newStaff.email) {
+                alert("Please fill in first name and email");
+                return;
+            }
+            setIsLoading(true);
+            try {
+                await updateDoc(doc(db, 'users', editingStaffId), {
+                    firstName: newStaff.firstName,
+                    lastName: newStaff.lastName,
+                });
+                await updateDoc(doc(db, 'restaurants', restaurantId, 'staff', editingStaffId), {
+                    role: newStaff.role,
+                    shift: newStaff.shift,
+                });
+                setNewStaff({ firstName: '', lastName: '', email: '', password: '', role: 'waiter', shift: 'Morning' });
+                setEditingStaffId(null);
+                setShowAddStaff(false);
+                alert("Staff member updated successfully!");
+            } catch (error: any) {
+                console.error("Error updating staff: ", error);
+                alert("Failed to update staff.");
+            } finally {
+                setIsLoading(false);
+            }
             return;
         }
 
@@ -766,6 +808,7 @@ const AdminDashboard = () => {
                                 cashiers={cashiers}
                                 handleDeleteStaff={handleDeleteStaff}
                                 setShowAddStaff={setShowAddStaff}
+                                openEditStaff={openEditStaff}
                             />
                         </motion.div>
                     )}
@@ -836,12 +879,17 @@ const AdminDashboard = () => {
                 />
             </Modal>
 
-            <Modal isOpen={showAddStaff} onClose={() => setShowAddStaff(false)} title="Add Staff Member">
+            <Modal isOpen={showAddStaff} onClose={() => {
+                setShowAddStaff(false);
+                setEditingStaffId(null);
+                setNewStaff({ firstName: '', lastName: '', email: '', password: '', role: 'waiter', shift: 'Morning' });
+            }} title={editingStaffId ? "Edit Staff Member" : "Add Staff Member"}>
                 <AddStaffForm
                     newStaff={newStaff}
                     setNewStaff={setNewStaff}
                     handleAddStaff={handleAddStaff}
                     isLoading={isLoading}
+                    editingStaffId={editingStaffId}
                 />
             </Modal>
 
