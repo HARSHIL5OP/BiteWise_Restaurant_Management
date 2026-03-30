@@ -1,45 +1,121 @@
-import React from 'react';
-import { Upload } from 'lucide-react';
+import React, { useState } from 'react';
+import { Upload, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { InventoryItem, IngredientEntry } from '../../services/inventoryService';
 
-const AddMenuForm = ({ newMenuItem, setNewMenuItem, handleAddMenu, categories, isLoading, editingId }: any) => {
+interface Props {
+    newMenuItem: any;
+    setNewMenuItem: (v: any) => void;
+    handleAddMenu: (ingredients: IngredientEntry[]) => Promise<void>;
+    categories: string[];
+    isLoading: boolean;
+    editingId: string | null;
+    inventoryItems: InventoryItem[];
+}
+
+const fieldCls = "w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors text-sm";
+const labelCls = "block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1";
+
+type DraftIngredient = {
+    inventoryId: string;
+    name: string;
+    unit: string;
+    quantityUsed: string;
+};
+
+const emptyIngredient = (): DraftIngredient => ({ inventoryId: '', name: '', unit: '', quantityUsed: '' });
+
+const AddMenuForm: React.FC<Props> = ({
+    newMenuItem, setNewMenuItem, handleAddMenu, categories, isLoading, editingId, inventoryItems
+}) => {
+    const [ingredients, setIngredients] = useState<DraftIngredient[]>([]);
+    const [showIngredients, setShowIngredients] = useState(false);
+    const [ingError, setIngError] = useState('');
+
+    const addIngredientRow = () => setIngredients(prev => [...prev, emptyIngredient()]);
+
+    const removeIngredientRow = (idx: number) =>
+        setIngredients(prev => prev.filter((_, i) => i !== idx));
+
+    const updateIngredient = (idx: number, key: keyof DraftIngredient, value: string) => {
+        setIngredients(prev => {
+            const next = [...prev];
+            next[idx] = { ...next[idx], [key]: value };
+
+            // Auto-fill name & unit when inventory item is selected
+            if (key === 'inventoryId') {
+                const inv = inventoryItems.find(i => i.id === value);
+                if (inv) {
+                    next[idx].name = inv.name;
+                    next[idx].unit = inv.unit;
+                }
+            }
+            return next;
+        });
+    };
+
+    const buildIngredients = (): IngredientEntry[] | null => {
+        setIngError('');
+        const result: IngredientEntry[] = [];
+        for (const ing of ingredients) {
+            if (!ing.inventoryId) { setIngError('Select an inventory item for each ingredient.'); return null; }
+            const qty = parseFloat(ing.quantityUsed);
+            if (!qty || qty <= 0) { setIngError(`Enter a valid quantity for "${ing.name}".`); return null; }
+            result.push({
+                inventoryId: ing.inventoryId,
+                name: ing.name,
+                quantityUsed: qty,
+                unit: ing.unit as any,
+                deductOnOrder: true,
+            });
+        }
+        return result;
+    };
+
+    const onSubmit = async () => {
+        const builtIngredients = buildIngredients();
+        if (builtIngredients === null) return;
+        await handleAddMenu(builtIngredients);
+    };
+
     return (
         <div className="space-y-4">
+            {/* Name */}
             <div>
-                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Item Name</label>
-                <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors"
-                    placeholder="e.g. Spicy Ramen"
+                <label className={labelCls}>Item Name</label>
+                <input className={fieldCls} placeholder="e.g. Spicy Ramen"
                     value={newMenuItem.name} onChange={e => setNewMenuItem({ ...newMenuItem, name: e.target.value })} />
             </div>
+
+            {/* Price */}
             <div>
-                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Price ($)</label>
-                <input type="text" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors"
-                    placeholder="0.00"
+                <label className={labelCls}>Price (₹)</label>
+                <input type="text" className={fieldCls} placeholder="0.00"
                     value={newMenuItem.price} onChange={e => setNewMenuItem({ ...newMenuItem, price: e.target.value })} />
             </div>
+
+            {/* Category */}
             <div>
-                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Category</label>
-                <select className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none mb-2 transition-colors"
-                    value={newMenuItem.category} onChange={e => setNewMenuItem({ ...newMenuItem, category: e.target.value, newCategory: '' })}>
-                    {categories.map((cat: string) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                    ))}
+                <label className={labelCls}>Category</label>
+                <select className={fieldCls}
+                    value={newMenuItem.category}
+                    onChange={e => setNewMenuItem({ ...newMenuItem, category: e.target.value, newCategory: '' })}>
+                    {categories.map((cat: string) => <option key={cat} value={cat}>{cat}</option>)}
                     <option value="new">+ Add New Category</option>
                 </select>
                 {newMenuItem.category === 'new' && (
-                    <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none animate-in fade-in slide-in-from-top-2 transition-colors"
-                        placeholder="Enter new category name..."
-                        value={newMenuItem.newCategory} onChange={e => setNewMenuItem({ ...newMenuItem, newCategory: e.target.value })} />
+                    <input className={`${fieldCls} mt-2`} placeholder="Enter new category name..."
+                        value={newMenuItem.newCategory}
+                        onChange={e => setNewMenuItem({ ...newMenuItem, newCategory: e.target.value })} />
                 )}
             </div>
+
+            {/* Image Upload */}
             <div>
-                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Item Image</label>
+                <label className={labelCls}>Item Image</label>
                 <div className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center hover:border-indigo-500/50 transition-colors cursor-pointer relative group bg-slate-50 dark:bg-slate-950/50">
-                    <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setNewMenuItem({ ...newMenuItem, image: e.target?.files?.[0] || null })}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
+                    <input type="file" accept="image/*"
+                        onChange={e => setNewMenuItem({ ...newMenuItem, image: e.target?.files?.[0] || null })}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                     <div className="flex flex-col items-center gap-2 text-slate-400 group-hover:text-indigo-500">
                         {newMenuItem.image ? (
                             <span className="text-sm font-medium text-emerald-500">
@@ -54,12 +130,106 @@ const AddMenuForm = ({ newMenuItem, setNewMenuItem, handleAddMenu, categories, i
                     </div>
                 </div>
             </div>
+
+            {/* ─── Ingredients Section ─────────────────────────────────── */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                <button
+                    type="button"
+                    onClick={() => setShowIngredients(v => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        🥗 Ingredients
+                        {ingredients.length > 0 && (
+                            <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-full">
+                                {ingredients.length}
+                            </span>
+                        )}
+                    </span>
+                    <ChevronDown size={16} className={`text-slate-400 transition-transform ${showIngredients ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showIngredients && (
+                    <div className="p-4 space-y-3">
+                        {inventoryItems.length === 0 ? (
+                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-3">
+                                No inventory items found. Add inventory first.
+                            </p>
+                        ) : (
+                            <>
+                                {ingError && (
+                                    <p className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-500/10 rounded-lg px-3 py-2">
+                                        {ingError}
+                                    </p>
+                                )}
+
+                                {ingredients.map((ing, idx) => (
+                                    <div key={idx} className="grid grid-cols-[1fr_80px_32px] gap-2 items-end">
+                                        {/* Inventory Picker */}
+                                        <div>
+                                            {idx === 0 && <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Ingredient</label>}
+                                            <select
+                                                className={fieldCls}
+                                                value={ing.inventoryId}
+                                                onChange={e => updateIngredient(idx, 'inventoryId', e.target.value)}
+                                            >
+                                                <option value="">Select ingredient</option>
+                                                {inventoryItems.map(inv => (
+                                                    <option key={inv.id} value={inv.id}>
+                                                        {inv.name} ({inv.unit})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        {/* Quantity Used */}
+                                        <div>
+                                            {idx === 0 && <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Qty / Serving</label>}
+                                            <input
+                                                type="number" min="0.01" step="0.01"
+                                                className={fieldCls}
+                                                placeholder="Qty"
+                                                value={ing.quantityUsed}
+                                                onChange={e => updateIngredient(idx, 'quantityUsed', e.target.value)}
+                                            />
+                                        </div>
+
+                                        {/* Remove */}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeIngredientRow(idx)}
+                                            className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all mb-0.5"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+
+                                <button
+                                    type="button"
+                                    onClick={addIngredientRow}
+                                    className="w-full flex items-center justify-center gap-2 py-2 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:border-indigo-500/50 hover:text-indigo-500 transition-colors"
+                                >
+                                    <Plus size={14} /> Add Ingredient
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Submit */}
             <button
-                onClick={handleAddMenu}
+                onClick={onSubmit}
                 disabled={isLoading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95"
+                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95"
             >
-                {isLoading ? 'Saving...' : (editingId ? 'Update Item' : 'Add Item')}
+                {isLoading ? (
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                ) : (editingId ? 'Update Item' : 'Add Item')}
             </button>
         </div>
     );

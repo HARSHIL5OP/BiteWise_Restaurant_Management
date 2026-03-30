@@ -43,7 +43,8 @@ const formSchema = z.object({
   lat: z.coerce.number({ invalid_type_error: "Latitude must be a number" }),
   lng: z.coerce.number({ invalid_type_error: "Longitude must be a number" }),
   cuisineType: z.string().min(2, "At least one cuisine type is required"),
-  priceRange: z.string({ required_error: "Price Range is required" }),
+  priceRangeMin: z.coerce.number({ invalid_type_error: "Min price is required" }),
+  priceRangeMax: z.coerce.number({ invalid_type_error: "Max price is required" }),
   openTime: z.string().min(1, "Opening time is required"),
   closeTime: z.string().min(1, "Closing time is required"),
 });
@@ -71,7 +72,8 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
       lat: 0,
       lng: 0,
       cuisineType: "",
-      priceRange: "",
+      priceRangeMin: "" as any,
+      priceRangeMax: "" as any,
       openTime: "10:00",
       closeTime: "23:00",
     },
@@ -103,7 +105,7 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
           lng: values.lng,
         },
         cuisineType: cuisines,
-        priceRange: values.priceRange,
+        priceRange: `${values.priceRangeMin}-${values.priceRangeMax}`,
         operatingHours: {
           open: values.openTime,
           close: values.closeTime,
@@ -367,30 +369,35 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="priceRange"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-slate-300">Price Range</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="priceRangeMin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-slate-300">Price (Lower) for 2 Persons</FormLabel>
                     <FormControl>
-                      <SelectTrigger className="bg-slate-900 border-slate-800 text-slate-200 focus:ring-orange-500/50">
-                        <SelectValue placeholder="Select price bracket" />
-                      </SelectTrigger>
+                      <Input type="number" placeholder="200" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
                     </FormControl>
-                    <SelectContent className="bg-slate-950 border-slate-800 text-slate-300">
-                      <SelectItem value="₹">₹ - Budget</SelectItem>
-                      <SelectItem value="₹₹">₹₹ - Moderate</SelectItem>
-                      <SelectItem value="₹₹₹">₹₹₹ - Expensive</SelectItem>
-                      <SelectItem value="₹₹₹₹">₹₹₹₹ - Fine Dining</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage className="text-red-400" />
-                </FormItem>
-              )}
-            />
+                    <FormMessage className="text-red-400" />
+                  </FormItem>
+                )}
+              />
 
+              <FormField
+                control={form.control}
+                name="priceRangeMax"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-slate-300">Price (Upper) for 2 Persons</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="500" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                    </FormControl>
+                    <FormMessage className="text-red-400" />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="openTime"

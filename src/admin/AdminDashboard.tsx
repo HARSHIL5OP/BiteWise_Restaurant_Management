@@ -3,7 +3,7 @@ import {
     LayoutDashboard, Users, UtensilsCrossed, Settings, Plus, X,
     Search, Trash2, Edit2, ChevronRight, TrendingUp, DollarSign,
     ShoppingBag, Bell, LogOut, ChefHat, User, UserCheck, Upload,
-    QrCode, Grid, Download, Printer, Clock, Sun, Moon
+    QrCode, Grid, Download, Printer, Clock, Sun, Moon, Boxes
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import RestaurantFloorBlueprint from '../components/RestaurantFloorBlueprint';
@@ -16,6 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { collection, addDoc, getDocs, getDoc, deleteDoc, doc, onSnapshot, query, where, setDoc, updateDoc } from 'firebase/firestore';
+import { saveMenuIngredients, IngredientEntry } from '../services/inventoryService';
 import { uploadToCloudinary } from '../lib/cloudinary';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -30,6 +31,16 @@ import AddMenuForm from './menu/AddMenuForm';
 import TableList from './tables/TableList';
 import AddTableForm from './tables/AddTableForm';
 import OrderList from './orders/OrderList';
+import AdminSettings from './settings/AdminSettings';
+import InventoryList from './inventory/InventoryList';
+import AddInventoryForm from './inventory/AddInventoryForm';
+import {
+    InventoryItem,
+    addInventoryItem,
+    getInventoryItems,
+    updateInventoryItem,
+    restockInventoryItem
+} from '../services/inventoryService';
 
 // --- Mock Stats Data (Keep for charts for now) ---
 
@@ -132,11 +143,17 @@ const AdminDashboard = () => {
     const [staff, setStaff] = useState([]);
     const [categories, setCategories] = useState(['Main Course', 'Appetizer', 'Dessert', 'Beverage']);
 
+    // Inventory State
+    const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+    const [showAddInventory, setShowAddInventory] = useState(false);
+    const [inventoryMode, setInventoryMode] = useState<'add' | 'edit' | 'restock'>('add');
+    const [editingInventoryItem, setEditingInventoryItem] = useState<InventoryItem | null>(null);
+    const [isInventoryLoading, setIsInventoryLoading] = useState(false);
+
     // Modals & Forms State
     const [showAddMenu, setShowAddMenu] = useState(false);
     const [showAddStaff, setShowAddStaff] = useState(false);
     const [showAddTable, setShowAddTable] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
 
     const [newMenuItem, setNewMenuItem] = useState({
         name: '', price: '', image: null as any, category: 'Main Course',
@@ -152,8 +169,6 @@ const AdminDashboard = () => {
 
     const [tables, setTables] = useState([]);
     const [newTable, setNewTable] = useState({ tableNumber: '', capacity: '4' });
-
-    const [tempSettings, setTempSettings] = useState({ name: restaurantName, logo: logo });
 
     // Computed
     const chefs = staff.filter(s => s.role === 'chef');
@@ -251,19 +266,30 @@ const AdminDashboard = () => {
         // Fetch Tables
         const unsubscribeTables = onSnapshot(collection(db, 'restaurants', restaurantId, 'tables'), (snapshot) => {
             const tablesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            // Sort by table number
             tablesData.sort((a: any, b: any) => parseInt(a.tableNumber) - parseInt(b.tableNumber));
             setTables(tablesData);
         }, (error) => {
             console.error("Tables fetch error:", error);
         });
 
+        // Fetch Inventory (real-time)
+        const unsubscribeInventory = onSnapshot(
+            collection(db, 'restaurants', restaurantId, 'inventory'),
+            (snapshot) => {
+                const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InventoryItem));
+                setInventoryItems(items);
+            },
+            (error) => console.error('Inventory fetch error:', error)
+        );
+
         // Fetch Restaurant details
         const unsubscribeRestaurant = onSnapshot(doc(db, 'restaurants', restaurantId), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 if (data.name) setRestaurantName(data.name);
-                // Only updating name here as per instructions, logo is an emoji currently
+                if (data.logoUrl || data.logo) {
+                    setLogo(data.logoUrl || data.logo);
+                }
             }
         }, (error) => {
              console.error("Restaurant fetch error:", error);
@@ -275,6 +301,7 @@ const AdminDashboard = () => {
             unsubscribeTables();
             unsubscribeOrders();
             unsubscribeRestaurant();
+            unsubscribeInventory();
         };
     }, []);
 
@@ -288,7 +315,7 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleAddMenu = async () => {
+    const handleAddMenu = async (ingredients: IngredientEntry[] = []) => {
         // Enforce rigid subcollection security
         if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT') {
             alert("Security Error: No valid restaurant ID found for your user context.");
@@ -308,18 +335,18 @@ const AdminDashboard = () => {
 
         try {
             let imageUrl = '';
-            // Upload image if selected
             if (newMenuItem.image && typeof newMenuItem.image !== 'string') {
                 imageUrl = await uploadToCloudinary(newMenuItem.image);
             } else if (typeof newMenuItem.image === 'string') {
                 imageUrl = newMenuItem.image;
             }
 
-            // Determine category
             const categoryToSave = newMenuItem.newCategory ? newMenuItem.newCategory : newMenuItem.category;
 
-            const menuItemRef = editingId ? doc(db, 'restaurants', restaurantId, 'menu', editingId) : doc(collection(db, 'restaurants', restaurantId, 'menu'));
-            
+            const menuItemRef = editingId
+                ? doc(db, 'restaurants', restaurantId, 'menu', editingId)
+                : doc(collection(db, 'restaurants', restaurantId, 'menu'));
+
             const itemData = {
                 menuItemId: menuItemRef.id,
                 restaurantId: restaurantId,
@@ -339,13 +366,18 @@ const AdminDashboard = () => {
             if (editingId) {
                 await updateDoc(menuItemRef, itemData);
             } else {
-                await setDoc(menuItemRef, {
-                    ...itemData,
-                    createdAt: new Date().toISOString()
-                });
+                await setDoc(menuItemRef, { ...itemData, createdAt: new Date().toISOString() });
             }
 
-            // Update local categories if new one added
+            // Save ingredients subcollection if any were provided
+            if (ingredients.length > 0) {
+                try {
+                    await saveMenuIngredients(restaurantId, menuItemRef.id, ingredients);
+                } catch (ingErr: any) {
+                    console.warn('Ingredients saved partially:', ingErr.message);
+                }
+            }
+
             if (newMenuItem.newCategory && !categories.includes(newMenuItem.newCategory)) {
                 setCategories([...categories, newMenuItem.newCategory]);
             }
@@ -494,6 +526,65 @@ const AdminDashboard = () => {
         }
     };
 
+    // ─── Inventory Handlers ───────────────────────────────────────────────────
+
+    const openAddInventory = () => {
+        setInventoryMode('add');
+        setEditingInventoryItem(null);
+        setShowAddInventory(true);
+    };
+
+    const openEditInventory = (item: InventoryItem) => {
+        setInventoryMode('edit');
+        setEditingInventoryItem(item);
+        setShowAddInventory(true);
+    };
+
+    const openRestockInventory = (item: InventoryItem) => {
+        setInventoryMode('restock');
+        setEditingInventoryItem(item);
+        setShowAddInventory(true);
+    };
+
+    const handleAddInventory = async (data: any) => {
+        if (!restaurantId) return;
+        setIsInventoryLoading(true);
+        try {
+            await addInventoryItem(restaurantId, data);
+            setShowAddInventory(false);
+        } catch (e: any) {
+            alert(e.message || 'Failed to add inventory item.');
+        } finally {
+            setIsInventoryLoading(false);
+        }
+    };
+
+    const handleUpdateInventory = async (id: string, changes: any) => {
+        if (!restaurantId) return;
+        setIsInventoryLoading(true);
+        try {
+            await updateInventoryItem(restaurantId, id, changes);
+            setShowAddInventory(false);
+        } catch (e: any) {
+            alert(e.message || 'Failed to update inventory item.');
+        } finally {
+            setIsInventoryLoading(false);
+        }
+    };
+
+    const handleRestockInventory = async (id: string, currentQty: number, addQty: number) => {
+        if (!restaurantId) return;
+        setIsInventoryLoading(true);
+        try {
+            await restockInventoryItem(restaurantId, id, currentQty, addQty);
+            setShowAddInventory(false);
+        } catch (e: any) {
+            alert(e.message || 'Failed to restock inventory item.');
+        } finally {
+            setIsInventoryLoading(false);
+        }
+    };
+
     const handleDeleteStaff = async (id) => {
         if (confirm('Are you sure you want to remove this staff member?')) {
             await deleteDoc(doc(db, 'restaurants', restaurantId, 'staff', id));
@@ -504,25 +595,6 @@ const AdminDashboard = () => {
     const handleDeleteTable = async (id) => {
         if (confirm('Are you sure you want to delete this table?')) {
             await deleteDoc(doc(db, 'restaurants', restaurantId, 'tables', id));
-        }
-    };
-
-    const saveSettings = async () => {
-        if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT') {
-            alert("Security Error: No valid restaurant ID found for your user context.");
-            return;
-        }
-
-        try {
-            await updateDoc(doc(db, 'restaurants', restaurantId), {
-                name: tempSettings.name
-            });
-            setRestaurantName(tempSettings.name);
-            setLogo(tempSettings.logo);
-            setShowSettings(false);
-        } catch (error) {
-            console.error("Error updating settings:", error);
-            alert("Failed to save settings.");
         }
     };
 
@@ -614,7 +686,11 @@ const AdminDashboard = () => {
             <aside className="fixed left-0 top-0 h-screen w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 p-6 flex flex-col z-40 lg:flex hidden transition-colors duration-300">
                 <div className="flex items-center gap-3 mb-10 px-2">
                     <span className="text-3xl bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-cyan-500 font-bold drop-shadow-sm">
-                        {logo}
+                        {logo.startsWith('http') || logo.startsWith('data:') ? (
+                            <img src={logo} alt="Logo" className="w-10 h-10 object-cover rounded-full" />
+                        ) : (
+                            logo
+                        )}
                     </span>
                     <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">{restaurantName}</h1>
                 </div>
@@ -624,8 +700,9 @@ const AdminDashboard = () => {
                     <SidebarItem icon={ChefHat} label="Kitchen Live" active={activeTab === 'kitchen'} onClick={() => setActiveTab('kitchen')} />
                     <SidebarItem icon={Grid} label="Tables" active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} />
                     <SidebarItem icon={UtensilsCrossed} label="Menu" active={activeTab === 'menu'} onClick={() => setActiveTab('menu')} />
+                    <SidebarItem icon={Boxes} label="Inventory" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
                     <SidebarItem icon={Users} label="Staff" active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} />
-                    <SidebarItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => { setActiveTab('settings'); setTempSettings({ name: restaurantName, logo }); }} />
+                    <SidebarItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
                     <SidebarItem icon={LogOut} label="Logout" active={false} onClick={handleLogout} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 mt-10" />
                 </div>
 
@@ -656,6 +733,7 @@ const AdminDashboard = () => {
             <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/80 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 p-4 flex justify-around z-50 transition-colors duration-300">
                 <LayoutDashboard onClick={() => setActiveTab('dashboard')} className={activeTab === 'dashboard' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <UtensilsCrossed onClick={() => setActiveTab('menu')} className={activeTab === 'menu' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
+                <Boxes onClick={() => setActiveTab('inventory')} className={activeTab === 'inventory' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Users onClick={() => setActiveTab('staff')} className={activeTab === 'staff' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Settings onClick={() => setActiveTab('settings')} className={activeTab === 'settings' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
             </div>
@@ -820,6 +898,62 @@ const AdminDashboard = () => {
                         </motion.div>
                     )}
 
+                    {/* INVENTORY TAB */}
+                    {activeTab === 'inventory' && (
+                        <motion.div
+                            key="inventory"
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -16 }}
+                            className="space-y-6"
+                        >
+                            {/* Summary cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+                                    <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl">
+                                        <Boxes size={22} className="text-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Items</p>
+                                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{inventoryItems.length}</p>
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+                                    <div className="p-3 bg-amber-50 dark:bg-amber-500/10 rounded-xl">
+                                        <ShoppingBag size={22} className="text-amber-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Low Stock</p>
+                                        <p className="text-2xl font-bold text-amber-500">
+                                            {inventoryItems.filter(i => i.quantity <= i.threshold).length}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
+                                    <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl">
+                                        <TrendingUp size={22} className="text-emerald-500" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Value</p>
+                                        <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                                            ₹{inventoryItems.reduce((sum, i) => sum + (i.quantity * i.costPerUnit), 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Inventory table */}
+                            <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
+                                <InventoryList
+                                    items={inventoryItems}
+                                    onAdd={openAddInventory}
+                                    onEdit={openEditInventory}
+                                    onRestock={openRestockInventory}
+                                />
+                            </div>
+                        </motion.div>
+                    )}
+
                     {/* STAFF TAB */}
                     {activeTab === 'staff' && (
                         <motion.div
@@ -844,45 +978,9 @@ const AdminDashboard = () => {
                             key="settings"
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="max-w-2xl"
+                            className="max-w-5xl"
                         >
-                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm dark:shadow-none transition-colors duration-300">
-                                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">General Settings</h3>
-
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Restaurant Name</label>
-                                        <input
-                                            value={tempSettings.name}
-                                            onChange={e => setTempSettings({ ...tempSettings, name: e.target.value })}
-                                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Logo / Icon (Emoji)</label>
-                                        <div className="flex gap-4">
-                                            <input
-                                                value={tempSettings.logo}
-                                                onChange={e => setTempSettings({ ...tempSettings, logo: e.target.value })}
-                                                className="w-20 text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-2xl text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                                            />
-                                            <div className="flex-1 flex items-center text-sm text-slate-500">
-                                                Enter an emoji or character to represent your brand.
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-                                        <button
-                                            onClick={saveSettings}
-                                            className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/25 active:scale-95"
-                                        >
-                                            Save Changes
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+                            <AdminSettings />
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -901,6 +999,7 @@ const AdminDashboard = () => {
                     categories={categories}
                     isLoading={isLoading}
                     editingId={editingId}
+                    inventoryItems={inventoryItems}
                 />
             </Modal>
 
@@ -924,6 +1023,26 @@ const AdminDashboard = () => {
                     newTable={newTable}
                     setNewTable={setNewTable}
                     handleAddTable={handleAddTable}
+                />
+            </Modal>
+
+            {/* Inventory Modal */}
+            <Modal
+                isOpen={showAddInventory}
+                onClose={() => { setShowAddInventory(false); setEditingInventoryItem(null); }}
+                title={
+                    inventoryMode === 'add' ? 'Add Inventory Item'
+                    : inventoryMode === 'restock' ? `Restock — ${editingInventoryItem?.name}`
+                    : `Edit — ${editingInventoryItem?.name}`
+                }
+            >
+                <AddInventoryForm
+                    mode={inventoryMode}
+                    editingItem={editingInventoryItem}
+                    isLoading={isInventoryLoading}
+                    onAdd={handleAddInventory}
+                    onUpdate={handleUpdateInventory}
+                    onRestock={handleRestockInventory}
                 />
             </Modal>
         </div>
