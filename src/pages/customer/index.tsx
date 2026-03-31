@@ -3,6 +3,7 @@ import { Coffee, Pizza, Leaf, Store, UtensilsCrossed, Wine, PartyPopper } from "
 import RestaurantCard from "@/components/customer/RestaurantCard";
 import { LocationBar, SearchBar, CategoryChip, SectionHeader, OfferBanner } from "@/components/customer/SharedUI";
 import { getAllRestaurants, getRestaurantMenu } from "@/services/restaurantService";
+import { useAuth } from "@/contexts/AuthContext";
 
 const CATEGORIES = [
   { label: "Cafes", icon: <Coffee className="w-6 h-6" /> },
@@ -14,6 +15,7 @@ const CATEGORIES = [
   { label: "Quick Bites", icon: <PartyPopper className="w-6 h-6" /> },
 ];
 
+/*
 const DUMMY_RESTAURANTS = [
   {
     id: "r1",
@@ -64,12 +66,37 @@ const DUMMY_RESTAURANTS = [
     offers: ["Flat 10% OFF", "Live Music"]
   }
 ];
+*/
 
 const LOCATIONS = ["Bodakdev", "Thaltej", "Navrangpura", "Satellite", "Prahlad Nagar", "Vastrapur"];
 
 export default function CustomerHome() {
+  const { userProfile } = useAuth();
+  const firstName = userProfile?.firstName || "Guest";
+  const formattedName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+  const headerTitle = !userProfile ? "Loading..." : `${formattedName}, what's on your mind?`;
+
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  const filteredRestaurants = restaurants.filter((restaurant) => {
+    const query = debouncedSearchQuery.toLowerCase();
+
+    return (
+      restaurant.name?.toLowerCase().includes(query) ||
+      restaurant.cuisineType?.join(" ").toLowerCase().includes(query) ||
+      restaurant.location?.city?.toLowerCase().includes(query)
+    );
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -102,7 +129,7 @@ export default function CustomerHome() {
       <LocationBar />
 
       {/* 2. Search Bar (Sticky under Location) */}
-      <SearchBar />
+      <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
 
       {/* 3. Horizontal Category Scroll */}
       <div className="py-2 mt-2">
@@ -118,10 +145,9 @@ export default function CustomerHome() {
         </div>
       </div>
 
-      {/* 4. Banner Section */}
-      <OfferBanner />
 
       {/* 5. Spotlight Section */}
+      {/*
       <SectionHeader title="In the spotlight" subtitle="Trending places around you" actionText="View all" />
       <div className="flex gap-4 overflow-x-auto px-4 snap-x pb-6 pt-2 scrollbar-hide">
         {DUMMY_RESTAURANTS.slice(0, 3).map((rest) => (
@@ -130,10 +156,57 @@ export default function CustomerHome() {
           </div>
         ))}
       </div>
+      */}
+
+
+
+        {/* 8. Main Restaurant Stack */}
+      <div className="border-t border-slate-200 dark:border-slate-800/80 bg-gradient-to-b from-slate-100/50 dark:from-slate-900/30 to-slate-50 dark:to-[#0A0F1C] pt-6 rounded-t-[3rem] transition-colors duration-300">
+        <div className="px-4 mb-4 flex items-center justify-between">
+          <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 transition-colors">
+            {loading ? "Loading..." : filteredRestaurants.length} places to <span className="bg-orange-500 text-white px-2 py-0.5 rounded-lg rotate-2 shadow-lg">dine out</span>
+          </h2>
+        </div>
+
+        <div className="px-4 space-y-5 pb-6">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-2xl h-[300px] w-full transition-colors"></div>
+            ))
+          ) : filteredRestaurants.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-slate-500 dark:text-slate-400 font-medium transition-colors">No restaurants found</p>
+            </div>
+          ) : (
+            filteredRestaurants.map((restaurant) => {
+              const dummyImage = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=800";
+              return (
+                <RestaurantCard
+                key={restaurant.id}
+                id={restaurant.id}
+                name={restaurant.name || "Sample Restaurant"}
+                image={restaurant.bannerImage || dummyImage}
+                  rating={restaurant.averageRating || 4.2}
+                  reviews="1.2k"
+                  cuisine={restaurant.cuisineType?.join(", ") || "Multi Cuisine"}
+                  price={restaurant.priceRange || "₹₹"}
+                  location={restaurant.location?.city || "Ahmedabad"}
+                  distance={restaurant.location?.address ? "1.2 km" : "Unknown"}
+                  offers={["Flat 20% OFF", "Free Dessert"]} // Keep dummy offers
+                  />
+                );
+              })
+            )}
+        </div>
+      </div>
+
+        {/* 4. Banner Section */}
+          <OfferBanner />
+
 
       {/* 6. Personalized Section - Small Grids */}
       <div className="bg-slate-100/50 dark:bg-slate-900/50 py-6 my-2 border-y border-slate-200 dark:border-slate-800 transition-colors duration-300">
-        <SectionHeader title="Harshil, what's on your mind?" subtitle="Curated specifically for your taste buds." />
+        <SectionHeader title={headerTitle} subtitle="Curated specifically for your taste buds." />
         <div className="px-4 grid grid-cols-2 gap-3">
           <div className="bg-gradient-to-br from-white to-slate-50 dark:from-[#1e293b] dark:to-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-lg active:scale-95 transition-all flex flex-col justify-end min-h-[120px] relative overflow-hidden group">
             <div className="absolute right-[-10px] bottom-[-10px] w-20 h-20 bg-orange-500/10 rounded-full blur-xl group-hover:bg-orange-500/20 transition-colors"></div>
@@ -152,6 +225,12 @@ export default function CustomerHome() {
         </div>
       </div>
 
+      
+
+      
+
+
+
       {/* 7. Popular Locations Chips */}
       <SectionHeader title="Popular locales" subtitle="Explore popular neighborhoods" />
       <div className="px-4 flex flex-wrap gap-2 mb-8">
@@ -160,46 +239,6 @@ export default function CustomerHome() {
             {loc}
           </div>
         ))}
-      </div>
-
-      {/* 8. Main Restaurant Stack */}
-      <div className="border-t border-slate-200 dark:border-slate-800/80 bg-gradient-to-b from-slate-100/50 dark:from-slate-900/30 to-slate-50 dark:to-[#0A0F1C] pt-6 rounded-t-[3rem] transition-colors duration-300">
-        <div className="px-4 mb-4 flex items-center justify-between">
-          <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 transition-colors">
-            {loading ? "Loading..." : restaurants.length} places to <span className="bg-orange-500 text-white px-2 py-0.5 rounded-lg rotate-2 shadow-lg">dine out</span>
-          </h2>
-        </div>
-
-        <div className="px-4 space-y-5 pb-6">
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="animate-pulse bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-2xl h-[300px] w-full transition-colors"></div>
-            ))
-          ) : restaurants.length === 0 ? (
-            <div className="text-center py-10">
-              <p className="text-slate-500 dark:text-slate-400 font-medium transition-colors">No restaurants available yet</p>
-            </div>
-          ) : (
-            restaurants.map((restaurant) => {
-              const dummyImage = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=800";
-              return (
-                <RestaurantCard
-                  key={restaurant.id}
-                  id={restaurant.id}
-                  name={restaurant.name || "Sample Restaurant"}
-                  image={restaurant.bannerImage || dummyImage}
-                  rating={restaurant.averageRating || 4.2}
-                  reviews="1.2k"
-                  cuisine={restaurant.cuisineType?.join(", ") || "Multi Cuisine"}
-                  price={restaurant.priceRange || "₹₹"}
-                  location={restaurant.location?.city || "Ahmedabad"}
-                  distance={restaurant.location?.address ? "1.2 km" : "Unknown"}
-                  offers={["Flat 20% OFF", "Free Dessert"]} // Keep dummy offers
-                />
-              );
-            })
-          )}
-        </div>
       </div>
 
     </div>
