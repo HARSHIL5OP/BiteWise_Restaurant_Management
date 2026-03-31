@@ -20,7 +20,13 @@ import MainAdminPage from "./pages/main-admin";
 import CustomerHome from "./pages/customer/index";
 import RestaurantDetail from "./pages/customer/RestaurantDetail";
 import CustomerTableView from "./pages/customer/CustomerTableView";
+
+// NGO
 import NgoLayout from "./ngo/NgoLayout";
+import NgoDashboard from "./ngo/dashboard/NgoDashboard";
+import RequestList from "./ngo/requests/RequestList";
+import NgoReports from "./ngo/reports/NgoReports";
+import NgoSettings from "./ngo/settings/NgoSettings";
 
 const queryClient = new QueryClient();
 
@@ -43,14 +49,18 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
   if (user) {
     if (role === "main-admin") return <Navigate to="/main-admin" replace />;
     if (role === "restaurant_admin") return <Navigate to="/admin" replace />;
-    if (role === "ngo") return <Navigate to="/ngo" replace />;
+
+    // ✅ FIXED NGO REDIRECT
+    if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
+
     if (role === "staff") {
       if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
       if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
-      // Fallback if staffRole isn't populated yet
       if (!userProfile?.staffRole) return <SplashScreen />;
     }
+
     if (role === "customer") return <Navigate to="/customer" replace />;
+    if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
 
     return <Navigate to="/home" replace />;
   }
@@ -81,7 +91,11 @@ const RoleRoute = ({
   if (loading || (user && !userProfile)) return <SplashScreen />;
 
   const isRoleAllowed = role && allowedRoles.includes(role);
-  const isStaffRoleAllowed = allowedStaffRoles && role === 'staff' && userProfile?.staffRole && allowedStaffRoles.includes(userProfile.staffRole);
+  const isStaffRoleAllowed =
+    allowedStaffRoles &&
+    role === "staff" &&
+    userProfile?.staffRole &&
+    allowedStaffRoles.includes(userProfile.staffRole);
 
   if (!isRoleAllowed && !isStaffRoleAllowed) {
     console.warn(
@@ -90,13 +104,17 @@ const RoleRoute = ({
 
     if (role === "main-admin") return <Navigate to="/main-admin" replace />;
     if (role === "restaurant_admin") return <Navigate to="/admin" replace />;
-    if (role === "ngo") return <Navigate to="/ngo" replace />;
+
+    // ✅ FIXED NGO REDIRECT
+    if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
+
     if (role === "staff") {
       if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
       if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
     }
 
     if (role === "customer") return <Navigate to="/customer" replace />;
+    if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
 
     return <Navigate to="/home" replace />;
   }
@@ -110,30 +128,9 @@ const AppRoutes = () => {
   return (
     <Routes>
       {/* --- Public Routes --- */}
-      <Route
-        path="/login"
-        element={
-          <PublicOnly>
-            <LoginPage />
-          </PublicOnly>
-        }
-      />
-      <Route
-        path="/signup"
-        element={
-          <PublicOnly>
-            <SignupPage />
-          </PublicOnly>
-        }
-      />
-      <Route
-        path="/forgot-password"
-        element={
-          <PublicOnly>
-            <ForgotPasswordPage />
-          </PublicOnly>
-        }
-      />
+      <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
+      <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
+      <Route path="/forgot-password" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
 
       {/* --- Public Home --- */}
       <Route path="/home" element={<HomePage />} />
@@ -144,8 +141,14 @@ const AppRoutes = () => {
       {/* --- Main Admin --- */}
       <Route path="/main-admin" element={<MainAdminPage />} />
 
-      {/* --- NGO --- */}
-      <Route path="/ngo" element={<NgoLayout />} />
+      {/* --- NGO (UPDATED) --- */}
+      <Route path="/ngo" element={<NgoLayout />}>
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<NgoDashboard />} />
+        <Route path="requests" element={<RequestList />} />
+        <Route path="reports" element={<NgoReports />} />
+        <Route path="settings" element={<NgoSettings />} />
+      </Route>
 
       {/* --- Customer --- */}
       <Route path="/customer" element={
@@ -153,11 +156,13 @@ const AppRoutes = () => {
           <CustomerHome />
         </RoleRoute>
       } />
+
       <Route path="/customer/restaurant/:id" element={
         <RoleRoute allowedRoles={["customer"]}>
           <RestaurantDetail />
         </RoleRoute>
       } />
+
       <Route path="/customer/restaurant/:id/tables" element={
         <RoleRoute allowedRoles={["customer"]}>
           <CustomerTableView />
@@ -168,34 +173,25 @@ const AppRoutes = () => {
       <Route element={<ProtectedRoute />}>
 
         {/* Chef */}
-        <Route
-          path="/chef"
-          element={
-            <RoleRoute allowedRoles={["restaurant_admin"]} allowedStaffRoles={["chef"]}>
-              <ChefKDS />
-            </RoleRoute>
-          }
-        />
+        <Route path="/chef" element={
+          <RoleRoute allowedRoles={["restaurant_admin"]} allowedStaffRoles={["chef"]}>
+            <ChefKDS />
+          </RoleRoute>
+        } />
 
         {/* Waiter */}
-        <Route
-          path="/waiter"
-          element={
-            <RoleRoute allowedRoles={["restaurant_admin"]} allowedStaffRoles={["waiter"]}>
-              <WaiterPage />
-            </RoleRoute>
-          }
-        />
+        <Route path="/waiter" element={
+          <RoleRoute allowedRoles={["restaurant_admin"]} allowedStaffRoles={["waiter"]}>
+            <WaiterPage />
+          </RoleRoute>
+        } />
 
         {/* Admin */}
-        <Route
-          path="/admin"
-          element={
-            <RoleRoute allowedRoles={["restaurant_admin"]}>
-              <AdminPage />
-            </RoleRoute>
-          }
-        />
+        <Route path="/admin" element={
+          <RoleRoute allowedRoles={["restaurant_admin"]}>
+            <AdminPage />
+          </RoleRoute>
+        } />
 
       </Route>
 
@@ -212,12 +208,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true,
-            }}
-          >
+          <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
         </TooltipProvider>

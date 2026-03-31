@@ -50,6 +50,8 @@ export default function LoginPage() {
         navigate('/waiter');
       } else if (role === 'restaurant_admin' || role === 'admin') {
         navigate('/admin');
+      } else if (role === 'ngo') {
+        navigate('/ngo/dashboard');
       } else {
         navigate('/home');
       }

@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, HandHeart, FileBarChart, Settings, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 import NgoDashboard from './dashboard/NgoDashboard';
 import RequestList from './requests/RequestList';
@@ -21,7 +23,18 @@ const SidebarItem = ({ icon: Icon, label, active, onClick, className = "" }: any
 );
 
 const NgoLayout = () => {
+    const { logout, userProfile } = useAuth();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('dashboard');
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+            navigate('/');
+        } catch (error) {
+            console.error("Logout failed", error);
+        }
+    };
 
     return (
         <div className="flex min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-sans transition-colors duration-300">
@@ -40,18 +53,22 @@ const NgoLayout = () => {
                     <SidebarItem icon={FileBarChart} label="Reports" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
                     <SidebarItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
                     
-                    <SidebarItem icon={LogOut} label="Logout" active={false} onClick={() => {}} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 mt-10" />
+                    <SidebarItem icon={LogOut} label="Logout" active={false} onClick={handleLogout} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 mt-10" />
                 </div>
 
                 <div className="mt-auto">
                     <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4 transition-colors duration-300">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold shadow-md">
-                                HH
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold shadow-md uppercase">
+                                {userProfile?.firstName?.charAt(0) || 'N'}{userProfile?.lastName?.charAt(0) || ''}
                             </div>
                             <div className="overflow-hidden">
-                                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">Helping Hands NGO</p>
-                                <p className="text-xs text-slate-500 truncate">Rahul Sharma</p>
+                                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate uppercase tracking-tight">
+                                    {userProfile?.ngoName || 'NGO Partner'}
+                                </p>
+                                <p className="text-xs text-slate-500 truncate capitalize">
+                                    {userProfile?.firstName} {userProfile?.lastName}
+                                </p>
                             </div>
                         </div>
                     </div>

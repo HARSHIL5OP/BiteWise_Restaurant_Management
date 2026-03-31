@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Filter, ShieldCheck, XCircle, Eye, MoreVertical } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,167 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-const DUMMY_NGOS = [
-  { id: "1", name: "Hope Foundation", contact: "+1 234-567-8900", status: "Verified", donations: "1,240 kg", location: "New York" },
-  { id: "2", name: "City Harvest", contact: "contact@cityharvest.org", status: "Verified", donations: "8,900 kg", location: "Brooklyn" },
-  { id: "3", name: "Food Rescuers", contact: "+1 987-654-3210", status: "Pending", donations: "0 kg", location: "Queens" },
-  { id: "4", name: "Earth Care", contact: "earthcare@gmail.com", status: "Rejected", donations: "0 kg", location: "Staten Island" },
-  { id: "5", name: "Meals for All", contact: "+1 555-123-4567", status: "Verified", donations: "450 kg", location: "Bronx" },
-];
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { createNgo, updateNgoStatus, updateNgoDetails, NgoData } from "@/services/ngoService";
+import { toast } from "sonner";
 
 export default function NGOManagement() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [ngos, setNgos] = useState<(NgoData & { id: string })[]>([]);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [selectedNgo, setSelectedNgo] = useState<(NgoData & { id: string }) | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    city: "",
+    registrationNo: "",
+    acceptedFoodTypes: [] as string[],
+    openTime: "",
+    closeTime: ""
+  });
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    contactPerson: "",
+    email: "",
+    phone: "",
+    city: "",
+    registrationNo: "",
+    acceptedFoodTypes: [] as string[],
+    openTime: "",
+    closeTime: "",
+    password: "",
+    confirmPassword: ""
+  });
+
+  useEffect(() => {
+    // Real-time updates
+    const q = query(collection(db, "ngos"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ngoData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as (NgoData & { id: string })[];
+      setNgos(ngoData);
+    }, (error) => {
+      console.error("Error fetching NGOs:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleApprove = async (id: string) => {
+    try {
+      await updateNgoStatus(id, true);
+    } catch (error) {
+      console.error("Failed to approve NGO:", error);
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      // Reject sets isVerified to false
+      await updateNgoStatus(id, false);
+    } catch (error) {
+      console.error("Failed to reject NGO:", error);
+    }
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createNgo({
+        name: formData.name,
+        contactPerson: formData.contactPerson,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        address: {
+          city: formData.city,
+          lat: 0,
+          lng: 0
+        },
+        registrationNo: formData.registrationNo,
+        acceptedFoodTypes: formData.acceptedFoodTypes,
+        operatingHours: {
+          open: formData.openTime,
+          close: formData.closeTime
+        }
+      });
+      toast.success("NGO Registered Successfully");
+      setIsAddModalOpen(false);
+      setFormData({
+        name: "",
+        contactPerson: "",
+        email: "",
+        phone: "",
+        city: "",
+        registrationNo: "",
+        acceptedFoodTypes: [],
+        openTime: "",
+        closeTime: "",
+        password: "",
+        confirmPassword: ""
+      });
+    } catch (error: any) {
+      console.error("Failed to create NGO:", error);
+      toast.error(error.message || "Failed to register NGO");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedNgo) return;
+    setIsSubmitting(true);
+    try {
+      await updateNgoDetails(selectedNgo.id, {
+        name: editFormData.name,
+        contactPerson: editFormData.contactPerson,
+        email: editFormData.email,
+        phone: editFormData.phone,
+        address: {
+          city: editFormData.city,
+          lat: selectedNgo.address?.lat || 0,
+          lng: selectedNgo.address?.lng || 0
+        },
+        registrationNo: editFormData.registrationNo,
+        acceptedFoodTypes: editFormData.acceptedFoodTypes,
+        operatingHours: {
+          open: editFormData.openTime,
+          close: editFormData.closeTime
+        }
+      });
+      setIsEditMode(false);
+      setIsViewModalOpen(false);
+    } catch (error) {
+      console.error("Failed to update NGO:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const filteredNgos = ngos.filter(ngo => 
+    ngo.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const getStatusBadge = (status: string) => {
     switch(status) {
@@ -35,6 +186,154 @@ export default function NGOManagement() {
           <h1 className="text-3xl font-bold tracking-tight text-white mb-2">NGO Partners</h1>
           <p className="text-slate-400">Manage non-profit organizations and their verification status.</p>
         </div>
+        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white rounded-full">
+              Add NGO
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] bg-slate-900 border-slate-800 text-white max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Register New NGO</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleCreate} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">NGO Name</Label>
+                <Input required id="name" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="bg-slate-800 border-slate-700" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contactPerson">Contact Person</Label>
+                <Input required id="contactPerson" value={formData.contactPerson} onChange={(e) => setFormData({...formData, contactPerson: e.target.value})} className="bg-slate-800 border-slate-700" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input required type="email" id="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input required id="phone" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input required type="password" id="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input required type="password" id="confirmPassword" value={formData.confirmPassword} onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                <Input required id="city" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="bg-slate-800 border-slate-700" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="registrationNo">Registration No</Label>
+                <Input required id="registrationNo" value={formData.registrationNo} onChange={(e) => setFormData({...formData, registrationNo: e.target.value})} className="bg-slate-800 border-slate-700" />
+              </div>
+              <div className="space-y-2">
+                <Label>Accepted Food Types (comma separated)</Label>
+                <Input 
+                  placeholder="e.g. cooked, packaged, raw" 
+                  value={formData.acceptedFoodTypes.join(", ")} 
+                  onChange={(e) => setFormData({...formData, acceptedFoodTypes: e.target.value.split(",").map(s => s.trim()).filter(Boolean)})} 
+                  className="bg-slate-800 border-slate-700" 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="openTime">Open Time</Label>
+                  <Input required type="time" id="openTime" value={formData.openTime} onChange={(e) => setFormData({...formData, openTime: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="closeTime">Close Time</Label>
+                  <Input required type="time" id="closeTime" value={formData.closeTime} onChange={(e) => setFormData({...formData, closeTime: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)} className="border-slate-700 text-slate-300">Cancel</Button>
+                <Button type="submit" disabled={isSubmitting} className="bg-orange-500 hover:bg-orange-600">
+                  {isSubmitting ? "Registering..." : "Register NGO"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+          <DialogContent className="sm:max-w-[425px] bg-slate-900 border-slate-800 text-white max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{isEditMode ? "Edit NGO Details" : "NGO Details"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleUpdate} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">NGO Name</Label>
+                <Input required disabled={!isEditMode} id="edit-name" value={editFormData.name} onChange={(e) => setEditFormData({...editFormData, name: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-contactPerson">Contact Person</Label>
+                <Input required disabled={!isEditMode} id="edit-contactPerson" value={editFormData.contactPerson} onChange={(e) => setEditFormData({...editFormData, contactPerson: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email</Label>
+                  <Input required disabled={!isEditMode} type="email" id="edit-email" value={editFormData.email} onChange={(e) => setEditFormData({...editFormData, email: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Phone</Label>
+                  <Input required disabled={!isEditMode} id="edit-phone" value={editFormData.phone} onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-city">City</Label>
+                <Input required disabled={!isEditMode} id="edit-city" value={editFormData.city} onChange={(e) => setEditFormData({...editFormData, city: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-registrationNo">Registration No</Label>
+                <Input required disabled={!isEditMode} id="edit-registrationNo" value={editFormData.registrationNo} onChange={(e) => setEditFormData({...editFormData, registrationNo: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+              </div>
+              <div className="space-y-2">
+                <Label>Accepted Food Types (comma separated)</Label>
+                <Input 
+                  disabled={!isEditMode}
+                  placeholder="e.g. cooked, packaged, raw" 
+                  value={editFormData.acceptedFoodTypes.join(", ")} 
+                  onChange={(e) => setEditFormData({...editFormData, acceptedFoodTypes: e.target.value.split(",").map(s => s.trim()).filter(Boolean)})} 
+                  className="bg-slate-800 border-slate-700 disabled:opacity-50" 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-openTime">Open Time</Label>
+                  <Input required disabled={!isEditMode} type="time" id="edit-openTime" value={editFormData.openTime} onChange={(e) => setEditFormData({...editFormData, openTime: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-closeTime">Close Time</Label>
+                  <Input required disabled={!isEditMode} type="time" id="edit-closeTime" value={editFormData.closeTime} onChange={(e) => setEditFormData({...editFormData, closeTime: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+                </div>
+              </div>
+              <DialogFooter>
+                {isEditMode ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setIsEditMode(false)} className="border-slate-700 text-slate-300">Cancel</Button>
+                    <Button type="submit" disabled={isSubmitting} className="bg-orange-500 hover:bg-orange-600">
+                      {isSubmitting ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setIsViewModalOpen(false)} className="border-slate-700 text-slate-300">Close</Button>
+                    <Button type="button" onClick={() => setIsEditMode(true)} className="bg-orange-500 hover:bg-orange-600">
+                      Edit Details
+                    </Button>
+                  </>
+                )}
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="bg-[#0F172A]/80 backdrop-blur-xl border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
@@ -68,7 +367,7 @@ export default function NGOManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {DUMMY_NGOS.map((ngo) => (
+              {filteredNgos.map((ngo) => (
                 <TableRow key={ngo.id} className="border-slate-800 hover:bg-slate-800/30 transition-colors group">
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -78,10 +377,10 @@ export default function NGOManagement() {
                       <span className="font-semibold text-slate-200">{ngo.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-slate-400 text-sm">{ngo.contact}</TableCell>
-                  <TableCell className="text-slate-400 text-sm">{ngo.location}</TableCell>
-                  <TableCell>{getStatusBadge(ngo.status)}</TableCell>
-                  <TableCell className="text-right text-orange-400 font-medium">{ngo.donations}</TableCell>
+                  <TableCell className="text-slate-400 text-sm">{ngo.email || ngo.phone}</TableCell>
+                  <TableCell className="text-slate-400 text-sm">{ngo.address?.city}</TableCell>
+                  <TableCell>{getStatusBadge(ngo.isVerified ? 'Verified' : 'Pending')}</TableCell>
+                  <TableCell className="text-right text-orange-400 font-medium">{ngo.totalDonationsReceived || 0} kg</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -90,18 +389,41 @@ export default function NGOManagement() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800 shadow-2xl rounded-xl">
-                        <DropdownMenuItem className="text-slate-300 hover:text-white focus:text-white cursor-pointer hover:bg-slate-800 focus:bg-slate-800 rounded-lg">
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            setSelectedNgo(ngo);
+                            setEditFormData({
+                              name: ngo.name || "",
+                              contactPerson: ngo.contactPerson || "",
+                              email: ngo.email || "",
+                              phone: ngo.phone || "",
+                              city: ngo.address?.city || "",
+                              registrationNo: ngo.registrationNo || "",
+                              acceptedFoodTypes: ngo.acceptedFoodTypes || [],
+                              openTime: ngo.operatingHours?.open || "",
+                              closeTime: ngo.operatingHours?.close || ""
+                            });
+                            setIsEditMode(false);
+                            setIsViewModalOpen(true);
+                          }}
+                          className="text-slate-300 hover:text-white focus:text-white cursor-pointer hover:bg-slate-800 focus:bg-slate-800 rounded-lg"
+                        >
                           <Eye className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
-                        {ngo.status === 'Pending' && (
+                        {!ngo.isVerified && (
                           <>
-                            <DropdownMenuItem className="text-emerald-400 hover:text-emerald-300 focus:text-emerald-300 cursor-pointer hover:bg-emerald-500/10 focus:bg-emerald-500/10 rounded-lg">
+                            <DropdownMenuItem onClick={() => handleApprove(ngo.id)} className="text-emerald-400 hover:text-emerald-300 focus:text-emerald-300 cursor-pointer hover:bg-emerald-500/10 focus:bg-emerald-500/10 rounded-lg">
                               <ShieldCheck className="mr-2 h-4 w-4" /> Approve Application
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-400 hover:text-red-300 focus:text-red-300 cursor-pointer hover:bg-red-500/10 focus:bg-red-500/10 rounded-lg">
+                            <DropdownMenuItem onClick={() => handleReject(ngo.id)} className="text-red-400 hover:text-red-300 focus:text-red-300 cursor-pointer hover:bg-red-500/10 focus:bg-red-500/10 rounded-lg">
                               <XCircle className="mr-2 h-4 w-4" /> Reject
                             </DropdownMenuItem>
                           </>
+                        )}
+                        {ngo.isVerified && (
+                           <DropdownMenuItem onClick={() => handleReject(ngo.id)} className="text-red-400 hover:text-red-300 focus:text-red-300 cursor-pointer hover:bg-red-500/10 focus:bg-red-500/10 rounded-lg">
+                             <XCircle className="mr-2 h-4 w-4" /> Revoke Verification
+                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>

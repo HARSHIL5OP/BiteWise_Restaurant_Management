@@ -16,7 +16,7 @@ import {
   UserCredential,
 } from "firebase/auth";
 import { auth, db, googleProvider, githubProvider } from "@/lib/firebase";
-import { doc, setDoc, getDoc, serverTimestamp, collectionGroup, query, where, getDocs } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp, collectionGroup, query, where, getDocs, collection } from "firebase/firestore";
 
 // --- Types ---
 
@@ -36,6 +36,8 @@ export interface UserProfile {
   createdAt: any;
   lastLogin: any;
   isVerified: boolean;
+  ngoId?: string; // React state only
+  ngoName?: string; // React state only
 }
 
 interface AuthContextType {
@@ -104,6 +106,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   if (!restSnap.empty) {
                       currentRestaurantId = restSnap.docs[0].id;
                   }
+              } else if (profileData.role === 'ngo') {
+                  const ngoQuery = query(collection(db, 'ngos'), where('userId', '==', currentUser.uid));
+                  const ngoSnap = await getDocs(ngoQuery);
+                  if (!ngoSnap.empty) {
+                      const ngoData = ngoSnap.docs[0].data();
+                      currentRestaurantId = ngoSnap.docs[0].id;
+                      profileData.ngoId = ngoSnap.docs[0].id;
+                      profileData.ngoName = ngoData.name;
+                  }
               } else {
                   const staffQuery = query(collectionGroup(db, 'staff'), where('userId', '==', currentUser.uid));
                   const staffSnap = await getDocs(staffQuery);
@@ -130,7 +141,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
              loyaltyPoints: profileData.loyaltyPoints || 0,
              createdAt: profileData.createdAt || null,
              lastLogin: profileData.lastLogin || null,
-             isVerified: profileData.isVerified || false
+             isVerified: profileData.isVerified || false,
+             ngoId: profileData.ngoId,
+             ngoName: profileData.ngoName
           };
           setUserProfile(profile);
         } else {
