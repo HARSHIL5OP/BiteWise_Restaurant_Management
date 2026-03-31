@@ -121,10 +121,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                   if (!staffSnap.empty) {
                       currentRestaurantId = staffSnap.docs[0].data().restaurantId;
                       currentStaffRole = staffSnap.docs[0].data().role;
+                      
+                      // Cache context securely into localStorage globally
+                      if (currentRestaurantId) {
+                         localStorage.setItem('restaurantId', currentRestaurantId);
+                      }
+                  } else {
+                      // Edge case: the user is tagged as 'staff' but the HR subcollection record is missing
+                      // Set an explicit fallback token so the App.tsx router doesn't get stuck indefinitely waiting
+                      currentStaffRole = "unassigned_error";
                   }
-              }
+            }
             } catch (err) {
               console.error("Error fetching restaurantId mapping for user:", err);
+              if (profileData.role === 'staff') currentStaffRole = "unassigned_error";
             }
           }
 

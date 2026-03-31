@@ -7,7 +7,7 @@ import { AuthInput } from '@/components/auth/AuthInput';
 import { AuthButton, GoogleButton, GithubButton } from '@/components/auth/AuthButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, collectionGroup } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function LoginPage() {
@@ -22,6 +22,8 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { tableId } = useParams();
 
+  // Role redirection is now natively handled by the global AuthContext and App.tsx RedirectHandler
+
   useEffect(() => {
     if (tableId) {
       sessionStorage.setItem('currentTable', tableId);
@@ -35,26 +37,10 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const cred = await login(email, password);
-      // Fetch role manually for instant redirect
-      const userDoc = await getDoc(doc(db, "users", cred.user.uid));
-      const userData = userDoc.data();
-      const role = userData?.role || 'customer';
-
+      await login(email, password);
+      // Let App.tsx RedirectHandler take over automatically when AuthContext resolves!
       toast.success("Login successful");
-      if (role === 'main-admin') {
-        navigate('/main-admin');
-      } else if (role === 'chef') {
-        navigate('/chef');
-      } else if (role === 'waiter') {
-        navigate('/waiter');
-      } else if (role === 'restaurant_admin' || role === 'admin') {
-        navigate('/admin');
-      } else if (role === 'ngo') {
-        navigate('/ngo/dashboard');
-      } else {
-        navigate('/home');
-      }
+
     } catch (err: any) {
       console.error(err);
       let errorMessage = "An error occurred";
@@ -75,22 +61,9 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     setError('');
     try {
-      const result = await loginWithGoogle();
-      // Fetch role manually for instant redirect (loginWithGoogle in context handles creation but returns result)
-      const userDoc = await getDoc(doc(db, "users", result.user.uid));
-      const userData = userDoc.data();
-      const role = userData?.role || 'customer';
-
+      await loginWithGoogle();
       toast.success("Login successful");
-      if (role === 'admin' || role === 'restaurant_admin') {
-        navigate('/admin');
-      } else if (role === 'chef') {
-        navigate('/chef');
-      } else if (role === 'waiter') {
-        navigate('/waiter');
-      } else {
-        navigate('/home');
-      }
+
     } catch (err: any) {
       console.error(err);
       const errorMessage = err.message ? err.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ') : "An error occurred";
@@ -104,22 +77,9 @@ export default function LoginPage() {
     setIsGithubLoading(true);
     setError('');
     try {
-      const result = await loginWithGithub();
-      // Fetch role manually for instant redirect
-      const userDoc = await getDoc(doc(db, "users", result.user.uid));
-      const userData = userDoc.data();
-      const role = userData?.role || 'customer';
-
+      await loginWithGithub();
       toast.success("Login successful");
-      if (role === 'admin' || role === 'restaurant_admin') {
-        navigate('/admin');
-      } else if (role === 'chef') {
-        navigate('/chef');
-      } else if (role === 'waiter') {
-        navigate('/waiter');
-      } else {
-        navigate('/home');
-      }
+
     } catch (err: any) {
       console.error(err);
       const errorMessage = err.message ? err.message.replace('Firebase: ', '').replace('Error (auth/', '').replace(').', '').replace(/-/g, ' ') : "An error occurred";

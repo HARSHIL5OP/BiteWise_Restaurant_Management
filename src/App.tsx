@@ -54,13 +54,18 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
     if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
 
     if (role === "staff") {
-      if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
-      if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
       if (!userProfile?.staffRole) return <SplashScreen />;
+
+      if (userProfile.staffRole === "chef") {
+        return <Navigate to="/chef" replace />;
+      }
+
+      if (userProfile.staffRole === "waiter") {
+        return <Navigate to="/waiter" replace />;
+      }
     }
 
     if (role === "customer") return <Navigate to="/customer" replace />;
-    if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
 
     return <Navigate to="/home" replace />;
   }
@@ -97,6 +102,9 @@ const RoleRoute = ({
     userProfile?.staffRole &&
     allowedStaffRoles.includes(userProfile.staffRole);
 
+  console.log("ROLE:", role);
+  console.log("STAFF ROLE:", userProfile?.staffRole);
+
   if (!isRoleAllowed && !isStaffRoleAllowed) {
     console.warn(
       `Unauthorized access attempt: Role '${role}' (StaffRole: '${userProfile?.staffRole}') tried to access restricted route.`
@@ -109,12 +117,16 @@ const RoleRoute = ({
     if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
 
     if (role === "staff") {
-      if (userProfile?.staffRole === "chef") return <Navigate to="/chef" replace />;
-      if (userProfile?.staffRole === "waiter") return <Navigate to="/waiter" replace />;
+      if (userProfile?.staffRole === "chef") {
+        return <Navigate to="/chef" replace />;
+      }
+
+      if (userProfile?.staffRole === "waiter") {
+        return <Navigate to="/waiter" replace />;
+      }
     }
 
     if (role === "customer") return <Navigate to="/customer" replace />;
-    if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
 
     return <Navigate to="/home" replace />;
   }
@@ -174,14 +186,14 @@ const AppRoutes = () => {
 
         {/* Chef */}
         <Route path="/chef" element={
-          <RoleRoute allowedRoles={["restaurant_admin"]} allowedStaffRoles={["chef"]}>
+          <RoleRoute allowedRoles={[]} allowedStaffRoles={["chef"]}>
             <ChefKDS />
           </RoleRoute>
         } />
 
         {/* Waiter */}
         <Route path="/waiter" element={
-          <RoleRoute allowedRoles={["restaurant_admin"]} allowedStaffRoles={["waiter"]}>
+          <RoleRoute allowedRoles={[]} allowedStaffRoles={["waiter"]}>
             <WaiterPage />
           </RoleRoute>
         } />

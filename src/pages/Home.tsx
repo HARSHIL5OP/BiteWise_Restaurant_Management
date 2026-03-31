@@ -5,10 +5,10 @@ import {
     LogOut, Filter, ArrowLeft, Flame, Search, ChevronDown, ArrowDownAz, Heart
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     collection, onSnapshot, addDoc, serverTimestamp, query,
-    where, updateDoc, doc, getDocs, setDoc
+    where, updateDoc, doc, getDocs, setDoc, getDoc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,7 +31,8 @@ const CATEGORY_ICONS: Record<string, string> = {
 const RestaurantApp = () => {
     const { user, userProfile, logout, loading } = useAuth();
     const navigate = useNavigate();
-    const { tableId } = useParams();
+    const { tableId: paramsTableId } = useParams();
+    const [searchParams] = useSearchParams();
 
     // --- STATE MANAGEMENT ---
     const [cart, setCart] = useState<any[]>(() => {
@@ -64,20 +65,27 @@ const RestaurantApp = () => {
 
     // --- AUTH & INITIALIZATION ---
     useEffect(() => {
-        if (!loading && !user) {
-            navigate('/login');
-        }
-    }, [user, loading, navigate]);
+        const urlRestro = searchParams.get("restaurantId");
+        const urlTable = searchParams.get("tableId") || paramsTableId;
+        if (urlRestro) sessionStorage.setItem('currentRestaurant', urlRestro);
+        if (urlTable) sessionStorage.setItem('currentTable', urlTable);
+    }, [searchParams, paramsTableId]);
+
+    const restaurantId = searchParams.get("restaurantId") || sessionStorage.getItem('currentRestaurant') || 'DEFAULT_RESTAURANT';
+    const tableNumber = searchParams.get("tableId") || paramsTableId || sessionStorage.getItem('currentTable') || "1";
+
+    const [restaurantInfo, setRestaurantInfo] = useState<any>(null);
 
     useEffect(() => {
-        if (tableId) {
-            sessionStorage.setItem('currentTable', tableId);
-        }
-    }, [tableId]);
-
-    const tableNumber = tableId || sessionStorage.getItem('currentTable') || "12";
-    // Using a default/fallback restaurantId for customer-facing pages when not in URL
-    const restaurantId = 'DEFAULT_RESTAURANT';
+        const fetchRestro = async () => {
+            if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT') return;
+            const docSnap = await getDoc(doc(db, "restaurants", restaurantId));
+            if (docSnap.exists()) {
+                setRestaurantInfo(docSnap.data());
+            }
+        };
+        fetchRestro();
+    }, [restaurantId]);
 
     // --- DATA FETCHING ---
     useEffect(() => {
@@ -215,25 +223,39 @@ const RestaurantApp = () => {
             return;
         }
 
-        if (cart.length === 0) return;
+        if (!restaurantId || !tableNumber) {
+            alert("Missing restaurant or table info");
+            return;
+        }
+
+        if (cart.length === 0) {
+            alert("Cart is empty");
+            return;
+        }
 
         try {
-            const totalAmount = cartTotal;
+            // 🔥 CALCULATIONS
+            const subtotal = cartTotal;
+            const tax = subtotal * 0.05; // 5% tax
+            const discount = 0;
+            const totalAmount = subtotal + tax - discount;
+
             const { waiterId } = await assignWaiter();
 
+            // 🔥 CREATE ORDER
             const orderRef = doc(collection(db, 'restaurants', restaurantId, 'orders'));
             await setDoc(orderRef, {
                 orderId: orderRef.id,
                 tableId: tableNumber,
                 orderNumber: Math.floor(1000 + Math.random() * 9000).toString(),
                 customerId: user.uid,
-                waiterId: waiterId,
+                waiterId: waiterId || null,
                 restaurantId: restaurantId,
-                status: 'in_queue',
-                orderSource: 'dine_in',
-                subtotal: totalAmount,
-                tax: 0,
-                discount: 0,
+                status: 'pending',
+                orderSource: 'QR',
+                subtotal: subtotal,
+                tax: tax,
+                discount: discount,
                 totalAmount: totalAmount,
                 paymentStatus: 'pending',
                 paymentId: null,
@@ -244,6 +266,7 @@ const RestaurantApp = () => {
                 completedAt: null
             });
 
+            // 🔥 SAVE ORDER ITEMS
             for (const item of cart) {
                const itemRef = doc(collection(db, 'restaurants', restaurantId, 'orders', orderRef.id, 'items'));
                await setDoc(itemRef, {
@@ -253,6 +276,7 @@ const RestaurantApp = () => {
                    name: item.name,
                    price: item.price,
                    quantity: item.quantity,
+                   total: item.price * item.quantity,
                    notes: '',
                    status: 'pending'
                });
@@ -270,12 +294,15 @@ const RestaurantApp = () => {
                 console.warn("Could not parse table number for status update:", tableNumber);
             }
 
+            // 🔥 CLEAR CART
             setCart([]);
             setShowCart(false);
             setActiveView('orders');
+            
+            alert("Order placed successfully!");
 
         } catch (error) {
-            console.error("Error placing order:", error);
+            console.error("Order failed:", error);
             alert("Failed to place order. Please try again.");
         }
     };
@@ -304,7 +331,7 @@ const RestaurantApp = () => {
                 key: import.meta.env.VITE_RAZORPAY_KEY_ID,
                 amount: data.amount,
                 currency: "INR",
-                name: "Spice Garden",
+                name: restaurantInfo?.name || "Restaurant",
                 description: "Payment for Order",
                 order_id: data.orderID,
                 handler: async function (response: any) {
@@ -422,7 +449,7 @@ const RestaurantApp = () => {
                             <UtensilsCrossed className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h1 className="text-lg font-bold text-gray-800 leading-tight">Spice Garden</h1>
+                            <h1 className="text-lg font-bold text-gray-800 leading-tight">{restaurantInfo?.name || "Restaurant"}</h1>
                             <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
                                 <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md">T-{tableNumber}</span>
                                 <span>{userProfile?.firstName || 'Guest'}</span>

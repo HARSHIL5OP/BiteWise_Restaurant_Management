@@ -206,7 +206,7 @@ const AdminDashboard = () => {
                     const userRef = doc(db, 'users', staffData.userId);
                     const userSnap = await getDoc(userRef);
                     const userData = userSnap.exists() ? userSnap.data() : {};
-                    
+
                     return {
                         id: docSnap.id,
                         ...staffData,
@@ -216,10 +216,10 @@ const AdminDashboard = () => {
                         name: `${userData.firstName || ''} ${userData.lastName || ''}`.trim()
                     };
                 });
-                
+
                 const resolvedStaff = await Promise.all(staffPromises);
                 const filteredStaff = resolvedStaff.filter((u: any) => ['chef', 'waiter', 'cashier'].includes(u.role));
-                
+
                 setStaff(filteredStaff);
                 setStaffCount(filteredStaff.length);
             } catch (err) {
@@ -299,7 +299,7 @@ const AdminDashboard = () => {
                 }
             }
         }, (error) => {
-             console.error("Restaurant fetch error:", error);
+            console.error("Restaurant fetch error:", error);
         });
 
         return () => {
@@ -413,7 +413,7 @@ const AdminDashboard = () => {
             category: item.category,
             newCategory: ''
         });
-        
+
         try {
             const ings = await getMenuIngredients(restaurantId, item.id);
             setMenuIngredientsForEdit(ings.map(i => ({
@@ -538,7 +538,7 @@ const AdminDashboard = () => {
 
             // Use setDoc with the UID to link Auth and Firestore (global user root)
             await setDoc(doc(db, 'users', uid), userFirestoreData);
-            
+
             // Also store in restaurant subcollection
             await setDoc(doc(db, 'restaurants', restaurantId, 'staff', uid), staffFirestoreData);
 
@@ -673,25 +673,27 @@ const AdminDashboard = () => {
             // Uniqueness check again with number type if needed, but the first check covers it string-wise if consistent.
             // But let's rely on the first check.
 
-            // 1. Generate QR Code
-            // This URL should point to the customer facing menu/order page with table param
-            // User Request: "just be scanned and show table number" -> switching to simple JSON/text for verification "for now"
-            // 1. Generate QR Code
-            // This URL points to the customer facing home page with table number at the end
-            // User requested: https://odoo-cafe-project-eight.vercel.app/home/<tablenumber>
-            const qrData = `https://odoo-cafe-project-eight.vercel.app/home/${tableNum}`;
+            // 1. Create Ref first to get tableId
+            const tableRef = doc(collection(db, 'restaurants', restaurantId, 'tables'));
+            const tableIdStr = tableRef.id;
+
+            // 2. Generate QR Code
+            // LOCAL DEV URL (Toggle comment for production)
+            const qrData = `http://192.168.1.103:5173/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
+            // 🔴 KEEP THIS (DO NOT DELETE - for production)
+            // const qrData = `https://odoo-cafe-project-eight.vercel.app/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
+
             const qrDataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
 
-            // 2. Convert to File for Cloudinary
+            // 3. Convert to File for Cloudinary
             const qrFile = dataURLtoFile(qrDataUrl, `qr-table-${tableNum}.png`);
 
-            // 3. Upload to Cloudinary
+            // 4. Upload to Cloudinary
             const qrUrl = await uploadToCloudinary(qrFile);
 
-            // 4. Save to Firestore
-            const tableRef = doc(collection(db, 'restaurants', restaurantId, 'tables'));
+            // 5. Save to Firestore
             const tableData = {
-                tableId: tableRef.id,
+                tableId: tableIdStr,
                 restaurantId: restaurantId,
                 tableNumber: tableNum,
                 capacity: parseInt(newTable.capacity),
@@ -750,10 +752,10 @@ const AdminDashboard = () => {
                             </div>
                             <div>
                                 <p className="text-sm font-semibold text-slate-900 dark:text-white capitalize">
-                                  {userProfile?.firstName || 'User'} {userProfile?.lastName || ''}
+                                    {userProfile?.firstName || 'User'} {userProfile?.lastName || ''}
                                 </p>
                                 <p className="text-xs text-slate-500 capitalize">
-                                  {userProfile?.role === 'restaurant_admin' ? 'Restaurant Admin' : userProfile?.role || 'Admin'}
+                                    {userProfile?.role === 'restaurant_admin' ? 'Restaurant Admin' : userProfile?.role || 'Admin'}
                                 </p>
                             </div>
                         </div>
@@ -1082,8 +1084,8 @@ const AdminDashboard = () => {
                 onClose={() => { setShowAddInventory(false); setEditingInventoryItem(null); }}
                 title={
                     inventoryMode === 'add' ? 'Add Inventory Item'
-                    : inventoryMode === 'restock' ? `Restock — ${editingInventoryItem?.name}`
-                    : `Edit — ${editingInventoryItem?.name}`
+                        : inventoryMode === 'restock' ? `Restock — ${editingInventoryItem?.name}`
+                            : `Edit — ${editingInventoryItem?.name}`
                 }
             >
                 <AddInventoryForm

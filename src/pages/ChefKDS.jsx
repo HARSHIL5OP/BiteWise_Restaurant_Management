@@ -249,7 +249,7 @@ const ChefKDS = () => {
     const { logout, userProfile } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
-    const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
+    const restaurantId = localStorage.getItem('restaurantId') || userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
     const [orders, setOrders] = useState([]);
     const [menuData, setMenuData] = useState({});
     const [itemStates, setItemStates] = useState({});
