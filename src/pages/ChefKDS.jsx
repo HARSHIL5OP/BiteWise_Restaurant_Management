@@ -280,7 +280,7 @@ const ChefKDS = () => {
         if (!restaurantId) return;
         const q = query(
             collection(db, 'restaurants', restaurantId, 'orders'),
-            where('status', 'in', ['in_queue', 'preparing'])
+            where('status', 'in', ['pending', 'preparing'])
         );
         const unsubscribe = onSnapshot(q, async (snapshot) => {
             const fetchedOrdersPromises = snapshot.docs.map(async (docRef) => {

@@ -44,7 +44,7 @@ const groupItemsByTable = (items: any[]) => {
 const WaiterDashboard = () => {
     const { user, userProfile, logout } = useAuth();
     const navigate = useNavigate();
-    const restaurantId = localStorage.getItem('restaurantId') || userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
+    const restaurantId = userProfile?.restaurantId;
     const [currentTime, setCurrentTime] = useState(new Date());
     const [orders, setOrders] = useState<any[]>([]);
 
@@ -63,7 +63,7 @@ const WaiterDashboard = () => {
         const q = query(
             collection(db, 'restaurants', restaurantId, 'orders'),
             where('waiterId', '==', user.uid),
-            where('status', '==', 'ready')
+            where('status', 'in', ['served', 'ready'])
         );
 
         const unsubscribe = onSnapshot(q, async (snapshot) => {
@@ -112,10 +112,11 @@ const WaiterDashboard = () => {
         const orderItems = readyItems.filter(i => i.orderId === virtualItem.orderId);
         const allServed = orderItems.every(i => newSet.has(i.uniqueId) || i.uniqueId === virtualItem.uniqueId);
 
-        if (allServed) {
+        if (allServed && restaurantId) {
             try {
                 await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', virtualItem.orderId), {
-                    status: 'served',
+                    status: 'completed',
+                    servedAt: serverTimestamp(),
                     updatedAt: serverTimestamp()
                 });
             } catch (err) {
