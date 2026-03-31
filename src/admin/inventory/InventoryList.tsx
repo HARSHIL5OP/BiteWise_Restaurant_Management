@@ -54,14 +54,52 @@ const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => 
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {items.map(item => {
                                     const isLow = item.quantity <= item.threshold;
+                                    
+                                    // Calculate expiry status
+                                    let expiryStatus: 'fresh' | 'near_expiry' | 'expired' | null = null;
+                                    if (item.isPerishable) {
+                                        let targetDate: Date | null = null;
+                                        if (item.expiryDate) {
+                                            targetDate = new Date(item.expiryDate);
+                                        } else if (item.shelfLifeDays) {
+                                            const lastRestocked = item.lastRestocked ? new Date(item.lastRestocked) : new Date();
+                                            targetDate = new Date(lastRestocked.getTime() + item.shelfLifeDays * 86400000);
+                                        }
+                                        
+                                        if (targetDate) {
+                                            const now = new Date();
+                                            const diffDays = Math.ceil((targetDate.getTime() - now.getTime()) / 86400000);
+                                            const threshold = item.expiryAlertThreshold || 2;
+                                            
+                                            if (diffDays <= 0) expiryStatus = 'expired';
+                                            else if (diffDays <= threshold) expiryStatus = 'near_expiry';
+                                            else expiryStatus = 'fresh';
+                                        }
+                                    }
+
                                     return (
                                         <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="px-5 py-4">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-semibold text-slate-800 dark:text-white">{item.name}</span>
+                                                <div className="flex items-center flex-wrap gap-2">
+                                                    <span className="font-semibold text-slate-800 dark:text-white capitalize whitespace-nowrap">{item.name}</span>
                                                     {isLow && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full border border-amber-200 dark:border-amber-500/20 uppercase tracking-wide">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 dark:bg-amber-100/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full border border-amber-200 dark:border-amber-500/20 uppercase tracking-wide">
                                                             <AlertTriangle size={10} /> Low
+                                                        </span>
+                                                    )}
+                                                    {expiryStatus === 'expired' && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-full border border-rose-200 dark:border-rose-500/20 uppercase tracking-wide">
+                                                             Expired
+                                                        </span>
+                                                    )}
+                                                    {expiryStatus === 'near_expiry' && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[10px] font-bold rounded-full border border-orange-200 dark:border-orange-500/20 uppercase tracking-wide">
+                                                             Near Expiry
+                                                        </span>
+                                                    )}
+                                                    {expiryStatus === 'fresh' && (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-full border border-emerald-200 dark:border-emerald-500/20 uppercase tracking-wide">
+                                                             Fresh
                                                         </span>
                                                     )}
                                                 </div>

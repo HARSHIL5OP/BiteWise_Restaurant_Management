@@ -14,7 +14,6 @@ export interface NgoData {
   };
   registrationNo: string;
   isVerified: boolean;
-  acceptedFoodTypes: string[];
   operatingHours: {
     open: string;
     close: string;

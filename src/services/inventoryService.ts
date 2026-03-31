@@ -18,6 +18,12 @@ export interface InventoryItem {
     costPerUnit: number;
     lastRestocked: string;
     updatedAt: string;
+    isPerishable: boolean;
+    expiryDate: string | null;
+    shelfLifeDays: number | null;
+    expiryAlertThreshold: number;
+    expiryStatus?: 'fresh' | 'near_expiry' | 'expired';
+    batchId?: string;
 }
 
 export interface IngredientEntry {
@@ -64,6 +70,10 @@ export async function addInventoryItem(
         costPerUnit: data.costPerUnit,
         lastRestocked: now,
         updatedAt: now,
+        isPerishable: data.isPerishable,
+        expiryDate: data.expiryDate,
+        shelfLifeDays: data.shelfLifeDays,
+        expiryAlertThreshold: data.expiryAlertThreshold,
     };
 
     await setDoc(itemRef, payload);
@@ -80,12 +90,12 @@ export async function getInventoryItems(restaurantId: string): Promise<Inventory
 // ─── C. Update / Restock Inventory ───────────────────────────────────────────
 
 /**
- * General update: only quantity, supplier, costPerUnit are permitted.
+ * General update: quantity, supplier, costPerUnit, isPerishable, expiryDate, shelfLifeDays, expiryAlertThreshold, and batchId are permitted.
  */
 export async function updateInventoryItem(
     restaurantId: string,
     inventoryId: string,
-    changes: Partial<Pick<InventoryItem, 'quantity' | 'supplier' | 'costPerUnit'>>
+    changes: Partial<Pick<InventoryItem, 'quantity' | 'supplier' | 'costPerUnit' | 'isPerishable' | 'expiryDate' | 'shelfLifeDays' | 'expiryAlertThreshold' | 'batchId'>>
 ): Promise<void> {
     if (changes.quantity !== undefined) validateQuantity(changes.quantity);
 

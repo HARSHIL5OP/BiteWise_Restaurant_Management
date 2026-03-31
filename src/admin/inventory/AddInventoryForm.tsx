@@ -7,7 +7,7 @@ const UNITS: InventoryUnit[] = ['kg', 'g', 'l', 'ml', 'pcs'];
 interface Props {
     onAdd: (data: Omit<InventoryItem, 'id' | 'restaurantId' | 'updatedAt' | 'lastRestocked'>) => Promise<void>;
     onRestock: (id: string, currentQty: number, addQty: number) => Promise<void>;
-    onUpdate: (id: string, changes: Partial<Pick<InventoryItem, 'quantity' | 'supplier' | 'costPerUnit'>>) => Promise<void>;
+    onUpdate: (id: string, changes: Partial<Pick<InventoryItem, 'quantity' | 'supplier' | 'costPerUnit' | 'isPerishable' | 'expiryDate' | 'shelfLifeDays' | 'expiryAlertThreshold' | 'batchId'>>) => Promise<void>;
     editingItem?: InventoryItem | null;
     isLoading: boolean;
     mode: 'add' | 'edit' | 'restock';
@@ -24,11 +24,19 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
         threshold: editingItem?.threshold?.toString() || '0',
         supplier: editingItem?.supplier || '',
         costPerUnit: editingItem?.costPerUnit?.toString() || '0',
+
+        // NEW FIELDS
+        expiryDate: editingItem?.expiryDate || '',
+        isPerishable: editingItem?.isPerishable ?? true,
+        shelfLifeDays: editingItem?.shelfLifeDays?.toString() || '',
+        expiryAlertThreshold: editingItem?.expiryAlertThreshold?.toString() || '2',
+        batchId: editingItem?.batchId || '',
+
         restockQty: '',
     });
     const [error, setError] = useState('');
 
-    const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }));
+    const set = (key: string, val: any) => setForm(f => ({ ...f, [key]: val }));
 
     const handleSubmit = async () => {
         setError('');
@@ -44,6 +52,11 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
                     quantity: parseFloat(form.quantity) || 0,
                     supplier: form.supplier,
                     costPerUnit: parseFloat(form.costPerUnit) || 0,
+                    isPerishable: form.isPerishable,
+                    expiryDate: form.expiryDate || null,
+                    shelfLifeDays: form.shelfLifeDays ? parseInt(form.shelfLifeDays) : null,
+                    expiryAlertThreshold: parseInt(form.expiryAlertThreshold) || 2,
+                    batchId: form.batchId.trim() || undefined,
                 });
                 return;
             }
@@ -51,6 +64,15 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
             if (!form.name.trim()) { setError('Name is required.'); return; }
             const qty = parseFloat(form.quantity);
             if (isNaN(qty) || qty < 0) { setError('Quantity must be ≥ 0.'); return; }
+
+            // Validation for perishable items
+            if (form.isPerishable) {
+                if (!form.expiryDate && !form.shelfLifeDays) {
+                    setError('Provide either expiry date or shelf life.');
+                    return;
+                }
+            }
+
             await onAdd({
                 name: form.name.trim(),
                 quantity: qty,
@@ -58,6 +80,11 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
                 threshold: parseFloat(form.threshold) || 0,
                 supplier: form.supplier.trim(),
                 costPerUnit: parseFloat(form.costPerUnit) || 0,
+                isPerishable: form.isPerishable,
+                expiryDate: form.expiryDate ? form.expiryDate : null,
+                shelfLifeDays: form.shelfLifeDays ? parseInt(form.shelfLifeDays) : null,
+                expiryAlertThreshold: parseInt(form.expiryAlertThreshold) || 2,
+                batchId: form.batchId.trim() || undefined,
             });
         } catch (e: any) {
             setError(e.message || 'Something went wrong.');
@@ -138,6 +165,62 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
                             placeholder="0.00"
                             value={form.costPerUnit} onChange={e => set('costPerUnit', e.target.value)} />
                     </div>
+
+                    <div>
+                        <label className={labelCls}>Batch ID</label>
+                        <input className={fieldCls} placeholder="e.g. batch_001"
+                            value={form.batchId} onChange={e => set('batchId', e.target.value)} />
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                        <input
+                            type="checkbox"
+                            checked={form.isPerishable}
+                            onChange={e => set('isPerishable', e.target.checked)}
+                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                        />
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">Perishable Item</label>
+                    </div>
+
+                    {form.isPerishable && (
+                        <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <div className="col-span-2">
+                                <label className={labelCls}>Expiry Date</label>
+                                <input 
+                                    type="date" 
+                                    className={fieldCls}
+                                    value={form.expiryDate} 
+                                    onChange={e => set('expiryDate', e.target.value)} 
+                                />
+                            </div>
+                            <div>
+                                <label className={labelCls}>Shelf Life (Days)</label>
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    className={fieldCls} 
+                                    placeholder="e.g. 7"
+                                    value={form.shelfLifeDays} 
+                                    onChange={e => set('shelfLifeDays', e.target.value)} 
+                                />
+                                {form.shelfLifeDays && !form.expiryDate && (
+                                    <div className="text-[10px] text-indigo-500 mt-1 font-medium italic">
+                                        Approx. expiry: {new Date(Date.now() + parseInt(form.shelfLifeDays) * 86400000).toLocaleDateString()}
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <label className={labelCls}>Alert Threshold (Days)</label>
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    className={fieldCls}
+                                    value={form.expiryAlertThreshold} 
+                                    onChange={e => set('expiryAlertThreshold', e.target.value)} 
+                                />
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
 

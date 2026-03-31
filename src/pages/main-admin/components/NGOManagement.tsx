@@ -32,7 +32,6 @@ export default function NGOManagement() {
     phone: "",
     city: "",
     registrationNo: "",
-    acceptedFoodTypes: [] as string[],
     openTime: "",
     closeTime: ""
   });
@@ -45,7 +44,6 @@ export default function NGOManagement() {
     phone: "",
     city: "",
     registrationNo: "",
-    acceptedFoodTypes: [] as string[],
     openTime: "",
     closeTime: "",
     password: "",
@@ -106,7 +104,6 @@ export default function NGOManagement() {
           lng: 0
         },
         registrationNo: formData.registrationNo,
-        acceptedFoodTypes: formData.acceptedFoodTypes,
         operatingHours: {
           open: formData.openTime,
           close: formData.closeTime
@@ -121,7 +118,6 @@ export default function NGOManagement() {
         phone: "",
         city: "",
         registrationNo: "",
-        acceptedFoodTypes: [],
         openTime: "",
         closeTime: "",
         password: "",
@@ -151,7 +147,6 @@ export default function NGOManagement() {
           lng: selectedNgo.address?.lng || 0
         },
         registrationNo: editFormData.registrationNo,
-        acceptedFoodTypes: editFormData.acceptedFoodTypes,
         operatingHours: {
           open: editFormData.openTime,
           close: editFormData.closeTime
@@ -233,15 +228,6 @@ export default function NGOManagement() {
                 <Label htmlFor="registrationNo">Registration No</Label>
                 <Input required id="registrationNo" value={formData.registrationNo} onChange={(e) => setFormData({...formData, registrationNo: e.target.value})} className="bg-slate-800 border-slate-700" />
               </div>
-              <div className="space-y-2">
-                <Label>Accepted Food Types (comma separated)</Label>
-                <Input 
-                  placeholder="e.g. cooked, packaged, raw" 
-                  value={formData.acceptedFoodTypes.join(", ")} 
-                  onChange={(e) => setFormData({...formData, acceptedFoodTypes: e.target.value.split(",").map(s => s.trim()).filter(Boolean)})} 
-                  className="bg-slate-800 border-slate-700" 
-                />
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="openTime">Open Time</Label>
@@ -293,16 +279,6 @@ export default function NGOManagement() {
               <div className="space-y-2">
                 <Label htmlFor="edit-registrationNo">Registration No</Label>
                 <Input required disabled={!isEditMode} id="edit-registrationNo" value={editFormData.registrationNo} onChange={(e) => setEditFormData({...editFormData, registrationNo: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
-              </div>
-              <div className="space-y-2">
-                <Label>Accepted Food Types (comma separated)</Label>
-                <Input 
-                  disabled={!isEditMode}
-                  placeholder="e.g. cooked, packaged, raw" 
-                  value={editFormData.acceptedFoodTypes.join(", ")} 
-                  onChange={(e) => setEditFormData({...editFormData, acceptedFoodTypes: e.target.value.split(",").map(s => s.trim()).filter(Boolean)})} 
-                  className="bg-slate-800 border-slate-700 disabled:opacity-50" 
-                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -399,7 +375,6 @@ export default function NGOManagement() {
                               phone: ngo.phone || "",
                               city: ngo.address?.city || "",
                               registrationNo: ngo.registrationNo || "",
-                              acceptedFoodTypes: ngo.acceptedFoodTypes || [],
                               openTime: ngo.operatingHours?.open || "",
                               closeTime: ngo.operatingHours?.close || ""
                             });

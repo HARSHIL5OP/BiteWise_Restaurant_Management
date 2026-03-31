@@ -9,7 +9,6 @@ const NgoSettings = () => {
         email: 'ngo@mail.com',
         phone: '+919999999999',
         registrationNo: 'NGO/GJ/2020/1234',
-        acceptedFoodTypes: 'cooked, packaged',
         operatingHours: {
             open: '08:00',
             close: '20:00'
@@ -152,19 +151,6 @@ const NgoSettings = () => {
                         </div>
                         
                         <div className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-2">
-                                    <CheckSquare size={16} className="text-emerald-500" />
-                                    Accepted Food Types (comma separated)
-                                </label>
-                                <input
-                                    name="acceptedFoodTypes"
-                                    value={formData.acceptedFoodTypes}
-                                    placeholder="e.g. cooked, packaged, raw"
-                                    onChange={handleChange}
-                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 transition"
-                                />
-                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Opening Time</label>
