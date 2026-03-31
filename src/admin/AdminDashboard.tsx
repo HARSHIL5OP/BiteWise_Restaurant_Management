@@ -199,7 +199,7 @@ const AdminDashboard = () => {
             console.error("Menu fetch error:", error);
         });
 
-        const unsubscribeStaff = onSnapshot(collection(db, 'restaurants', restaurantId, 'staff'), async (snapshot) => {
+        const unsubscribeStaff = onSnapshot(query(collection(db, 'staff'), where('restaurantId', '==', restaurantId)), async (snapshot) => {
             try {
                 const staffPromises = snapshot.docs.map(async (docSnap) => {
                     const staffData = docSnap.data();
@@ -316,7 +316,6 @@ const AdminDashboard = () => {
     const handleLogout = async () => {
         try {
             await logout();
-            navigate('/');
         } catch (error) {
             console.error("Logout failed", error);
         }
@@ -476,7 +475,7 @@ const AdminDashboard = () => {
                     firstName: newStaff.firstName,
                     lastName: newStaff.lastName,
                 });
-                await updateDoc(doc(db, 'restaurants', restaurantId, 'staff', editingStaffId), {
+                await updateDoc(doc(db, 'staff', editingStaffId), {
                     role: newStaff.role,
                     shift: newStaff.shift,
                 });
@@ -539,8 +538,8 @@ const AdminDashboard = () => {
             // Use setDoc with the UID to link Auth and Firestore (global user root)
             await setDoc(doc(db, 'users', uid), userFirestoreData);
 
-            // Also store in restaurant subcollection
-            await setDoc(doc(db, 'restaurants', restaurantId, 'staff', uid), staffFirestoreData);
+            // Store in top-level staff collection
+            await setDoc(doc(db, 'staff', uid), staffFirestoreData);
 
             setNewStaff({ firstName: '', lastName: '', email: '', password: '', role: 'waiter', shift: 'Morning' });
             setShowAddStaff(false);
@@ -623,7 +622,7 @@ const AdminDashboard = () => {
 
     const handleDeleteStaff = async (id) => {
         if (confirm('Are you sure you want to remove this staff member?')) {
-            await deleteDoc(doc(db, 'restaurants', restaurantId, 'staff', id));
+            await deleteDoc(doc(db, 'staff', id));
             await deleteDoc(doc(db, 'users', id)); // Optional: also remove from global collection
         }
     };

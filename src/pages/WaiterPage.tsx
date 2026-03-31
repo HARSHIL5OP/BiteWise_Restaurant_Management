@@ -125,8 +125,11 @@ const WaiterDashboard = () => {
     };
 
     const handleLogout = async () => {
-        await logout();
-        navigate('/login', { replace: true });
+        try {
+            await logout();
+        } catch (error) {
+            console.error("Logout failed", error);
+        }
     };
 
     // Analytics Calc

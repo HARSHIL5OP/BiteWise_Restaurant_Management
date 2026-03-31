@@ -116,25 +116,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                       profileData.ngoName = ngoData.name;
                   }
               } else {
-                  const staffQuery = query(collectionGroup(db, 'staff'), where('userId', '==', currentUser.uid));
+                  // Staff Resolution: Top-level 'staff' collection query
+                  const staffQuery = query(collection(db, 'staff'), where('userId', '==', currentUser.uid));
                   const staffSnap = await getDocs(staffQuery);
+
                   if (!staffSnap.empty) {
-                      currentRestaurantId = staffSnap.docs[0].data().restaurantId;
-                      currentStaffRole = staffSnap.docs[0].data().role;
+                      const staffData = staffSnap.docs[0].data();
+                      currentRestaurantId = staffData.restaurantId;
+                      // Normalize role for routing
+                      const rawRole = staffData.role?.toLowerCase().trim();
                       
-                      // Cache context securely into localStorage globally
+                      // Strict validation for frontend routes
+                      if (["chef", "waiter"].includes(rawRole)) {
+                          currentStaffRole = rawRole;
+                      } else {
+                          currentStaffRole = null;
+                      }
+
                       if (currentRestaurantId) {
                          localStorage.setItem('restaurantId', currentRestaurantId);
                       }
                   } else {
-                      // Edge case: the user is tagged as 'staff' but the HR subcollection record is missing
-                      // Set an explicit fallback token so the App.tsx router doesn't get stuck indefinitely waiting
-                      currentStaffRole = "unassigned_error";
+                      // Missing staff record in top-level collection
+                      currentStaffRole = null;
                   }
-            }
+              }
             } catch (err) {
               console.error("Error fetching restaurantId mapping for user:", err);
-              if (profileData.role === 'staff') currentStaffRole = "unassigned_error";
+              if (profileData.role === 'staff') currentStaffRole = null;
             }
           }
 
@@ -270,9 +279,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Clean state immediately
       setUser(null);
       setUserProfile(null);
-      // Optional: Clear any local storage/session storage your app might use
+      // Clear storage
       sessionStorage.clear();
       localStorage.clear();
+      
+      // Centralized redirection to login
+      window.location.href = '/login';
     } catch (error) {
       console.error("Logout failed", error);
     }

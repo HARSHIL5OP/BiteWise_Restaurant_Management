@@ -30,7 +30,6 @@ const NgoLayout = () => {
     const handleLogout = async () => {
         try {
             await logout();
-            navigate('/');
         } catch (error) {
             console.error("Logout failed", error);
         }

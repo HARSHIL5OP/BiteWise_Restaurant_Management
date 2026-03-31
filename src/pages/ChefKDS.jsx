@@ -435,8 +435,11 @@ const ChefKDS = () => {
 
                     <button
                         onClick={async () => {
-                            await logout();
-                            navigate('/login');
+                            try {
+                                await logout();
+                            } catch (error) {
+                                console.error("Logout failed", error);
+                            }
                         }}
                         className="p-3 bg-red-50 dark:bg-rose-500/10 hover:bg-red-100 dark:hover:bg-rose-500/20 text-red-500 hover:text-red-600 rounded-xl transition-all border border-transparent dark:border-rose-500/20"
                         title="Logout"

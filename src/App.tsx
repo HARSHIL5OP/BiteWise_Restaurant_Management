@@ -1,8 +1,9 @@
+import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
@@ -54,15 +55,17 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
     if (role === "ngo") return <Navigate to="/ngo/dashboard" replace />;
 
     if (role === "staff") {
-      if (!userProfile?.staffRole) return <SplashScreen />;
+      // If profile is loaded but staffRole is still undefined, we are still preparing
+      if (userProfile?.staffRole === undefined) return <SplashScreen />;
 
       if (userProfile.staffRole === "chef") {
         return <Navigate to="/chef" replace />;
       }
-
       if (userProfile.staffRole === "waiter") {
         return <Navigate to="/waiter" replace />;
       }
+      // Fallback for null or unrecognized staff roles (e.g., manager, cashier)
+      // return <Navigate to="/home" replace />;
     }
 
     if (role === "customer") return <Navigate to="/customer" replace />;
@@ -134,11 +137,38 @@ const RoleRoute = ({
   return children;
 };
 
+const RoleRedirector = () => {
+  const { user, role, userProfile, loading } = useAuth();
+  const navigate = useNavigate();
+  const location = window.location.pathname;
+
+  useEffect(() => {
+    if (loading || !user || !userProfile || !role) return;
+
+    // List of public paths where we might want to redirect from
+    const publicPaths = ["/", "/home", "/login", "/signup"];
+    if (!publicPaths.includes(location)) return;
+
+    if (role === "main-admin") navigate("/main-admin", { replace: true });
+    else if (role === "restaurant_admin") navigate("/admin", { replace: true });
+    else if (role === "ngo") navigate("/ngo/dashboard", { replace: true });
+    else if (role === "staff") {
+      const sRole = userProfile?.staffRole;
+      if (sRole === "chef") navigate("/chef", { replace: true });
+      else if (sRole === "waiter") navigate("/waiter", { replace: true });
+    }
+  }, [user, role, userProfile, loading, location, navigate]);
+
+  return null;
+};
+
 // --- APP ROUTER ---
 
 const AppRoutes = () => {
   return (
-    <Routes>
+    <>
+      <RoleRedirector />
+      <Routes>
       {/* --- Public Routes --- */}
       <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
       <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
@@ -210,6 +240,7 @@ const AppRoutes = () => {
       {/* --- 404 --- */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   );
 };
 

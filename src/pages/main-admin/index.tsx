@@ -47,7 +47,10 @@ const SIDEBAR_ITEMS = [
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function MainAdminPage() {
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -112,7 +115,10 @@ export default function MainAdminPage() {
         </div>
 
         <div className="p-4 border-t border-slate-800">
-          <button className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors">
+          <button 
+            onClick={() => logout()}
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+          >
             <LogOut className="w-5 h-5 shrink-0" />
             {sidebarOpen && <span className="font-medium whitespace-nowrap">Logout</span>}
           </button>

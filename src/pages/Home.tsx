@@ -178,7 +178,7 @@ const RestaurantApp = () => {
     // --- ORDER LOGIC ---
     const assignWaiter = async (): Promise<{ waiterId: string | null; waiterName: string | null }> => {
         try {
-            const waitersQuery = query(collection(db, 'restaurants', restaurantId, 'staff'), where('role', '==', 'waiter'));
+            const waitersQuery = query(collection(db, 'staff'), where('restaurantId', '==', restaurantId), where('role', '==', 'waiter'));
             const waitersSnapshot = await getDocs(waitersQuery);
 
             if (waitersSnapshot.empty) {
