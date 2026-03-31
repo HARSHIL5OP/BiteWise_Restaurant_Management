@@ -44,7 +44,7 @@ const groupItemsByTable = (items: any[]) => {
 const WaiterDashboard = () => {
     const { user, userProfile, logout } = useAuth();
     const navigate = useNavigate();
-    const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
+    const restaurantId = localStorage.getItem('restaurantId') || userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
     const [currentTime, setCurrentTime] = useState(new Date());
     const [orders, setOrders] = useState<any[]>([]);
 
