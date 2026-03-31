@@ -30,7 +30,10 @@ export default function NGOManagement() {
     contactPerson: "",
     email: "",
     phone: "",
+    address: "",
     city: "",
+    lat: "0",
+    lng: "0",
     registrationNo: "",
     openTime: "",
     closeTime: ""
@@ -42,7 +45,10 @@ export default function NGOManagement() {
     contactPerson: "",
     email: "",
     phone: "",
+    address: "",
     city: "",
+    lat: "0",
+    lng: "0",
     registrationNo: "",
     openTime: "",
     closeTime: "",
@@ -99,9 +105,10 @@ export default function NGOManagement() {
         phone: formData.phone,
         password: formData.password,
         address: {
+          address: formData.address,
           city: formData.city,
-          lat: 0,
-          lng: 0
+          lat: parseFloat(formData.lat) || 0,
+          lng: parseFloat(formData.lng) || 0
         },
         registrationNo: formData.registrationNo,
         operatingHours: {
@@ -116,7 +123,10 @@ export default function NGOManagement() {
         contactPerson: "",
         email: "",
         phone: "",
+        address: "",
         city: "",
+        lat: "0",
+        lng: "0",
         registrationNo: "",
         openTime: "",
         closeTime: "",
@@ -142,9 +152,10 @@ export default function NGOManagement() {
         email: editFormData.email,
         phone: editFormData.phone,
         address: {
+          address: editFormData.address,
           city: editFormData.city,
-          lat: selectedNgo.address?.lat || 0,
-          lng: selectedNgo.address?.lng || 0
+          lat: parseFloat(editFormData.lat) || 0,
+          lng: parseFloat(editFormData.lng) || 0
         },
         registrationNo: editFormData.registrationNo,
         operatingHours: {
@@ -221,8 +232,22 @@ export default function NGOManagement() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
-                <Input required id="city" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="bg-slate-800 border-slate-700" />
+                <Label htmlFor="address">Full Address</Label>
+                <Input required id="address" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="bg-slate-800 border-slate-700" placeholder="123 Street Something" />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input required id="city" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lat">Lat</Label>
+                  <Input required type="number" step="any" id="lat" value={formData.lat} onChange={(e) => setFormData({...formData, lat: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lng">Lng</Label>
+                  <Input required type="number" step="any" id="lng" value={formData.lng} onChange={(e) => setFormData({...formData, lng: e.target.value})} className="bg-slate-800 border-slate-700" />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="registrationNo">Registration No</Label>
@@ -273,8 +298,22 @@ export default function NGOManagement() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-city">City</Label>
-                <Input required disabled={!isEditMode} id="edit-city" value={editFormData.city} onChange={(e) => setEditFormData({...editFormData, city: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+                <Label htmlFor="edit-address">Full Address</Label>
+                <Input required disabled={!isEditMode} id="edit-address" value={editFormData.address} onChange={(e) => setEditFormData({...editFormData, address: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-city">City</Label>
+                  <Input required disabled={!isEditMode} id="edit-city" value={editFormData.city} onChange={(e) => setEditFormData({...editFormData, city: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lat">Lat</Label>
+                  <Input required disabled={!isEditMode} type="number" step="any" id="edit-lat" value={editFormData.lat} onChange={(e) => setEditFormData({...editFormData, lat: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-lng">Lng</Label>
+                  <Input required disabled={!isEditMode} type="number" step="any" id="edit-lng" value={editFormData.lng} onChange={(e) => setEditFormData({...editFormData, lng: e.target.value})} className="bg-slate-800 border-slate-700 disabled:opacity-50" />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-registrationNo">Registration No</Label>
@@ -373,7 +412,10 @@ export default function NGOManagement() {
                               contactPerson: ngo.contactPerson || "",
                               email: ngo.email || "",
                               phone: ngo.phone || "",
+                              address: ngo.address?.address || "",
                               city: ngo.address?.city || "",
+                              lat: ngo.address?.lat?.toString() || "0",
+                              lng: ngo.address?.lng?.toString() || "0",
                               registrationNo: ngo.registrationNo || "",
                               openTime: ngo.operatingHours?.open || "",
                               closeTime: ngo.operatingHours?.close || ""

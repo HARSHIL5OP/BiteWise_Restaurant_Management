@@ -1,12 +1,20 @@
-import React, { useState } from 'react';
-import { Check, X, Truck, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Check, Truck, CheckCircle2, Calendar, MapPin, AlertCircle, Clock } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { db } from '../../lib/firebase';
+import { collection, query, where, onSnapshot, updateDoc, doc, getDocs, Timestamp } from 'firebase/firestore';
 
-const STATIC_REQUESTS = [
-    { id: 1, restaurantName: "Spice Garden", foodType: "cooked", quantity: "20 servings", pickupTime: "2026-03-31 21:00", status: "pending" },
-    { id: 2, restaurantName: "Bistro 101", foodType: "packaged", quantity: "5 boxes", pickupTime: "2026-03-31 16:00", status: "confirmed" },
-    { id: 3, restaurantName: "Golden Plate", foodType: "raw", quantity: "10 kg vegetables", pickupTime: "2026-03-31 18:00", status: "picked" },
-    { id: 4, restaurantName: "Fresh Bakery", foodType: "packaged", quantity: "15 loaves", pickupTime: "2026-03-30 09:00", status: "completed" }
-];
+interface Donation {
+    id: string;
+    restaurantId: string;
+    foodName?: string;
+    quantity: string;
+    pickupTime: any;
+    expiryDate: string | null;
+    status: 'pending' | 'confirmed' | 'picked' | 'completed';
+    ngoId?: string | null;
+    location?: { address: string };
+}
 
 const getStatusColor = (status: string) => {
     switch (status) {
@@ -19,85 +27,203 @@ const getStatusColor = (status: string) => {
 };
 
 const RequestList = () => {
-    const [requests, setRequests] = useState(STATIC_REQUESTS);
+    const { userProfile } = useAuth();
+    const [activeTab, setActiveTab] = useState<'available' | 'my-requests'>('available');
+    const [availableDonations, setAvailableDonations] = useState<Donation[]>([]);
+    const [myRequests, setMyRequests] = useState<Donation[]>([]);
+    const [restaurants, setRestaurants] = React.useState<Record<string, string>>({});
+    const [loading, setLoading] = useState(true);
+    
+    const [acceptingId, setAcceptingId] = useState<string | null>(null);
+    const [pickupTime, setPickupTime] = useState('');
 
-    const handleAction = (id: number, newStatus: string) => {
-        setRequests(prev => prev.map(req => req.id === id ? { ...req, status: newStatus } : req));
+    useEffect(() => {
+        if (!userProfile?.ngoId) return;
+
+        // Fetch Restaurant Names
+        const fetchRestaurants = async () => {
+            const snap = await getDocs(collection(db, 'restaurants'));
+            const map: Record<string, string> = {};
+            snap.forEach(doc => map[doc.id] = doc.data().name);
+            setRestaurants(map);
+        };
+        fetchRestaurants();
+
+        // Listen to Available Donations (ngoId is null and status is pending)
+        const qAvailable = query(
+            collection(db, 'food_donations'),
+            where('ngoId', '==', null),
+            where('status', '==', 'pending')
+        );
+
+        const unsubscribeAvailable = onSnapshot(qAvailable, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Donation[];
+            setAvailableDonations(data);
+            setLoading(false);
+        });
+
+        // Listen to My Requests
+        const qMy = query(
+            collection(db, 'food_donations'),
+            where('ngoId', '==', userProfile.ngoId)
+        );
+
+        const unsubscribeMy = onSnapshot(qMy, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Donation[];
+            setMyRequests(data.sort((a, b) => {
+                const dateA = a.pickupTime?.seconds || 0;
+                const dateB = b.pickupTime?.seconds || 0;
+                return dateB - dateA;
+            }));
+        });
+
+        return () => {
+            unsubscribeAvailable();
+            unsubscribeMy();
+        };
+    }, [userProfile?.ngoId]);
+
+    const handleAccept = async () => {
+        if (!acceptingId || !pickupTime) return;
+        try {
+            const docRef = doc(db, 'food_donations', acceptingId);
+            await updateDoc(docRef, {
+                ngoId: userProfile.ngoId,
+                status: 'confirmed',
+                pickupTime: Timestamp.fromDate(new Date(pickupTime))
+            });
+            setAcceptingId(null);
+            setPickupTime('');
+        } catch (error) {
+            console.error("Failed to accept donation", error);
+        }
     };
+
+    const handleUpdateStatus = async (id: string, newStatus: string) => {
+        try {
+            const docRef = doc(db, 'food_donations', id);
+            await updateDoc(docRef, { status: newStatus });
+        } catch (error) {
+            console.error("Failed to update status", error);
+        }
+    };
+
+    if (loading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
+
+    const currentData = activeTab === 'available' ? availableDonations : myRequests;
 
     return (
         <div className="space-y-6">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-slate-800 dark:text-white">Donation Requests</h3>
-                    <div className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                        {requests.length} Requests Found
-                    </div>
-                </div>
+            {/* Tabs */}
+            <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-max">
+                <button
+                    onClick={() => setActiveTab('available')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        activeTab === 'available' 
+                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                >
+                    Available Donations ({availableDonations.length})
+                </button>
+                <button
+                    onClick={() => setActiveTab('my-requests')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                        activeTab === 'my-requests' 
+                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                >
+                    My Requests ({myRequests.length})
+                </button>
+            </div>
 
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-sm">
-                                <th className="pb-4 font-medium px-4">Restaurant</th>
-                                <th className="pb-4 font-medium px-4">Food Type</th>
+                                <th className="pb-4 font-medium px-4">Donation Details</th>
                                 <th className="pb-4 font-medium px-4">Quantity</th>
-                                <th className="pb-4 font-medium px-4">Pickup Time</th>
+                                <th className="pb-4 font-medium px-4">Location</th>
+                                <th className="pb-4 font-medium px-4">Expiry Date</th>
                                 <th className="pb-4 font-medium px-4">Status</th>
                                 <th className="pb-4 font-medium px-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {requests.map(req => (
+                            {currentData.map(req => (
                                 <tr key={req.id} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                    <td className="py-4 px-4 font-semibold text-slate-800 dark:text-white">{req.restaurantName}</td>
-                                    <td className="py-4 px-4 text-slate-600 dark:text-slate-300 capitalize">
-                                        <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md text-xs font-semibold">
-                                            {req.foodType}
-                                        </span>
+                                    <td className="py-4 px-4">
+                                        <p className="font-semibold text-slate-800 dark:text-white">{req.foodName || 'Food Donation'}</p>
+                                        <p className="text-xs text-slate-500">{restaurants[req.restaurantId] || req.restaurantId}</p>
                                     </td>
                                     <td className="py-4 px-4 text-slate-600 dark:text-slate-300 font-medium">{req.quantity}</td>
-                                    <td className="py-4 px-4 text-slate-600 dark:text-slate-300 whitespace-nowrap">{req.pickupTime}</td>
+                                    <td className="py-4 px-4">
+                                        <div className="flex items-center gap-1 text-slate-500 text-xs">
+                                            <MapPin size={12} />
+                                            {req.location?.address || 'Pickup Point'}
+                                        </div>
+                                    </td>
+                                    <td className="py-4 px-4">
+                                        {req.expiryDate ? (
+                                            <div className="flex items-center gap-1 text-rose-500 text-xs font-bold bg-rose-50 dark:bg-rose-500/10 w-max px-2 py-1 rounded-md">
+                                                <AlertCircle size={12} />
+                                                Exp: {req.expiryDate}
+                                            </div>
+                                        ) : (
+                                            <span className="text-slate-400 text-xs">—</span>
+                                        )}
+                                    </td>
                                     <td className="py-4 px-4">
                                         <span className={`px-3 py-1 text-xs font-bold rounded-full capitalize w-max ${getStatusColor(req.status)}`}>
                                             {req.status}
                                         </span>
+                                        {req.pickupTime && (
+                                            <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                                                <Clock size={10} />
+                                                {req.pickupTime?.toDate ? req.pickupTime.toDate().toLocaleString() : req.pickupTime}
+                                            </p>
+                                        )}
                                     </td>
                                     <td className="py-4 px-4 text-right">
                                         <div className="flex justify-end gap-2">
-                                            {req.status === 'pending' && (
+                                            {activeTab === 'available' && (
+                                                <button 
+                                                    onClick={() => setAcceptingId(req.id)}
+                                                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-2"
+                                                >
+                                                    <Check size={14} /> Accept Donation
+                                                </button>
+                                            )}
+                                            {activeTab === 'my-requests' && (
                                                 <>
-                                                    <button onClick={() => handleAction(req.id, 'confirmed')} className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 rounded-lg transition-colors" title="Accept">
-                                                        <Check size={16} />
-                                                    </button>
-                                                    <button onClick={() => handleAction(req.id, 'rejected')} className="p-2 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 rounded-lg transition-colors" title="Reject">
-                                                        <X size={16} />
-                                                    </button>
+                                                    {req.status === 'confirmed' && (
+                                                        <button onClick={() => handleUpdateStatus(req.id, 'picked')} className="px-3 py-1.5 flex items-center gap-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg text-xs font-bold transition-colors">
+                                                            <Truck size={14} /> Mark Picked
+                                                        </button>
+                                                    )}
+                                                    {req.status === 'picked' && (
+                                                        <button onClick={() => handleUpdateStatus(req.id, 'completed')} className="px-3 py-1.5 flex items-center gap-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 rounded-lg text-xs font-bold transition-colors">
+                                                            <CheckCircle2 size={14} /> Complete
+                                                        </button>
+                                                    )}
+                                                    {req.status === 'completed' && (
+                                                        <span className="px-3 py-1.5 text-xs font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1 justify-end">
+                                                            <CheckCircle2 size={14} /> Received
+                                                        </span>
+                                                    )}
                                                 </>
-                                            )}
-                                            {req.status === 'confirmed' && (
-                                                <button onClick={() => handleAction(req.id, 'picked')} className="px-3 py-1.5 flex items-center gap-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg text-xs font-bold transition-colors">
-                                                    <Truck size={14} /> Mark Picked
-                                                </button>
-                                            )}
-                                            {req.status === 'picked' && (
-                                                <button onClick={() => handleAction(req.id, 'completed')} className="px-3 py-1.5 flex items-center gap-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 rounded-lg text-xs font-bold transition-colors">
-                                                    <CheckCircle2 size={14} /> Complete
-                                                </button>
-                                            )}
-                                            {req.status === 'completed' && (
-                                                <span className="px-3 py-1.5 text-xs font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1 justify-end">
-                                                    <CheckCircle2 size={14} /> Done
-                                                </span>
                                             )}
                                         </div>
                                     </td>
                                 </tr>
                             ))}
-                            {requests.length === 0 && (
+                            {currentData.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="py-8 text-center text-slate-500 dark:text-slate-400">
-                                        No donation requests found.
+                                    <td colSpan={6} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                                        <Calendar size={48} className="mx-auto mb-4 opacity-20" />
+                                        No {activeTab === 'available' ? 'donations available right now' : 'active requests detected'}.
                                     </td>
                                 </tr>
                             )}
@@ -105,6 +231,44 @@ const RequestList = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Accept Confirmation Modal */}
+            {acceptingId && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Accept Donation</h3>
+                        <p className="text-sm text-slate-500 mb-6 font-medium">Please select your preferred pickup time to confirm this request.</p>
+                        
+                        <div className="space-y-4 mb-8">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Pickup Date & Time</label>
+                                <input 
+                                    type="datetime-local" 
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
+                                    value={pickupTime}
+                                    onChange={(e) => setPickupTime(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setAcceptingId(null)}
+                                className="flex-1 py-3 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleAccept}
+                                disabled={!pickupTime}
+                                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all"
+                            >
+                                Confirm Pickup
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

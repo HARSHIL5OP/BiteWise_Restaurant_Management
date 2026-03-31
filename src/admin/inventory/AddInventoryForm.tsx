@@ -67,8 +67,8 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
 
             // Validation for perishable items
             if (form.isPerishable) {
-                if (!form.expiryDate && !form.shelfLifeDays) {
-                    setError('Provide either expiry date or shelf life.');
+                if (!form.expiryDate) {
+                    setError('Expiry date is required for perishable items.');
                     return;
                 }
             }

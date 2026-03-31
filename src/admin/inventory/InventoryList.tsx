@@ -46,7 +46,7 @@ const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => 
                                     <th className="text-left px-5 py-3.5 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Unit</th>
                                     <th className="text-left px-5 py-3.5 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Threshold</th>
                                     <th className="text-left px-5 py-3.5 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Supplier</th>
-                                    <th className="text-left px-5 py-3.5 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Cost/Unit</th>
+                                    <th className="text-left px-5 py-3.5 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Expiry</th>
                                     <th className="text-left px-5 py-3.5 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Last Restocked</th>
                                     <th className="px-5 py-3.5"></th>
                                 </tr>
@@ -78,7 +78,15 @@ const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => 
                                     }
 
                                     return (
-                                        <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                        <tr 
+                                            key={item.id} 
+                                            className={`transition-colors border-l-4 ${
+                                                expiryStatus === 'expired' ? 'bg-rose-50/50 dark:bg-rose-900/10 border-l-rose-500 hover:bg-rose-100/50' :
+                                                expiryStatus === 'near_expiry' ? 'bg-orange-50/50 dark:bg-orange-900/10 border-l-orange-500 hover:bg-orange-100/50' :
+                                                isLow ? 'bg-amber-50/50 dark:bg-amber-900/10 border-l-amber-500 hover:bg-amber-100/50' :
+                                                'border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/30'
+                                            }`}
+                                        >
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center flex-wrap gap-2">
                                                     <span className="font-semibold text-slate-800 dark:text-white capitalize whitespace-nowrap">{item.name}</span>
@@ -112,8 +120,17 @@ const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => 
                                             <td className="px-5 py-4 text-slate-500 dark:text-slate-400">{item.unit}</td>
                                             <td className="px-5 py-4 text-slate-500 dark:text-slate-400">{item.threshold}</td>
                                             <td className="px-5 py-4 text-slate-600 dark:text-slate-300">{item.supplier || '—'}</td>
-                                            <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
-                                                ₹{Number(item.costPerUnit).toFixed(2)}
+                                            <td className="px-5 py-4 text-slate-600 dark:text-slate-300 text-xs">
+                                                {(() => {
+                                                    let targetDate: Date | null = null;
+                                                    if (item.expiryDate) {
+                                                        targetDate = new Date(item.expiryDate);
+                                                    } else if (item.shelfLifeDays) {
+                                                        const lastRestocked = item.lastRestocked ? new Date(item.lastRestocked) : new Date();
+                                                        targetDate = new Date(lastRestocked.getTime() + item.shelfLifeDays * 86400000);
+                                                    }
+                                                    return targetDate ? targetDate.toLocaleDateString() : '—';
+                                                })()}
                                             </td>
                                             <td className="px-5 py-4 text-slate-400 text-xs">
                                                 {item.lastRestocked

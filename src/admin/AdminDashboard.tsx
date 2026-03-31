@@ -3,7 +3,7 @@ import {
     LayoutDashboard, Users, UtensilsCrossed, Settings, Plus, X,
     Search, Trash2, Edit2, ChevronRight, TrendingUp, DollarSign,
     ShoppingBag, Bell, LogOut, ChefHat, User, UserCheck, Upload,
-    QrCode, Grid, Download, Printer, Clock, Sun, Moon, Boxes
+    QrCode, Grid, Download, Printer, Clock, Sun, Moon, Boxes, Heart
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import RestaurantFloorBlueprint from '../components/RestaurantFloorBlueprint';
@@ -42,6 +42,27 @@ import {
     updateInventoryItem,
     restockInventoryItem
 } from '../services/inventoryService';
+
+import DonationList, { Donation } from './donations/DonationList';
+import AddDonationForm from './donations/AddDonationForm';
+import ViewDonation from './donations/ViewDonation';
+
+interface MenuItem {
+    id: string;
+    name: string;
+    price: number | string;
+    category: string;
+    image?: string;
+    [key: string]: any;
+}
+
+interface Order {
+    id: string;
+    status: string;
+    totalAmount: number | string;
+    createdAt: any;
+    [key: string]: any;
+}
 
 // --- Mock Stats Data (Keep for charts for now) ---
 
@@ -134,13 +155,13 @@ const AdminDashboard = () => {
     const [isLoading, setIsLoading] = useState(false);
 
     // Dashboard Metrics State
-    const [orders, setOrders] = useState([]);
+    const [orders, setOrders] = useState<Order[]>([]);
     const [revenue, setRevenue] = useState(0);
-    const [dailyStats, setDailyStats] = useState([]);
+    const [dailyStats, setDailyStats] = useState<any[]>([]);
     const [staffCount, setStaffCount] = useState(0);
 
     // Data State
-    const [menuItems, setMenuItems] = useState([]);
+    const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [staff, setStaff] = useState([]);
     const [categories, setCategories] = useState(['Main Course', 'Appetizer', 'Dessert', 'Beverage']);
 
@@ -150,6 +171,12 @@ const AdminDashboard = () => {
     const [inventoryMode, setInventoryMode] = useState<'add' | 'edit' | 'restock'>('add');
     const [editingInventoryItem, setEditingInventoryItem] = useState<InventoryItem | null>(null);
     const [isInventoryLoading, setIsInventoryLoading] = useState(false);
+
+    // Donations State
+    const [donations, setDonations] = useState<Donation[]>([]);
+    const [showAddDonation, setShowAddDonation] = useState(false);
+    const [showViewDonation, setShowViewDonation] = useState(false);
+    const [viewingDonation, setViewingDonation] = useState<Donation | null>(null);
 
     // Modals & Forms State
     const [showAddMenu, setShowAddMenu] = useState(false);
@@ -187,7 +214,7 @@ const AdminDashboard = () => {
         if (!restaurantId) return;
 
         const unsubscribeMenu = onSnapshot(collection(db, 'restaurants', restaurantId, 'menu'), (snapshot) => {
-            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as MenuItem[];
             setMenuItems(items);
 
             // Extract unique categories from fetched items to update list
@@ -230,7 +257,7 @@ const AdminDashboard = () => {
         });
 
         const unsubscribeOrders = onSnapshot(collection(db, 'restaurants', restaurantId, 'orders'), (snapshot) => {
-            const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[];
             setOrders(fetchedOrders);
 
             // 1. Calculate Total Revenue (Completed Only)
@@ -289,6 +316,18 @@ const AdminDashboard = () => {
             (error) => console.error('Inventory fetch error:', error)
         );
 
+        // Fetch Donations (real-time)
+        const unsubscribeDonations = onSnapshot(
+            collection(db, 'food_donations'),
+            (snapshot) => {
+                const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Donation[];
+                // filter by restaurant
+                const myDonations = items.filter((d: Donation) => d.restaurantId === restaurantId);
+                setDonations(myDonations);
+            },
+            (error) => console.error('Donations fetch error:', error)
+        );
+
         // Fetch Restaurant details
         const unsubscribeRestaurant = onSnapshot(doc(db, 'restaurants', restaurantId), (docSnap) => {
             if (docSnap.exists()) {
@@ -309,6 +348,7 @@ const AdminDashboard = () => {
             unsubscribeOrders();
             unsubscribeRestaurant();
             unsubscribeInventory();
+            unsubscribeDonations();
         };
     }, []);
 
@@ -738,6 +778,7 @@ const AdminDashboard = () => {
                     <SidebarItem icon={Grid} label="Tables" active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} />
                     <SidebarItem icon={UtensilsCrossed} label="Menu" active={activeTab === 'menu'} onClick={() => setActiveTab('menu')} />
                     <SidebarItem icon={Boxes} label="Inventory" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
+                    <SidebarItem icon={Heart} label="Donations" active={activeTab === 'donations'} onClick={() => setActiveTab('donations')} />
                     <SidebarItem icon={Users} label="Staff" active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} />
                     <SidebarItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
                     <SidebarItem icon={LogOut} label="Logout" active={false} onClick={handleLogout} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 mt-10" />
@@ -771,6 +812,7 @@ const AdminDashboard = () => {
                 <LayoutDashboard onClick={() => setActiveTab('dashboard')} className={activeTab === 'dashboard' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <UtensilsCrossed onClick={() => setActiveTab('menu')} className={activeTab === 'menu' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Boxes onClick={() => setActiveTab('inventory')} className={activeTab === 'inventory' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
+                <Heart onClick={() => setActiveTab('donations')} className={activeTab === 'donations' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Users onClick={() => setActiveTab('staff')} className={activeTab === 'staff' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Settings onClick={() => setActiveTab('settings')} className={activeTab === 'settings' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
             </div>
@@ -992,6 +1034,25 @@ const AdminDashboard = () => {
                         </motion.div>
                     )}
 
+                    {/* DONATIONS TAB */}
+                    {activeTab === 'donations' && (
+                        <motion.div
+                            key="donations"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                        >
+                            <DonationList
+                                donations={donations}
+                                onAdd={() => setShowAddDonation(true)}
+                                onView={(id) => {
+                                    setViewingDonation(donations.find(d => d.id === id));
+                                    setShowViewDonation(true);
+                                }}
+                            />
+                        </motion.div>
+                    )}
+
                     {/* STAFF TAB */}
                     {activeTab === 'staff' && (
                         <motion.div
@@ -1095,6 +1156,15 @@ const AdminDashboard = () => {
                     onUpdate={handleUpdateInventory}
                     onRestock={handleRestockInventory}
                 />
+            </Modal>
+
+            {/* Donation Modals */}
+            <Modal isOpen={showAddDonation} onClose={() => setShowAddDonation(false)} title="Create Food Donation">
+                <AddDonationForm restaurantId={restaurantId} onClose={() => setShowAddDonation(false)} />
+            </Modal>
+            
+            <Modal isOpen={showViewDonation} onClose={() => { setShowViewDonation(false); setViewingDonation(null); }} title="Donation Details">
+                {viewingDonation && <ViewDonation donation={viewingDonation} onClose={() => { setShowViewDonation(false); setViewingDonation(null); }} />}
             </Modal>
         </div>
     );

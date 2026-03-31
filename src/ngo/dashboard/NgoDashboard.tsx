@@ -1,11 +1,18 @@
 import React from 'react';
-import { Heart, Clock, CheckCircle2 } from 'lucide-react';
+import { Heart, Clock, CheckCircle2, ShoppingBag } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { db } from '../../lib/firebase';
+import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 
-const mockRequests = [
-    { id: 1, restaurantName: "Spice Garden", foodType: "cooked", quantity: "20 servings", pickupTime: "2026-03-31 21:00", status: "pending" },
-    { id: 2, restaurantName: "Bistro 101", foodType: "packaged", quantity: "5 boxes", pickupTime: "2026-03-31 16:00", status: "confirmed" },
-    { id: 3, restaurantName: "Fresh Bakery", foodType: "raw", quantity: "15 kg", pickupTime: "2026-03-30 09:00", status: "completed" }
-];
+interface Donation {
+    id: string;
+    restaurantId: string;
+    foodName?: string;
+    quantity: string;
+    expiryDate?: string | null;
+    pickupTime: any;
+    status: string;
+}
 
 const StatCard = ({ title, value, icon: Icon, colorClass }: any) => (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
@@ -20,38 +27,108 @@ const StatCard = ({ title, value, icon: Icon, colorClass }: any) => (
 );
 
 const NgoDashboard = () => {
+    const { userProfile } = useAuth();
+    const [myRequests, setMyRequests] = React.useState<Donation[]>([]);
+    const [availableCount, setAvailableCount] = React.useState(0);
+    const [restaurants, setRestaurants] = React.useState<Record<string, string>>({});
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        if (!userProfile?.ngoId) return;
+
+        // Fetch Restaurant Names
+        const fetchRestaurants = async () => {
+            const snap = await getDocs(collection(db, 'restaurants'));
+            const map: Record<string, string> = {};
+            snap.forEach(doc => map[doc.id] = doc.data().name);
+            setRestaurants(map);
+        };
+        fetchRestaurants();
+
+        // Listen to Active Requests for current NGO
+        const qMy = query(
+            collection(db, 'food_donations'),
+            where('ngoId', '==', userProfile.ngoId)
+        );
+
+        const unsubscribeMy = onSnapshot(qMy, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Donation[];
+            setMyRequests(data);
+            setLoading(false);
+        });
+
+        // Listen to count of available donations (for stats/highlight)
+        const qAvail = query(
+            collection(db, 'food_donations'),
+            where('ngoId', '==', null),
+            where('status', '==', 'pending')
+        );
+        const unsubscribeAvail = onSnapshot(qAvail, (snap) => {
+            setAvailableCount(snap.size);
+        });
+
+        return () => {
+            unsubscribeMy();
+            unsubscribeAvail();
+        };
+    }, [userProfile?.ngoId]);
+
+    const stats = {
+        total: myRequests.filter(d => d.status === 'completed').length,
+        pending: myRequests.filter(d => ['confirmed', 'picked'].includes(d.status)).length,
+        completed: myRequests.filter(d => d.status === 'completed').length
+    };
+
+    if (loading) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
+
     return (
         <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <StatCard title="Total Donations Received" value="120" icon={Heart} colorClass={{ bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-500' }} />
-                <StatCard title="Pending Requests" value="4" icon={Clock} colorClass={{ bg: 'bg-amber-50 dark:bg-amber-500/10', text: 'text-amber-500' }} />
-                <StatCard title="Completed Pickups" value="85" icon={CheckCircle2} colorClass={{ bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-500' }} />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <StatCard title="Available Donations" value={availableCount} icon={ShoppingBag} colorClass={{ bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-500' }} />
+                <StatCard title="Requests Accepted" value={myRequests.length} icon={Heart} colorClass={{ bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-500' }} />
+                <StatCard title="Active Pickups" value={stats.pending} icon={Clock} colorClass={{ bg: 'bg-amber-50 dark:bg-amber-500/10', text: 'text-amber-500' }} />
+                <StatCard title="Donations Completed" value={stats.completed} icon={CheckCircle2} colorClass={{ bg: 'bg-indigo-50 dark:bg-indigo-500/10', text: 'text-indigo-500' }} />
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Recent Requests</h3>
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">Recent Activity</h3>
+                    <button className="text-sm font-semibold text-indigo-500 hover:text-indigo-600">View All</button>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-sm">
                                 <th className="pb-3 font-medium px-4">Restaurant</th>
-                                <th className="pb-3 font-medium px-4">Food Type</th>
+                                <th className="pb-3 font-medium px-4">Item Name</th>
                                 <th className="pb-3 font-medium px-4">Quantity</th>
-                                <th className="pb-3 font-medium px-4">Pickup Time</th>
-                                <th className="pb-3 font-medium px-4">Status</th>
+                                <th className="pb-3 font-medium px-4">Expiry</th>
+                                <th className="pb-3 font-medium px-4">Pickup Status</th>
+                                <th className="pb-3 font-medium px-4">Action Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {mockRequests.map(req => (
+                            {myRequests.slice(0, 5).map(req => (
                                 <tr key={req.id} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                                    <td className="py-4 px-4 font-semibold text-slate-800 dark:text-white">{req.restaurantName}</td>
-                                    <td className="py-4 px-4 text-slate-600 dark:text-slate-300 capitalize">{req.foodType}</td>
+                                    <td className="py-4 px-4 font-semibold text-slate-800 dark:text-white">{restaurants[req.restaurantId] || req.restaurantId}</td>
+                                    <td className="py-4 px-4 text-slate-600 dark:text-slate-300 font-medium">{req.foodName || 'Donation'}</td>
                                     <td className="py-4 px-4 text-slate-600 dark:text-slate-300">{req.quantity}</td>
-                                    <td className="py-4 px-4 text-slate-600 dark:text-slate-300">{req.pickupTime}</td>
                                     <td className="py-4 px-4">
-                                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${
-                                            req.status === 'pending' ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                                        {req.expiryDate ? (
+                                            <span className="text-[10px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 rounded uppercase">
+                                                Exp: {req.expiryDate}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400 text-xs">—</span>
+                                        )}
+                                    </td>
+                                    <td className="py-4 px-4 text-slate-500 text-xs">
+                                        {req.pickupTime?.toDate ? req.pickupTime.toDate().toLocaleString() : 'Scheduling...'}
+                                    </td>
+                                    <td className="py-4 px-4">
+                                        <span className={`px-3 py-1 text-xs font-bold rounded-full capitalize ${
                                             req.status === 'confirmed' ? 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                                            req.status === 'picked' ? 'bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400' :
                                             req.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
                                             'bg-slate-100 dark:bg-slate-800 text-slate-600'
                                         }`}>
@@ -60,6 +137,15 @@ const NgoDashboard = () => {
                                     </td>
                                 </tr>
                             ))}
+                            {myRequests.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="py-8 text-center text-slate-500">
+                                        No active donations confirmed yet. 
+                                        <br />
+                                        <span className="text-xs">Check available donations to get started.</span>
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>

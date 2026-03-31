@@ -18,6 +18,7 @@ const AdminSettings = () => {
         logoUrl: '' as any,
         bannerImage: '' as any,
         location: {
+            address: '',
             city: '',
             lat: 0,
             lng: 0,
@@ -48,6 +49,7 @@ const AdminSettings = () => {
                         logoUrl: data.logoUrl || data.logo || '', // Fallback to existing logo emoji/string if needed initially
                         bannerImage: data.bannerImage || '',
                         location: {
+                            address: data.location?.address || '',
                             city: data.location?.city || '',
                             lat: data.location?.lat || 0,
                             lng: data.location?.lng || 0,
@@ -225,6 +227,16 @@ const AdminSettings = () => {
                         </div>
                         
                         <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Street Address <span className="text-rose-500">*</span></label>
+                                <input
+                                    name="location.address"
+                                    value={formData.location.address}
+                                    onChange={handleChange}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                                    placeholder="e.g. 123 Main St"
+                                />
+                            </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">City <span className="text-rose-500">*</span></label>
                                 <input

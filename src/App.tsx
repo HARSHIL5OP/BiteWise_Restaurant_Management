@@ -234,6 +234,21 @@ const AppRoutes = () => {
             <AdminPage />
           </RoleRoute>
         } />
+        <Route path="/admin/donations" element={
+          <RoleRoute allowedRoles={["restaurant_admin"]}>
+            <AdminPage />
+          </RoleRoute>
+        } />
+        <Route path="/admin/donations/add" element={
+          <RoleRoute allowedRoles={["restaurant_admin"]}>
+            <AdminPage />
+          </RoleRoute>
+        } />
+        <Route path="/admin/donations/:id" element={
+          <RoleRoute allowedRoles={["restaurant_admin"]}>
+            <AdminPage />
+          </RoleRoute>
+        } />
 
       </Route>
 

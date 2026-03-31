@@ -8,6 +8,7 @@ export interface NgoData {
   email: string;
   phone: string;
   address: {
+    address: string;
     city: string;
     lat: number;
     lng: number;
