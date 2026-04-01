@@ -177,7 +177,7 @@ const AppRoutes = () => {
       {/* --- Public Home --- */}
       <Route path="/home" element={<HomePage />} />
       <Route path="/home/:tableId" element={<HomePage />} />
-      <Route path="/" element={<Navigate to="/home" replace />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/social-impact" element={<SocialImpact />} />
 
       {/* --- Main Admin --- */}
