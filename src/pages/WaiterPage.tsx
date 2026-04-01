@@ -13,20 +13,23 @@ const transformOrdersToVirtualItems = (orders: any[]) => {
     const virtualItems: any[] = [];
     orders.forEach(order => {
         if (!order.items) return;
-        order.items.forEach((item: any, idx: number) => {
-            virtualItems.push({
-                uniqueId: `${order.id}_${idx}`,
-                orderId: order.id,
-                tableId: order.tableId,
-                name: item.name,
-                quantity: item.quantity,
-                veg: item.veg,
-                readyAt: order.updatedAt || order.createdAt
-            });
+        order.items.forEach((item: any) => {
+            if (item.status === 'ready') {
+                virtualItems.push({
+                    uniqueId: item.id || `${order.id}_${item.name}`,
+                    itemId: item.id,
+                    orderId: order.id,
+                    tableId: order.tableId,
+                    name: item.name,
+                    quantity: item.quantity,
+                    veg: item.veg,
+                    readyAt: order.updatedAt || order.createdAt
+                });
+            }
         });
     });
     // FIFO Sort: Oldest Ready First
-    return virtualItems.sort((a, b) => a.readyAt.seconds - b.readyAt.seconds);
+    return virtualItems.sort((a, b) => (a.readyAt?.seconds || 0) - (b.readyAt?.seconds || 0));
 };
 
 // Group logic: By Table -> then by Time
@@ -47,6 +50,7 @@ const WaiterDashboard = () => {
     const restaurantId = userProfile?.restaurantId;
     const [currentTime, setCurrentTime] = useState(new Date());
     const [orders, setOrders] = useState<any[]>([]);
+    const [orderItemsMap, setOrderItemsMap] = useState<Record<string, any[]>>({});
 
     // Performance: Analytics state
     const [completedCount, setCompletedCount] = useState(0);
@@ -62,32 +66,37 @@ const WaiterDashboard = () => {
 
         const q = query(
             collection(db, 'restaurants', restaurantId, 'orders'),
-            where('waiterId', '==', user.uid),
-            where('status', 'in', ['served', 'ready'])
+            where('waiterId', '==', user.uid)
         );
 
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
-            const fetchedOrdersPromises = snapshot.docs.map(async (docRef) => {
-                const data = docRef.data();
-                const itemsSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'orders', docRef.id, 'items'));
-                const items = itemsSnap.docs.map(i => i.data());
-
-                return {
-                    id: docRef.id,
-                    ...data,
-                    items,
-                    updatedAt: data.updatedAt || data.createdAt
-                };
-            });
-            
-            const fetched = await Promise.all(fetchedOrdersPromises);
-            setOrders(fetched);
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(docRef => ({
+                id: docRef.id,
+                ...docRef.data()
+            }));
+            setOrders(fetchedOrders);
         });
         return () => unsubscribe();
-    }, [user]);
+    }, [user, restaurantId]);
+
+    useEffect(() => {
+        if (!restaurantId || orders.length === 0) return;
+        
+        const unsubs = orders.map(order => 
+            onSnapshot(collection(db, 'restaurants', restaurantId, 'orders', order.id, 'items'), (snap) => {
+                setOrderItemsMap(prev => ({
+                     ...prev,
+                     [order.id]: snap.docs.map(d => ({ id: d.id, ...d.data() }))
+                }));
+            })
+        );
+        return () => unsubs.forEach(unsub => unsub());
+    }, [orders.map(o => o.id).join(','), restaurantId]);
+
+    const fullOrders = useMemo(() => orders.map(o => ({ ...o, items: orderItemsMap[o.id] || [], updatedAt: o.updatedAt || o.createdAt })), [orders, orderItemsMap]);
 
     // Derived Virtual Items
-    const readyItems = useMemo(() => transformOrdersToVirtualItems(orders), [orders]);
+    const readyItems = useMemo(() => transformOrdersToVirtualItems(fullOrders), [fullOrders]);
 
     // Local Hidden State for Optimistic UI
     const [servedVirtualIds, setServedVirtualIds] = useState<Set<string>>(new Set());
@@ -108,19 +117,25 @@ const WaiterDashboard = () => {
         setServedVirtualIds(newSet);
         setCompletedCount(prev => prev + 1);
 
-        // Logic check: If all items for this order are done, update DB
-        const orderItems = readyItems.filter(i => i.orderId === virtualItem.orderId);
-        const allServed = orderItems.every(i => newSet.has(i.uniqueId) || i.uniqueId === virtualItem.uniqueId);
-
-        if (allServed && restaurantId) {
+        if (restaurantId && virtualItem.itemId) {
             try {
-                await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', virtualItem.orderId), {
-                    status: 'completed',
-                    servedAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                });
+                // Update item status
+                const itemRef = doc(db, 'restaurants', restaurantId, 'orders', virtualItem.orderId, 'items', virtualItem.itemId);
+                await updateDoc(itemRef, { status: 'served' });
+
+                // Check if all items for order are served
+                const allItems = orderItemsMap[virtualItem.orderId] || [];
+                const updatedItems = allItems.map(i => i.id === virtualItem.itemId ? { ...i, status: 'served' } : i);
+                const allServed = updatedItems.length > 0 && updatedItems.every(i => i.status === 'served');
+
+                if (allServed) {
+                    await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', virtualItem.orderId), {
+                        completedAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                }
             } catch (err) {
-                console.error("Failed to serve order", err);
+                console.error("Failed to serve item", err);
             }
         }
     };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, updateDoc, doc, serverTimestamp, getDocs, runTransaction } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChefHat, Clock, Flame, CheckCircle, AlertCircle, LogOut, Sun, Moon, Info } from 'lucide-react';
@@ -201,7 +201,7 @@ const ItemCard = ({ item, status, onAction }) => {
     );
 };
 
-const CategoryLane = ({ title, items, itemStates, onAction }) => {
+const CategoryLane = ({ title, items, onAction }) => {
     const icon = getCategoryIcon(title);
 
     return (
@@ -224,7 +224,7 @@ const CategoryLane = ({ title, items, itemStates, onAction }) => {
                         <ItemCard
                             key={item.virtualItemId}
                             item={item}
-                            status={itemStates[item.virtualItemId] || 'queued'}
+                            status={item.status || 'pending'}
                             onAction={onAction}
                         />
                     ))}
@@ -251,8 +251,8 @@ const ChefKDS = () => {
     const navigate = useNavigate();
     const restaurantId = localStorage.getItem('restaurantId') || userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
     const [orders, setOrders] = useState([]);
+    const [orderItemsMap, setOrderItemsMap] = useState({});
     const [menuData, setMenuData] = useState({});
-    const [itemStates, setItemStates] = useState({});
     const [currentTime, setCurrentTime] = useState(new Date());
 
     // Update time for the header clock
@@ -278,84 +278,144 @@ const ChefKDS = () => {
     // 2. Fetch Active Orders
     useEffect(() => {
         if (!restaurantId) return;
-        const q = query(
-            collection(db, 'restaurants', restaurantId, 'orders'),
-            where('status', 'in', ['pending', 'preparing'])
-        );
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
-            const fetchedOrdersPromises = snapshot.docs.map(async (docRef) => {
-                const data = docRef.data();
-                const itemsSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'orders', docRef.id, 'items'));
-                const items = itemsSnap.docs.map(i => i.data());
 
-                return {
-                    id: docRef.id,
-                    ...data,
-                    items
-                };
-            });
-            const fetched = await Promise.all(fetchedOrdersPromises);
-            setOrders(fetched);
+        const unsubscribeOrders = onSnapshot(collection(db, 'restaurants', restaurantId, 'orders'), (snapshot) => {
+            const fetchedOrders = snapshot.docs.map(docRef => ({
+                id: docRef.id,
+                ...docRef.data()
+            }));
+            setOrders(fetchedOrders);
         });
-        return () => unsubscribe();
-    }, []);
+
+        return () => unsubscribeOrders();
+    }, [restaurantId]);
+
+    useEffect(() => {
+        if (!restaurantId || orders.length === 0) return;
+        
+        const unsubs = orders.map(order => 
+            onSnapshot(collection(db, 'restaurants', restaurantId, 'orders', order.id, 'items'), (snap) => {
+                setOrderItemsMap(prev => ({
+                     ...prev,
+                     [order.id]: snap.docs.map(d => ({ itemId: d.id, ...d.data() }))
+                }));
+            })
+        );
+        return () => unsubs.forEach(unsub => unsub());
+    }, [orders.map(o => o.id).join(','), restaurantId]);
+
+    // Inventory Deduction
+    const deductInventoryForItem = async (item) => {
+        try {
+            const itemIdToUse = item.itemId || item.menuItemId;
+            if (!itemIdToUse) {
+                console.error("Item ID missing for inventory deduction", item);
+                return;
+            }
+
+            const ingredientsRef = collection(db, 'restaurants', restaurantId, 'menu', itemIdToUse, 'ingredients');
+            const ingredientsSnap = await getDocs(ingredientsRef);
+            
+            if (ingredientsSnap.empty) {
+                return;
+            }
+
+            for (const docSnap of ingredientsSnap.docs) {
+                const ingredient = docSnap.data();
+                
+                if (ingredient.deductOnOrder !== true) continue;
+                if (!ingredient.inventoryId) continue;
+
+                const quantityUsed = Number(ingredient.quantityUsed) || 0;
+                const itemQuantity = Number(item.quantity) || 1;
+                const totalUsage = quantityUsed * itemQuantity;
+
+                if (totalUsage <= 0) continue;
+
+                console.log("Deducting inventory for:", item.name);
+                console.log("Ingredient:", ingredient.name || ingredient.inventoryId);
+                console.log("Usage:", totalUsage);
+
+                await runTransaction(db, async (transaction) => {
+                    const inventoryRef = doc(db, 'restaurants', restaurantId, 'inventory', ingredient.inventoryId);
+                    const inventoryDoc = await transaction.get(inventoryRef);
+                    
+                    if (!inventoryDoc.exists()) return;
+
+                    const currentQty = Number(inventoryDoc.data().quantity) || 0;
+                    const newQty = Math.max(currentQty - totalUsage, 0);
+
+                    transaction.update(inventoryRef, {
+                        quantity: newQty,
+                        updatedAt: new Date().toISOString()
+                    });
+                });
+            }
+        } catch (err) {
+            console.error("Failed to deduct inventory for item:", item.name, err);
+        }
+    };
 
     // 3. Status Action Handler
     const handleItemAction = async (item, currentStatus) => {
         const nextStatus = currentStatus === 'preparing' ? 'ready' : 'preparing';
-        const newStates = { ...itemStates, [item.virtualItemId]: nextStatus };
 
-        if (nextStatus === 'ready') {
-            const order = orders.find(o => o.id === item.orderId);
-            if (order) {
-                const allItems = order.items.map((_, idx) => `${order.id}_${idx}`);
-                const allReady = allItems.every(vid => {
-                    if (vid === item.virtualItemId) return true;
-                    return newStates[vid] === 'ready';
-                });
+        try {
+            if (currentStatus === 'preparing' && nextStatus === 'ready') {
+                await deductInventoryForItem(item);
+            }
 
-                if (allReady) {
-                    try {
-                        await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', order.id), {
-                            status: 'ready',
-                            updatedAt: serverTimestamp()
-                        });
-                        console.log("Order marked ready:", order.id);
-                    } catch (err) {
-                        console.error("Failed to update order status", err);
-                    }
-                }
+            // Update item
+            const itemRef = doc(db, 'restaurants', restaurantId, 'orders', item.orderId, 'items', item.itemId);
+            await updateDoc(itemRef, { status: nextStatus });
+
+            // Timestamp Consistency
+            const allItems = orderItemsMap[item.orderId] || [];
+            const newItems = allItems.map(i => i.itemId === item.itemId ? { ...i, status: nextStatus } : i);
+
+            const anyPreparing = newItems.some(i => i.status === 'preparing');
+            const allReady = newItems.length > 0 && newItems.every(i => i.status === 'ready' || i.status === 'served');
+
+            let orderUpdates = {};
+            if (nextStatus === 'preparing' && anyPreparing) {
+                orderUpdates.preparedAt = serverTimestamp();
             }
-        } else if (currentStatus === 'queued') {
-            const order = orders.find(o => o.id === item.orderId);
-            if (order && order.status === 'in_queue') {
-                updateDoc(doc(db, 'restaurants', restaurantId, 'orders', order.id), { status: 'preparing' }).catch(console.error);
+            if (nextStatus === 'ready' && allReady) {
+                orderUpdates.servedAt = serverTimestamp();
             }
+
+            if (Object.keys(orderUpdates).length > 0) {
+                await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', item.orderId), orderUpdates);
+            }
+
+        } catch (err) {
+            console.error("Action handler failed:", err);
         }
-
-        setItemStates(newStates);
     };
 
     // 4. Flatten & Transform Logic
     const categoryLanes = useMemo(() => {
         const lanes = {};
         orders.forEach(order => {
-            if (!order.items) return;
-            order.items.forEach((item, index) => {
+            const items = orderItemsMap[order.id] || [];
+            items.forEach((item, index) => {
                 const category = menuData[item.itemId] || "Main Course";
-                const virtualItemId = `${order.id}_${index}`;
-                if (itemStates[virtualItemId] === 'ready') return;
+                const virtualItemId = `${order.id}_${item.itemId || index}`;
+                const status = item.status || 'pending';
+                
+                if (status !== 'pending' && status !== 'preparing') return;
 
                 const virtualItem = {
                     virtualItemId,
-                    itemId: item.itemId,
+                    itemId: item.itemId || item.id,
                     name: item.name,
                     quantity: item.quantity,
                     veg: item.veg ?? true,
                     tableId: order.tableId,
                     orderId: order.id,
                     orderCreatedAt: order.createdAt,
-                    category
+                    category,
+                    status
                 };
 
                 if (!lanes[category]) lanes[category] = [];
@@ -369,7 +429,7 @@ const ChefKDS = () => {
         });
 
         return lanes;
-    }, [orders, menuData, itemStates]);
+    }, [orders, orderItemsMap, menuData]);
 
     const sortedCategories = useMemo(() => {
         const priority = ["Starters", "Appetizers", "Soup", "Main Course", "Breads", "Biryani", "Rice", "Dessert", "Beverages"];
@@ -384,8 +444,8 @@ const ChefKDS = () => {
     }, [categoryLanes]);
 
     // Calculate Counts
-    const queuedCount = Object.values(categoryLanes).flat().filter(item => (itemStates[item.virtualItemId] || 'queued') === 'queued').length;
-    const preparingCount = Object.values(categoryLanes).flat().filter(item => itemStates[item.virtualItemId] === 'preparing').length;
+    const queuedCount = Object.values(categoryLanes).flat().filter(item => (item.status || 'pending') === 'pending').length;
+    const preparingCount = Object.values(categoryLanes).flat().filter(item => item.status === 'preparing').length;
 
     return (
         <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200 overflow-hidden font-sans transition-colors duration-300">
@@ -462,7 +522,6 @@ const ChefKDS = () => {
                                 key={cat}
                                 title={cat}
                                 items={categoryLanes[cat]}
-                                itemStates={itemStates}
                                 onAction={handleItemAction}
                             />
                         ))

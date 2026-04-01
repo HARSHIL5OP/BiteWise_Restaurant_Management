@@ -40,7 +40,7 @@ interface FlattenedItem extends OrderItem {
 // --- CONSTANTS ---
 
 const COLUMNS = [
-    { id: 'in_queue', label: 'In Queue', color: 'bg-slate-200', text: 'text-slate-600', icon: Clock },
+    { id: 'pending', label: 'Pending', color: 'bg-slate-200', text: 'text-slate-600', icon: Clock },
     { id: 'preparing', label: 'In Progress', color: 'bg-amber-100', text: 'text-amber-600', icon: ChefHat },
     { id: 'ready', label: 'Prepared', color: 'bg-emerald-100', text: 'text-emerald-600', icon: CheckCircle },
     { id: 'served', label: 'Served', color: 'bg-slate-100', text: 'text-slate-400', icon: UtensilsCrossed },
@@ -73,7 +73,7 @@ const ItemCard = ({ item, onClick }: { item: FlattenedItem; onClick: () => void 
             `}
         >
             <div className={`absolute top-0 left-0 w-1 h-full 
-                ${item.status === 'in_queue' ? 'bg-slate-300' : ''}
+                ${item.status === 'pending' ? 'bg-slate-300' : ''}
                 ${item.status === 'preparing' ? 'bg-amber-500' : ''}
                 ${item.status === 'ready' ? 'bg-emerald-500' : ''}
                 ${item.status === 'served' ? 'bg-slate-300' : ''}
@@ -88,10 +88,11 @@ const ItemCard = ({ item, onClick }: { item: FlattenedItem; onClick: () => void 
                 </div>
 
                 <div className="flex items-center gap-2 mb-2">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border flex items-center gap-1 font-medium ${item.veg ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                    {/* <span className={`text-[10px] px-1.5 py-0.5 rounded-full border flex items-center gap-1 font-medium ${item.veg ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
                         <div className={`w-1.5 h-1.5 rounded-full ${item.veg ? 'bg-green-600' : 'bg-red-600'}`} />
                         {item.veg ? 'Veg' : 'Non-Veg'}
-                    </span>
+                    </span> */}
+                    
                     <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">T-{item.tableId}</span>
                 </div>
 
@@ -195,75 +196,70 @@ const KitchenBoard = () => {
     const restaurantId = userProfile?.restaurantId || 'DEFAULT_RESTAURANT';
     const [flattenedItems, setFlattenedItems] = useState<FlattenedItem[]>([]);
     const [rawOrders, setRawOrders] = useState<Record<string, Order>>({});
+    const [orderItemsMap, setOrderItemsMap] = useState<Record<string, OrderItem[]>>({});
     const [selectedItem, setSelectedItem] = useState<FlattenedItem | null>(null);
 
     // Live Data Subscription
     useEffect(() => {
-        // Query active orders (ignore completed for history, but user asked for "completed" column so we might need recent completed)
-        // Adjust query based on volume. Here we fetch all non-archived to show flow.
-        // Assuming 'completed' order status means entirely done. But items can be 'served'.
-        // Let's fetch where status != 'archived' if that existed, or just orderBy time.
-
         if (!restaurantId) return;
 
         const q = query(
             collection(db, 'restaurants', restaurantId, 'orders'),
             orderBy('createdAt', 'desc')
-            // limit(50) // Optional performance limit
         );
 
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
+        const unsubscribeOrders = onSnapshot(q, (snapshot) => {
             const ordersMap: Record<string, Order> = {};
-            const allItems: FlattenedItem[] = [];
-
-            await Promise.all(snapshot.docs.map(async (docRef) => {
+            snapshot.docs.forEach((docRef) => {
                 const data = docRef.data() as Omit<Order, 'id'>;
-                const order = { id: docRef.id, ...data };
-                ordersMap[order.id] = order;
-
-                const itemsQuery = query(collection(db, 'restaurants', restaurantId, 'orders', order.id, 'items'));
-                const itemsDocs = await getDocs(itemsQuery);
-                const itemsData = itemsDocs.docs.map(d => d.data() as OrderItem);
-
-                if (itemsData.length > 0) {
-                    itemsData.forEach((item, index) => {
-                        let effectiveStatus = item.status;
-                        if (!effectiveStatus) {
-                            if (order.status === 'completed') effectiveStatus = 'served';
-                            else if (['in_queue', 'preparing', 'ready', 'served'].includes(order.status)) {
-                                effectiveStatus = order.status as any;
-                            } else {
-                                effectiveStatus = 'in_queue';
-                            }
-                        }
-
-                        allItems.push({
-                            ...item,
-                            status: effectiveStatus,
-                            orderId: order.id,
-                            tableId: order.tableId,
-                            waiterName: order.waiterId, // using waiterId conceptually
-                            orderCreatedAt: order.createdAt,
-                            uniqueId: `${order.id}-${index}`
-                        });
-                    });
-                }
-            }));
-
-            // Re-sort items by order creation time (FIFO)
-            // Re-sort items by order creation time (FIFO)
-            allItems.sort((a, b) => { // Oldest first for kitchen
-                const timeA = a.orderCreatedAt?.seconds ? a.orderCreatedAt.seconds : 0;
-                const timeB = b.orderCreatedAt?.seconds ? b.orderCreatedAt.seconds : 0;
-                return timeA - timeB;
+                ordersMap[docRef.id] = { id: docRef.id, ...data };
             });
-
             setRawOrders(ordersMap);
-            setFlattenedItems(allItems);
         });
 
-        return () => unsubscribe();
-    }, []);
+        return () => unsubscribeOrders();
+    }, [restaurantId]);
+
+    useEffect(() => {
+        const orderIds = Object.keys(rawOrders);
+        if (orderIds.length === 0 || !restaurantId) return;
+
+        const unsubs = orderIds.map(orderId => 
+            onSnapshot(collection(db, 'restaurants', restaurantId, 'orders', orderId, 'items'), (snap) => {
+                setOrderItemsMap(prev => ({
+                    ...prev,
+                    [orderId]: snap.docs.map(d => ({ itemId: d.id, ...d.data() } as OrderItem))
+                }));
+            })
+        );
+        return () => unsubs.forEach(unsub => unsub());
+    }, [Object.keys(rawOrders).join(','), restaurantId]);
+
+    useEffect(() => {
+        const allItems: FlattenedItem[] = [];
+        Object.values(rawOrders).forEach(order => {
+            const items = orderItemsMap[order.id] || [];
+            items.forEach((item, index) => {
+                allItems.push({
+                    ...item,
+                    status: item.status || 'pending',
+                    orderId: order.id,
+                    tableId: order.tableId,
+                    waiterName: order.waiterId,
+                    orderCreatedAt: order.createdAt,
+                    uniqueId: `${order.id}-${item.itemId || index}`
+                });
+            });
+        });
+
+        allItems.sort((a, b) => {
+            const timeA = a.orderCreatedAt?.seconds || 0;
+            const timeB = b.orderCreatedAt?.seconds || 0;
+            return timeA - timeB;
+        });
+
+        setFlattenedItems(allItems);
+    }, [rawOrders, orderItemsMap]);
 
     // Group items into columns
     const columnsData = useMemo(() => {
