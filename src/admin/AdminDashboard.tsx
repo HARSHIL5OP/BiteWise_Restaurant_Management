@@ -718,7 +718,7 @@ const AdminDashboard = () => {
 
             // 2. Generate QR Code
             // LOCAL DEV URL (Toggle comment for production)
-            const qrData = `http://192.168.1.103:5173/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
+            const qrData = `http://10.200.8.111:5173/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
             // 🔴 KEEP THIS (DO NOT DELETE - for production)
             // const qrData = `https://odoo-cafe-project-eight.vercel.app/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
 
@@ -1162,7 +1162,7 @@ const AdminDashboard = () => {
             <Modal isOpen={showAddDonation} onClose={() => setShowAddDonation(false)} title="Create Food Donation">
                 <AddDonationForm restaurantId={restaurantId} onClose={() => setShowAddDonation(false)} />
             </Modal>
-            
+
             <Modal isOpen={showViewDonation} onClose={() => { setShowViewDonation(false); setViewingDonation(null); }} title="Donation Details">
                 {viewingDonation && <ViewDonation donation={viewingDonation} onClose={() => { setShowViewDonation(false); setViewingDonation(null); }} />}
             </Modal>
