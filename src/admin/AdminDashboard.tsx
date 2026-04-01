@@ -718,9 +718,9 @@ const AdminDashboard = () => {
 
             // 2. Generate QR Code
             // LOCAL DEV URL (Toggle comment for production)
-            const qrData = `http://10.200.8.111:5173/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
+            // const qrData = `http://10.200.8.111:5173/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
             // 🔴 KEEP THIS (DO NOT DELETE - for production)
-            // const qrData = `https://odoo-cafe-project-eight.vercel.app/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
+            const qrData = `https://odoo-cafe-project-eight.vercel.app/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
 
             const qrDataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
 
