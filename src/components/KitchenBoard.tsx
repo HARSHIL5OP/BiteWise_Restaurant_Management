@@ -13,7 +13,7 @@ interface OrderItem {
     price: number;
     quantity: number;
     veg: boolean;
-    status: 'in_queue' | 'preparing' | 'ready' | 'served';
+    status: 'pending' | 'preparing' | 'ready' | 'served';
     category?: string; // Optional metadata if available
 }
 

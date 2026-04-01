@@ -139,7 +139,7 @@ const RestaurantApp = () => {
                         estimatedTime: 20
                     };
                 });
-                
+
                 const fetchedOrders = (await Promise.all(fetchedOrdersPromises))
                     .sort((a, b) => b.time.getTime() - a.time.getTime());
 
@@ -268,18 +268,18 @@ const RestaurantApp = () => {
 
             // 🔥 SAVE ORDER ITEMS
             for (const item of cart) {
-               const itemRef = doc(collection(db, 'restaurants', restaurantId, 'orders', orderRef.id, 'items'));
-               await setDoc(itemRef, {
-                   itemId: itemRef.id,
-                   orderId: orderRef.id,
-                   menuItemId: item.id,
-                   name: item.name,
-                   price: item.price,
-                   quantity: item.quantity,
-                   total: item.price * item.quantity,
-                   notes: '',
-                   status: 'pending'
-               });
+                const itemRef = doc(collection(db, 'restaurants', restaurantId, 'orders', orderRef.id, 'items'));
+                await setDoc(itemRef, {
+                    itemId: itemRef.id,
+                    orderId: orderRef.id,
+                    menuItemId: item.id,
+                    name: item.name,
+                    price: item.price,
+                    quantity: item.quantity,
+                    total: item.price * item.quantity,
+                    notes: '',
+                    status: 'pending'
+                });
             }
 
             // Update table status
@@ -298,7 +298,7 @@ const RestaurantApp = () => {
             setCart([]);
             setShowCart(false);
             setActiveView('orders');
-            
+
             alert("Order placed successfully!");
 
         } catch (error) {
@@ -716,11 +716,11 @@ const RestaurantApp = () => {
                                     <div key={order.id} className="bg-white rounded-2xl p-5 shadow-lg border border-orange-100 relative overflow-hidden">
                                         {/* Status Header */}
                                         <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                                            <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider ${order.status === 'in_queue' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                                            <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider ${order.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
                                                 order.status === 'preparing' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
                                                     'bg-green-50 text-green-700 border border-green-200'
                                                 }`}>
-                                                {order.status === 'in_queue' && <Clock className="w-3 h-3" />}
+                                                {order.status === 'pending' && <Clock className="w-3 h-3" />}
                                                 {order.status === 'preparing' && <ChefHat className="w-3 h-3" />}
                                                 {order.status === 'ready' && <Check className="w-3 h-3" />}
                                                 {order.status === 'served' && <UtensilsCrossed className="w-3 h-3" />}
