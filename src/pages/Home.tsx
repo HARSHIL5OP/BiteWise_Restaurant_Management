@@ -72,7 +72,36 @@ const RestaurantApp = () => {
     }, [searchParams, paramsTableId]);
 
     const restaurantId = searchParams.get("restaurantId") || sessionStorage.getItem('currentRestaurant') || 'DEFAULT_RESTAURANT';
-    const tableNumber = searchParams.get("tableId") || paramsTableId || sessionStorage.getItem('currentTable') || "1";
+    const tableId = searchParams.get("tableId") || paramsTableId || sessionStorage.getItem('currentTable') || "1";
+    const [tableInfo, setTableInfo] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchTableDetails = async () => {
+            if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT' || !tableId) return;
+            try {
+                // First try to fetch by document ID
+                const tableRef = doc(db, 'restaurants', restaurantId, 'tables', tableId);
+                const tableSnap = await getDoc(tableRef);
+                
+                if (tableSnap.exists()) {
+                    setTableInfo({ id: tableSnap.id, ...tableSnap.data() });
+                } else {
+                    // If not found by ID, maybe tableId is actually the tableNumber
+                    const numericTable = parseInt(tableId);
+                    if (!isNaN(numericTable)) {
+                        const q = query(collection(db, 'restaurants', restaurantId, 'tables'), where('tableNumber', '==', numericTable));
+                        const snap = await getDocs(q);
+                        if (!snap.empty) {
+                            setTableInfo({ id: snap.docs[0].id, ...snap.docs[0].data() });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching table details:", error);
+            }
+        };
+        fetchTableDetails();
+    }, [restaurantId, tableId]);
 
     const [restaurantInfo, setRestaurantInfo] = useState<any>(null);
 
@@ -223,7 +252,7 @@ const RestaurantApp = () => {
             return;
         }
 
-        if (!restaurantId || !tableNumber) {
+        if (!restaurantId || !tableId) {
             alert("Missing restaurant or table info");
             return;
         }
@@ -246,7 +275,7 @@ const RestaurantApp = () => {
             const orderRef = doc(collection(db, 'restaurants', restaurantId, 'orders'));
             await setDoc(orderRef, {
                 orderId: orderRef.id,
-                tableId: tableNumber,
+                tableId: tableInfo?.id || tableId,
                 orderNumber: Math.floor(1000 + Math.random() * 9000).toString(),
                 customerId: user.uid,
                 waiterId: waiterId || null,
@@ -283,15 +312,17 @@ const RestaurantApp = () => {
             }
 
             // Update table status
-            const numericTableNumber = parseInt(tableNumber);
-            if (!isNaN(numericTableNumber)) {
-                const tablesQuery = query(collection(db, 'restaurants', restaurantId, 'tables'), where('tableNumber', '==', numericTableNumber));
-                const tableDocs = await getDocs(tablesQuery);
-                if (!tableDocs.empty) {
-                    await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableDocs.docs[0].id), { status: 'occupied' });
-                }
+            if (tableInfo?.id) {
+                await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableInfo.id), { status: 'occupied' });
             } else {
-                console.warn("Could not parse table number for status update:", tableNumber);
+                const numericTableNumber = parseInt(tableId);
+                if (!isNaN(numericTableNumber)) {
+                    const tablesQuery = query(collection(db, 'restaurants', restaurantId, 'tables'), where('tableNumber', '==', numericTableNumber));
+                    const tableDocs = await getDocs(tablesQuery);
+                    if (!tableDocs.empty) {
+                        await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableDocs.docs[0].id), { status: 'occupied' });
+                    }
+                }
             }
 
             // 🔥 CLEAR CART
@@ -319,7 +350,7 @@ const RestaurantApp = () => {
                 return;
             }
 
-            const response = await fetch(`http://localhost:8080/order?amount=${allOrdersTotal}`);
+            const response = await fetch(`https://bitewise-restaurant-management.onrender.com/order?amount=${allOrdersTotal}`);
             const data = await response.json();
 
             if (!data.orderID) {
@@ -336,7 +367,7 @@ const RestaurantApp = () => {
                 order_id: data.orderID,
                 handler: async function (response: any) {
                     try {
-                        const verifyRes = await fetch("http://localhost:8080/verify", {
+                        const verifyRes = await fetch("https://bitewise-restaurant-management.onrender.com/verify", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify(response),
@@ -353,12 +384,16 @@ const RestaurantApp = () => {
                             await Promise.all(updatePromises);
 
                             // Update table status to available
-                            const numericTableNumber = parseInt(tableNumber);
-                            if (!isNaN(numericTableNumber)) {
-                                const tablesQuery = query(collection(db, 'restaurants', restaurantId, 'tables'), where('tableNumber', '==', numericTableNumber));
-                                const tableSnapshot = await getDocs(tablesQuery);
-                                if (!tableSnapshot.empty) {
-                                    await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableSnapshot.docs[0].id), { status: 'available' });
+                            if (tableInfo?.id) {
+                                await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableInfo.id), { status: 'available' });
+                            } else {
+                                const numericTableNumber = parseInt(tableId);
+                                if (!isNaN(numericTableNumber)) {
+                                    const tablesQuery = query(collection(db, 'restaurants', restaurantId, 'tables'), where('tableNumber', '==', numericTableNumber));
+                                    const tableSnapshot = await getDocs(tablesQuery);
+                                    if (!tableSnapshot.empty) {
+                                        await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableSnapshot.docs[0].id), { status: 'available' });
+                                    }
                                 }
                             }
 
@@ -451,7 +486,7 @@ const RestaurantApp = () => {
                         <div>
                             <h1 className="text-lg font-bold text-gray-800 leading-tight">{restaurantInfo?.name || "Restaurant"}</h1>
                             <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-                                <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md">T-{tableNumber}</span>
+                                <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md">T-{tableInfo ? tableInfo.tableNumber : tableId}</span>
                                 <span>{userProfile?.firstName || 'Guest'}</span>
                             </div>
                         </div>

@@ -158,7 +158,7 @@ const ItemCard = ({ item, status, onAction }) => {
                     <div className="flex flex-wrap items-center gap-2">
                         {/* Table Tag */}
                         <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-md text-xs font-bold tracking-wide border border-slate-200 dark:border-slate-700">
-                            T-{item.tableId}
+                            T-{item.tableNumber || item.tableId}
                         </span>
 
                         {/* Veg/Non-Veg Minimal Dot */}
@@ -253,6 +253,7 @@ const ChefKDS = () => {
     const [orders, setOrders] = useState([]);
     const [orderItemsMap, setOrderItemsMap] = useState({});
     const [menuData, setMenuData] = useState({});
+    const [tablesMap, setTablesMap] = useState({});
     const [currentTime, setCurrentTime] = useState(new Date());
 
     // Update time for the header clock
@@ -273,7 +274,20 @@ const ChefKDS = () => {
             setMenuData(menuMap);
         });
         return () => unsubscribe();
-    }, []);
+    }, [restaurantId]);
+
+    // 1.5 Fetch Tables for Number Mapping
+    useEffect(() => {
+        if (!restaurantId) return;
+        const unsubscribe = onSnapshot(collection(db, 'restaurants', restaurantId, 'tables'), (snapshot) => {
+            const mapping = {};
+            snapshot.docs.forEach(doc => {
+                mapping[doc.id] = doc.data().tableNumber;
+            });
+            setTablesMap(mapping);
+        });
+        return () => unsubscribe();
+    }, [restaurantId]);
 
     // 2. Fetch Active Orders
     useEffect(() => {
@@ -412,6 +426,7 @@ const ChefKDS = () => {
                     quantity: item.quantity,
                     veg: item.veg ?? true,
                     tableId: order.tableId,
+                    tableNumber: tablesMap[order.tableId] || order.tableId,
                     orderId: order.id,
                     orderCreatedAt: order.createdAt,
                     category,

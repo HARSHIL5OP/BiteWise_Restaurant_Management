@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 // --- HELPERS ---
 
 // Flatten Logic: Orders from DB -> Virtual Ready Items for UI
-const transformOrdersToVirtualItems = (orders: any[]) => {
+const transformOrdersToVirtualItems = (orders: any[], tablesMap: Record<string, any>) => {
     const virtualItems: any[] = [];
     orders.forEach(order => {
         if (!order.items) return;
@@ -20,6 +20,7 @@ const transformOrdersToVirtualItems = (orders: any[]) => {
                     itemId: item.id,
                     orderId: order.id,
                     tableId: order.tableId,
+                    tableNumber: tablesMap[order.tableId] || order.tableId,
                     name: item.name,
                     quantity: item.quantity,
                     veg: item.veg,
@@ -36,9 +37,10 @@ const transformOrdersToVirtualItems = (orders: any[]) => {
 const groupItemsByTable = (items: any[]) => {
     const groups: Record<string, any[]> = {};
     items.forEach(item => {
-        const tableId = `Table ${item.tableId}`;
-        if (!groups[tableId]) groups[tableId] = [];
-        groups[tableId].push(item);
+        const displayTable = item.tableNumber || item.tableId;
+        const tableLabel = `Table ${displayTable}`;
+        if (!groups[tableLabel]) groups[tableLabel] = [];
+        groups[tableLabel].push(item);
     });
     return groups;
 };
@@ -51,6 +53,7 @@ const WaiterDashboard = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [orders, setOrders] = useState<any[]>([]);
     const [orderItemsMap, setOrderItemsMap] = useState<Record<string, any[]>>({});
+    const [tablesMap, setTablesMap] = useState<Record<string, any>>({});
 
     // Performance: Analytics state
     const [completedCount, setCompletedCount] = useState(0);
@@ -79,6 +82,19 @@ const WaiterDashboard = () => {
         return () => unsubscribe();
     }, [user, restaurantId]);
 
+    // Fetch Tables for Number Mapping
+    useEffect(() => {
+        if (!restaurantId) return;
+        const unsubscribe = onSnapshot(collection(db, 'restaurants', restaurantId, 'tables'), (snapshot) => {
+            const mapping: Record<string, any> = {};
+            snapshot.docs.forEach(doc => {
+                mapping[doc.id] = doc.data().tableNumber;
+            });
+            setTablesMap(mapping);
+        });
+        return () => unsubscribe();
+    }, [restaurantId]);
+
     useEffect(() => {
         if (!restaurantId || orders.length === 0) return;
         
@@ -96,7 +112,7 @@ const WaiterDashboard = () => {
     const fullOrders = useMemo(() => orders.map(o => ({ ...o, items: orderItemsMap[o.id] || [], updatedAt: o.updatedAt || o.createdAt })), [orders, orderItemsMap]);
 
     // Derived Virtual Items
-    const readyItems = useMemo(() => transformOrdersToVirtualItems(fullOrders), [fullOrders]);
+    const readyItems = useMemo(() => transformOrdersToVirtualItems(fullOrders, tablesMap), [fullOrders, tablesMap]);
 
     // Local Hidden State for Optimistic UI
     const [servedVirtualIds, setServedVirtualIds] = useState<Set<string>>(new Set());
