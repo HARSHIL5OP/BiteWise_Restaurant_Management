@@ -5,22 +5,22 @@ import RestaurantFloorBlueprint from '../../components/RestaurantFloorBlueprint'
 const TableList = ({ tables, handleDeleteTable, setShowAddTable, setNewTable, newTable }: any) => {
     return (
         <div>
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Table Management</h1>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Table Management</h1>
                 <button
                     onClick={() => {
                         const maxNum = tables.reduce((max: number, t: any) => Math.max(max, parseInt(t.tableNumber) || 0), 0);
                         setNewTable({ ...newTable, tableNumber: (maxNum + 1).toString(), capacity: '4' });
                         setShowAddTable(true);
                     }}
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 flex items-center gap-2 transition-all active:scale-95"
+                    className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all active:scale-95 min-h-[44px]"
                 >
                     <Plus size={20} /> Add Table
                 </button>
             </div>
 
             {/* Table Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
                     <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg text-indigo-600 dark:text-indigo-400">
                         <Grid size={24} />

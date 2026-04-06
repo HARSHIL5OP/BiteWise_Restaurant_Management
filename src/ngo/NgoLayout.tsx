@@ -83,11 +83,19 @@ const NgoLayout = () => {
             </div>
 
             {/* Main Content */}
-            <main className="flex-1 lg:ml-64 p-8 overflow-y-auto pb-24 lg:pb-8">
-                <header className="flex justify-between items-center mb-8">
+            <main className="flex-1 lg:ml-64 p-4 lg:p-8 overflow-y-auto pb-24 lg:pb-8">
+                <header className="flex justify-between items-start md:items-center gap-4 mb-6 md:mb-8">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-900 dark:text-white capitalize tracking-tight">{activeTab}</h2>
                         <p className="text-slate-500 text-sm">Manage your food rescue operations.</p>
+                    </div>
+                    <div className="flex items-center shrink-0">
+                        <button 
+                            onClick={handleLogout} 
+                            className="lg:hidden p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-rose-500/50 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all shadow-sm dark:shadow-none min-h-[44px] min-w-[44px] flex items-center justify-center text-rose-500"
+                        >
+                            <LogOut size={20} />
+                        </button>
                     </div>
                 </header>
 

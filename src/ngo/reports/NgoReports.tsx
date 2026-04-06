@@ -110,18 +110,18 @@ const NgoReports = () => {
     const completedDonations = donations.filter(d => d.status === 'completed').length;
 
     return (
-        <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+        <div className="space-y-6 md:space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 text-left">
                 <StatBadge icon={Target} label="Completed Donations" value={completedDonations} trendLabel="All-time goal tracking" />
                 <StatBadge icon={PieChart} label="Total Requests" value={donations.length} trendLabel="Including pending & cancelled" />
                 <StatBadge icon={Activity} label="Active Partners" value={activeRestoshit} trendLabel="Restaurants you've worked with" />
                 <StatBadge icon={TrendingUp} label="Total Volume" value={donations.length > 0 ? "Active" : "None"} trendLabel="Donation rescue health" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Donations Trend (2026)</h3>
-                    <div className="h-72 w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 md:p-6 rounded-2xl shadow-sm">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 md:mb-6">Donations Trend ({new Date().getFullYear()})</h3>
+                    <div className="h-56 md:h-72 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={monthlyData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                 <defs>
@@ -143,9 +143,9 @@ const NgoReports = () => {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">Food Type Breakdown</h3>
-                    <div className="h-72 w-full">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 md:p-6 rounded-2xl shadow-sm">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 md:mb-6">Food Type Breakdown</h3>
+                    <div className="h-56 md:h-72 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={typeData} layout="vertical" margin={{ top: 0, right: 20, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#334155" opacity={0.3} />

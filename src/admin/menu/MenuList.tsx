@@ -4,14 +4,14 @@ import { Plus, Edit2, Trash2, Eye } from 'lucide-react';
 const MenuList = ({ menuItems, openEditMenu, handleDeleteMenu, setShowAddMenu, setEditingId, setNewMenuItem, openViewMenu }: any) => {
     return (
         <div>
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex gap-2">
-                    <button className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition active:scale-95 shadow-lg shadow-indigo-500/20" onClick={() => {
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div className="flex gap-2 w-full sm:w-auto">
+                    <button className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-indigo-600 text-white rounded-xl sm:rounded-lg hover:bg-indigo-700 transition active:scale-95 shadow-lg shadow-indigo-500/20 flex items-center justify-center min-h-[44px]" onClick={() => {
                         setEditingId(null);
                         setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
                         setShowAddMenu(true);
                     }}>
-                        <Plus size={18} className="inline mr-2" /> Add Item
+                        <Plus size={18} className="mr-2" /> Add Item
                     </button>
                 </div>
                 <div className="text-slate-500 dark:text-slate-400 text-sm font-medium">{menuItems.length} Items Found</div>

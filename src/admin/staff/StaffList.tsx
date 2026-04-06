@@ -4,8 +4,8 @@ import { ChefHat, User, DollarSign, X, Plus, Edit2 } from 'lucide-react';
 const StaffList = ({ chefs, waiters, cashiers, handleDeleteStaff, setShowAddStaff, openEditStaff }: any) => {
     return (
         <div>
-            <div className="flex justify-between items-center mb-8">
-                <button className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/25 flex items-center active:scale-95" onClick={() => setShowAddStaff(true)}>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                <button className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/25 flex items-center justify-center active:scale-95 min-h-[44px]" onClick={() => setShowAddStaff(true)}>
                     <Plus size={18} className="mr-2" /> Add Staff Member
                 </button>
             </div>

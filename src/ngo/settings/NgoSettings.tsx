@@ -262,7 +262,7 @@ const NgoSettings = () => {
                         </div>
                         
                         <div className="space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Opening Time</label>
                                     <input

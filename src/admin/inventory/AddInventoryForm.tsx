@@ -122,7 +122,7 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
                         </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label className={labelCls}>Quantity {mode === 'add' ? '*' : ''}</label>
                             <input type="number" min="0" step="0.01" className={fieldCls}
@@ -183,8 +183,8 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
                     </div>
 
                     {form.isPerishable && (
-                        <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
-                            <div className="col-span-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <div className="sm:col-span-2">
                                 <label className={labelCls}>Expiry Date</label>
                                 <input 
                                     type="date" 

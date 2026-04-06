@@ -30,7 +30,7 @@ const AddTableForm = ({ newTable, setNewTable, handleAddTable }: any) => {
 
             <div>
                 <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Seating Capacity</label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[2, 4, 6, 8].map(cap => (
                         <button
                             key={cap}

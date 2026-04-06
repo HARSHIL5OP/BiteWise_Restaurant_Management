@@ -3,7 +3,7 @@ import React from 'react';
 const AddStaffForm = ({ newStaff, setNewStaff, handleAddStaff, isLoading, editingStaffId }: any) => {
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">First Name</label>
                     <input className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"
@@ -18,7 +18,7 @@ const AddStaffForm = ({ newStaff, setNewStaff, handleAddStaff, isLoading, editin
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Role</label>
                     <select className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none"

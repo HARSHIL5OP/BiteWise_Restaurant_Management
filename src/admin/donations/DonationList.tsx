@@ -41,10 +41,10 @@ const DonationList: React.FC<Props> = ({ donations, onAdd, onView }) => {
     return (
         <div>
             {/* Header */}
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <button
                     onClick={onAdd}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg transition-all shadow-lg flex items-center gap-2 text-sm font-bold"
+                    className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl sm:rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 text-sm font-bold min-h-[44px]"
                 >
                     <Plus size={16} /> Add Donation
                 </button>
@@ -60,9 +60,53 @@ const DonationList: React.FC<Props> = ({ donations, onAdd, onView }) => {
                 </div>
             )}
 
-            {/* Table */}
+            {/* Mobile Card Layout */}
             {donations.length > 0 && (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <div className="grid grid-cols-1 gap-4 md:hidden">
+                    {donations.map(donation => {
+                        return (
+                            <div key={donation.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 dark:text-white">{donation.foodName || 'Donation'}</h3>
+                                        <p className="text-xs text-slate-500 mt-1 uppercase font-bold">NGO: {donation.ngoId ? (ngoMap[donation.ngoId] || donation.ngoId) : 'None'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-black text-lg text-slate-800 dark:text-white">
+                                            {donation.quantity}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                    <Clock size={12} />
+                                    <span>{donation.pickupTime?.toDate ? donation.pickupTime.toDate().toLocaleString() : donation.pickupTime ? new Date(donation.pickupTime).toLocaleString() : '—'}</span>
+                                </div>
+                                <div className="flex items-center justify-between mt-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide
+                                        ${donation.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                                          donation.status === 'pending' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 
+                                          donation.status === 'confirmed' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
+                                          'bg-indigo-50 text-indigo-600 border border-indigo-200'}
+                                    `}>
+                                        {donation.status === 'completed' ? <CheckCircle size={10} /> : <Clock size={10} />}
+                                        {donation.status}
+                                    </span>
+                                    <button
+                                        onClick={() => onView(donation.id)}
+                                        className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm min-h-[36px]"
+                                    >
+                                        <Eye size={14} /> View
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Desktop Table */}
+            {donations.length > 0 && (
+                <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>

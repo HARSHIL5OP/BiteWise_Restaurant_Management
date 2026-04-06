@@ -13,11 +13,11 @@ const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => 
     return (
         <div>
             {/* Header */}
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div className="flex gap-2 w-full sm:w-auto">
                     <button
                         onClick={onAdd}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 text-sm font-bold"
+                        className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl sm:rounded-lg transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 text-sm font-bold min-h-[44px]"
                     >
                         <Plus size={16} /> Add Item
                     </button>
@@ -34,9 +34,92 @@ const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => 
                 </div>
             )}
 
-            {/* Table */}
+            {/* Mobile Card Layout */}
             {items.length > 0 && (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                <div className="grid grid-cols-1 gap-4 md:hidden">
+                    {items.map(item => {
+                        const isLow = item.quantity <= item.threshold;
+                        
+                        let expiryStatus = null;
+                        if (item.isPerishable) {
+                            let targetDate = null;
+                            if (item.expiryDate) {
+                                targetDate = new Date(item.expiryDate);
+                            } else if (item.shelfLifeDays) {
+                                const lastRestocked = item.lastRestocked ? new Date(item.lastRestocked) : new Date();
+                                targetDate = new Date(lastRestocked.getTime() + item.shelfLifeDays * 86400000);
+                            }
+                            
+                            if (targetDate) {
+                                const now = new Date();
+                                const diffDays = Math.ceil((targetDate.getTime() - now.getTime()) / 86400000);
+                                const threshold = item.expiryAlertThreshold || 2;
+                                
+                                if (diffDays <= 0) expiryStatus = 'expired';
+                                else if (diffDays <= threshold) expiryStatus = 'near_expiry';
+                                else expiryStatus = 'fresh';
+                            }
+                        }
+
+                        return (
+                            <div key={item.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm relative overflow-hidden flex flex-col gap-3">
+                                {isLow && <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />}
+                                {expiryStatus === 'expired' && <div className="absolute top-0 left-0 w-1 h-full bg-rose-500" />}
+                                {expiryStatus === 'near_expiry' && <div className="absolute top-0 left-0 w-1 h-full bg-orange-500" />}
+
+                                <div className="flex justify-between items-start pl-2">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 dark:text-white capitalize">{item.name}</h3>
+                                        <p className="text-xs text-slate-500 mt-1">Supplier: {item.supplier || '—'}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className={`font-black text-lg ${isLow ? 'text-amber-500' : 'text-emerald-500'}`}>
+                                            {item.quantity} <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{item.unit}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-2 pl-2">
+                                    {isLow && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                                            <AlertTriangle size={10} /> Low
+                                        </span>
+                                    )}
+                                    {expiryStatus === 'expired' && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                                            Expired
+                                        </span>
+                                    )}
+                                    {expiryStatus === 'near_expiry' && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-[10px] font-bold rounded-full uppercase tracking-wide">
+                                            Near Expiry
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="flex justify-end gap-2 mt-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                    <button
+                                        onClick={() => onRestock(item)}
+                                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-sm min-h-[44px]"
+                                    >
+                                        <RefreshCcw size={16} /> Restock
+                                    </button>
+                                    <button
+                                        onClick={() => onEdit(item)}
+                                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold text-sm min-h-[44px]"
+                                    >
+                                        <Edit2 size={16} /> Edit
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Desktop Table */}
+            {items.length > 0 && (
+                <div className="hidden md:block bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>

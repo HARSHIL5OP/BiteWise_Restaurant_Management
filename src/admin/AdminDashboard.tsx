@@ -123,15 +123,15 @@ const Modal = ({ isOpen, onClose, title, children }) => {
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
+                className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-[95%] sm:w-full max-w-md md:max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-                <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{title}</h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                <div className="flex items-center justify-between p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 shrink-0">
+                    <h2 className="text-lg md:text-xl font-bold text-slate-800 dark:text-white tracking-tight">{title}</h2>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors p-2 -mr-2">
                         <X size={20} />
                     </button>
                 </div>
-                <div className="p-6 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                <div className="p-4 md:p-6 overflow-y-auto custom-scrollbar flex-1">
                     {children}
                 </div>
             </motion.div>
@@ -818,35 +818,42 @@ const AdminDashboard = () => {
             </div>
 
             {/* Main Content */}
-            <main className="flex-1 lg:ml-64 p-8 overflow-y-auto">
-                <header className="flex justify-between items-center mb-8">
+            <main className="flex-1 lg:ml-64 p-4 lg:p-8 pb-24 lg:pb-8 overflow-y-auto h-screen">
+                <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 md:mb-8">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-1 capitalize tracking-tight">{activeTab}</h2>
-                        <p className="text-slate-500 text-sm">Welcome back, here's what's happening today.</p>
+                        <p className="text-slate-500 text-sm hidden sm:block">Welcome back, here's what's happening today.</p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <div className="relative hidden md:block">
+                    <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto justify-end">
+                        <div className="relative flex-1 md:flex-none hidden md:block">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
                                 type="text"
                                 placeholder="Search..."
-                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 pl-10 pr-4 py-2 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all w-64 text-sm text-slate-900 dark:text-white placeholder:text-slate-400"
+                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 pl-10 pr-4 py-2 w-full md:w-64 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm text-slate-900 dark:text-white placeholder:text-slate-400"
                             />
                         </div>
 
                         {/* Theme Toggle */}
                         <button
                             onClick={toggleTheme}
-                            className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-indigo-500/50 hover:text-indigo-500 transition-all group shadow-sm dark:shadow-none"
+                            className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-indigo-500/50 hover:text-indigo-500 transition-all group shadow-sm dark:shadow-none min-h-[44px] min-w-[44px] flex items-center justify-center"
                         >
                             {theme === 'light' ? <Sun size={20} className="text-amber-500" /> : <Moon size={20} className="text-indigo-400" />}
                         </button>
 
-                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
+                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden md:block"></div>
 
-                        <button className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-indigo-500/50 hover:text-indigo-500 transition-all shadow-sm dark:shadow-none">
+                        <button className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-indigo-500/50 hover:text-indigo-500 transition-all shadow-sm dark:shadow-none min-h-[44px] min-w-[44px] flex items-center justify-center">
                             <Bell size={20} className="text-slate-600 dark:text-slate-400 group-hover:text-indigo-500" />
                             <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-slate-900" />
+                        </button>
+
+                        <button 
+                            onClick={handleLogout} 
+                            className="lg:hidden p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-rose-500/50 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all shadow-sm dark:shadow-none min-h-[44px] min-w-[44px] flex items-center justify-center text-rose-500"
+                        >
+                            <LogOut size={20} />
                         </button>
                     </div>
                 </header>
