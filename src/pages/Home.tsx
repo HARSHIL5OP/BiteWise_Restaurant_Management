@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     ShoppingCart, Plus, Minus, Clock, Check, ChefHat, User,
     CreditCard, Smartphone, Wallet, X, ChevronRight, UtensilsCrossed,
-    LogOut, Filter, ArrowLeft, Flame, Search, ChevronDown, ArrowDownAz, Heart
+    LogOut, Filter, ArrowLeft, Flame, Search, ChevronDown, ArrowDownAz, Heart, Download
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
+import { jsPDF } from 'jspdf';
 
 const CATEGORY_ICONS: Record<string, string> = {
     "Starters": "🥗",
@@ -464,6 +465,143 @@ const RestaurantApp = () => {
         );
     };
 
+    // --- BILL GENERATION LOGIC ---
+    const generateBill = (order: any, restaurantName: string) => {
+        const doc = new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: [80, 200]
+        });
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        let y = 10;
+
+        const addCenteredText = (text: string, yPos: number, size: number = 10, isBold: boolean = false) => {
+            doc.setFontSize(size);
+            if (isBold) {
+                doc.setFont("helvetica", "bold");
+            } else {
+                doc.setFont("helvetica", "normal");
+            }
+            const textWidth = doc.getTextWidth(text);
+            const xPos = (pageWidth - textWidth) / 2;
+            doc.text(text, xPos, yPos);
+        };
+
+        const drawDashedLine = (yPos: number) => {
+            doc.setLineDashPattern([1, 1], 0);
+            doc.line(4, yPos, pageWidth - 4, yPos);
+            doc.setLineDashPattern([], 0);
+        }
+
+        doc.setTextColor(0, 0, 0);
+
+        // Header
+        addCenteredText((restaurantName || "RESTAURANT").toUpperCase(), y, 12, true);
+        y += 5;
+        addCenteredText("Pure Veg", y, 9);
+        y += 4;
+        addCenteredText("Dadar(W), Mumbai", y, 9);
+        y += 4;
+        
+        drawDashedLine(y);
+        y += 4;
+        addCenteredText("TAX INVOICE", y, 10, false);
+        y += 2;
+        drawDashedLine(y);
+        y += 5;
+
+        // Info
+        const billNo = order.orderNumber || order.id.slice(0, 5).toUpperCase();
+        const dateStr = order.time.toLocaleDateString();
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        
+        doc.text(`Date: ${dateStr}`, 4, y);
+        doc.text(`Bill No. : ${billNo}`, pageWidth / 2 + 5, y);
+        y += 5;
+        doc.text(`PBoy: COUNTER`, 4, y);
+        y += 6;
+
+        // Table Header
+        doc.setFont("helvetica", "bold");
+        doc.text("Particulars", 4, y);
+        doc.text("Qty", 45, y);
+        doc.text("Rate", 55, y);
+        doc.text("Amount", 68, y);
+        y += 1;
+        drawDashedLine(y);
+        y += 5;
+
+        // Items
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        
+        let subTotal = 0;
+        let totalItemsQty = 0;
+
+        order.items.forEach((item: any) => {
+            const name = (item.name || "").substring(0, 15).toUpperCase();
+            const qty = Number(item.quantity) || 1;
+            const rate = Number(item.price) || 0;
+            const amt = qty * rate;
+
+            doc.text(name, 4, y);
+            doc.text(qty.toString(), 46, y);
+            doc.text(rate.toFixed(0), 55, y);
+            doc.text(amt.toFixed(0), 68, y);
+            
+            subTotal += amt;
+            totalItemsQty += qty;
+            y += 5;
+        });
+
+        drawDashedLine(y);
+        y += 5;
+
+        // Subtotal & GST
+        doc.text("Sub Total :", 38, y);
+        doc.text(subTotal.toFixed(2), 68, y);
+        y += 5;
+
+        const sgst = subTotal * 0.025;
+        doc.text(`SGST @2.5% :`, 38, y);
+        doc.text(sgst.toFixed(2), 68, y);
+        y += 5;
+
+        const cgst = subTotal * 0.025;
+        doc.text(`CGST @2.5% :`, 38, y);
+        doc.text(cgst.toFixed(2), 68, y);
+        y += 5;
+
+        drawDashedLine(y);
+        y += 6;
+
+        // Total
+        const finalTotal = subTotal + sgst + cgst;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text(`${totalItemsQty} Item(s)`, 4, y);
+        doc.text("Total :", 45, y);
+        doc.text(finalTotal.toFixed(0), 68, y);
+        y += 3;
+        
+        drawDashedLine(y);
+        y += 6;
+
+        // Footer
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("FSSAI NO - 11516004000575", 4, y);
+        doc.text(`(${order.time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})})`, pageWidth - 25, y);
+        y += 5;
+        doc.text("E.&O.E.", 4, y);
+        doc.text("Thank You", pageWidth / 2 - 8, y);
+        doc.text("Visit Again", pageWidth - 22, y);
+
+        doc.save(`bill-${billNo}.pdf`);
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-orange-50">
@@ -831,7 +969,13 @@ const RestaurantApp = () => {
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="border-t border-dashed border-gray-200 mt-3 pt-2 text-right">
+                                    <div className="border-t border-dashed border-gray-200 mt-3 pt-2 flex justify-between items-center">
+                                        <button 
+                                            onClick={() => generateBill(order, restaurantInfo?.name || "THE LOCAL DINERS")}
+                                            className="text-[11px] font-bold text-gray-700 border border-gray-300 rounded px-2.5 py-1 hover:bg-gray-100 transition-colors uppercase tracking-wide bg-gray-50 flex items-center gap-1.5"
+                                        >
+                                            <Download className="w-3.5 h-3.5" /> Download Bill
+                                        </button>
                                         <span className="font-bold text-gray-800">Paid: ₹{order.totalAmount}</span>
                                     </div>
                                 </div>
