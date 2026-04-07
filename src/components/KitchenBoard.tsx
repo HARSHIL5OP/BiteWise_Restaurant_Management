@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, onSnapshot, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, getDocs, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { X, Clock, User, UtensilsCrossed, CheckCircle, AlertCircle, ChefHat } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -92,7 +92,7 @@ const ItemCard = ({ item, onClick }: { item: FlattenedItem; onClick: () => void 
                         <div className={`w-1.5 h-1.5 rounded-full ${item.veg ? 'bg-green-600' : 'bg-red-600'}`} />
                         {item.veg ? 'Veg' : 'Non-Veg'}
                     </span> */}
-                    
+
                     <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">T-{item.tableId}</span>
                 </div>
 
@@ -173,7 +173,7 @@ const DetailModal = ({ item, order, onClose }: { item: FlattenedItem | null; ord
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-500">Waiter:</span>
-                                <span className="font-medium text-slate-700">{order.waiterName || 'N/A'}</span>
+                                <span className="font-medium text-slate-700">{item.waiterName || 'N/A'}</span>
                             </div>
                             {order.paymentId && (
                                 <div className="flex justify-between text-sm pt-2 border-t border-slate-200 mt-2">
@@ -198,6 +198,8 @@ const KitchenBoard = () => {
     const [rawOrders, setRawOrders] = useState<Record<string, Order>>({});
     const [orderItemsMap, setOrderItemsMap] = useState<Record<string, OrderItem[]>>({});
     const [selectedItem, setSelectedItem] = useState<FlattenedItem | null>(null);
+    const [tablesMap, setTablesMap] = useState<Record<string, string>>({});
+    const [staffMap, setStaffMap] = useState<Record<string, string>>({});
 
     // Live Data Subscription
     useEffect(() => {
@@ -220,11 +222,41 @@ const KitchenBoard = () => {
         return () => unsubscribeOrders();
     }, [restaurantId]);
 
+    // Fetch tables for mapping IDs to numbers
+    useEffect(() => {
+        if (!restaurantId) return;
+        const q = collection(db, 'restaurants', restaurantId, 'tables');
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const map: Record<string, string> = {};
+            snapshot.docs.forEach(docSnap => {
+                const data = docSnap.data();
+                map[docSnap.id] = data.tableNumber?.toString() || docSnap.id;
+            });
+            setTablesMap(map);
+        });
+        return () => unsubscribe();
+    }, [restaurantId]);
+
+    // Fetch staff for mapping IDs to names
+    useEffect(() => {
+        const q = query(collection(db, 'users'), where('role', '==', 'staff'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const map: Record<string, string> = {};
+            snapshot.docs.forEach(docSnap => {
+                const data = docSnap.data();
+                const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+                map[docSnap.id] = fullName || data.email || docSnap.id;
+            });
+            setStaffMap(map);
+        });
+        return () => unsubscribe();
+    }, []);
+
     useEffect(() => {
         const orderIds = Object.keys(rawOrders);
         if (orderIds.length === 0 || !restaurantId) return;
 
-        const unsubs = orderIds.map(orderId => 
+        const unsubs = orderIds.map(orderId =>
             onSnapshot(collection(db, 'restaurants', restaurantId, 'orders', orderId, 'items'), (snap) => {
                 setOrderItemsMap(prev => ({
                     ...prev,
@@ -242,10 +274,10 @@ const KitchenBoard = () => {
             items.forEach((item, index) => {
                 allItems.push({
                     ...item,
-                    status: item.status || 'pending',
+                    status: item.status,
                     orderId: order.id,
-                    tableId: order.tableId,
-                    waiterName: order.waiterId,
+                    tableId: tablesMap[order.tableId] || order.tableId,
+                    waiterName: staffMap[order.waiterId] || order.waiterId,
                     orderCreatedAt: order.createdAt,
                     uniqueId: `${order.id}-${item.itemId || index}`
                 });
@@ -259,12 +291,12 @@ const KitchenBoard = () => {
         });
 
         setFlattenedItems(allItems);
-    }, [rawOrders, orderItemsMap]);
+    }, [rawOrders, orderItemsMap, tablesMap, staffMap]);
 
     // Group items into columns
     const columnsData = useMemo(() => {
         const cols: Record<string, FlattenedItem[]> = {
-            in_queue: [],
+            pending: [],
             preparing: [],
             ready: [],
             served: []
