@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Upload, Save, RotateCcw, Building2, MapPin, Clock, DollarSign, Image as ImageIcon } from 'lucide-react';
+import { Upload, Save, RotateCcw, Building2, MapPin, Clock, DollarSign, Image as ImageIcon, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { uploadToCloudinary } from '../../lib/cloudinary';
 
@@ -24,6 +24,7 @@ const AdminSettings = () => {
             lng: 0,
         },
         cuisineType: '',
+        restaurantType: 'Veg',
         priceRangeMin: 200,
         priceRangeMax: 500,
         operatingHours: {
@@ -56,6 +57,7 @@ const AdminSettings = () => {
                             lng: data.location?.lng || 0,
                         },
                         cuisineType: Array.isArray(data.cuisineType) ? data.cuisineType.join(', ') : (data.cuisineType || ''),
+                        restaurantType: data.restaurantType || 'Veg',
                         priceRangeMin: data.priceRange ? parseInt(data.priceRange.split('-')[0]) || 200 : 200,
                         priceRangeMax: data.priceRange ? parseInt(data.priceRange.split('-')[1]) || 500 : 500,
                         operatingHours: {
@@ -129,6 +131,7 @@ const AdminSettings = () => {
                 bannerImage: finalBannerImage,
                 location: formData.location,
                 cuisineType: formData.cuisineType.split(',').map((c: string) => c.trim()).filter(Boolean),
+                restaurantType: formData.restaurantType,
                 priceRange: `${formData.priceRangeMin}-${formData.priceRangeMax}`,
                 operatingHours: formData.operatingHours,
                 floors: parseInt(formData.floors as any) || 1,
@@ -310,6 +313,51 @@ const AdminSettings = () => {
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                                 />
                             </div>
+                            {(() => {
+                                const isVeg = formData.restaurantType === "Veg" || formData.restaurantType === "Both";
+                                const isNonVeg = formData.restaurantType === "Non-Veg" || formData.restaurantType === "Both";
+
+                                const handleToggle = (type: 'veg' | 'non-veg') => {
+                                    let newValue = formData.restaurantType;
+                                    if (type === 'veg') {
+                                        if (isVeg && isNonVeg) newValue = "Non-Veg";
+                                        else if (!isVeg && isNonVeg) newValue = "Both";
+                                        else if (!isVeg && !isNonVeg) newValue = "Veg"; // Should not be reached
+                                    } else {
+                                        if (isNonVeg && isVeg) newValue = "Veg";
+                                        else if (!isNonVeg && isVeg) newValue = "Both";
+                                        else if (!isNonVeg && !isVeg) newValue = "Non-Veg";
+                                    }
+                                    setFormData(prev => ({ ...prev, restaurantType: newValue }));
+                                };
+
+                                return (
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Dietary Service</label>
+                                        <div className="flex gap-4">
+                                            <div 
+                                                onClick={() => { if (isVeg && !isNonVeg) return; handleToggle('veg'); }}
+                                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-[11px] rounded-xl border cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${isVeg ? 'bg-emerald-500/10 border-emerald-500 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'}`}
+                                            >
+                                                <div className={`w-4 h-4 border-[1.5px] rounded-[4px] flex items-center justify-center transition-colors ${isVeg ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                {isVeg && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                                                </div>
+                                                <span className="font-bold text-sm tracking-wide">Veg</span>
+                                            </div>
+                                            
+                                            <div 
+                                                onClick={() => { if (isNonVeg && !isVeg) return; handleToggle('non-veg'); }}
+                                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-[11px] rounded-xl border cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${isNonVeg ? 'bg-rose-500/10 border-rose-500 text-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.15)]' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'}`}
+                                            >
+                                                <div className={`w-4 h-4 border-[1.5px] rounded-[4px] flex items-center justify-center transition-colors ${isNonVeg ? 'border-rose-500 bg-rose-500' : 'border-slate-300 dark:border-slate-600'}`}>
+                                                {isNonVeg && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                                                </div>
+                                                <span className="font-bold text-sm tracking-wide">Non-Veg</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Price (Lower) for 2 Persons</label>

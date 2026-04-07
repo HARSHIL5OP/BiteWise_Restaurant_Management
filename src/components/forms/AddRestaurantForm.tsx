@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Loader2, Store, MapPin, Briefcase } from "lucide-react";
+import { Loader2, Store, MapPin, Briefcase, Check } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 
@@ -47,6 +47,7 @@ const formSchema = z.object({
   priceRangeMax: z.coerce.number({ invalid_type_error: "Max price is required" }),
   openTime: z.string().min(1, "Opening time is required"),
   closeTime: z.string().min(1, "Closing time is required"),
+  restaurantType: z.string().min(1, "Restaurant Type is required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -76,6 +77,7 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
       priceRangeMax: "" as any,
       openTime: "10:00",
       closeTime: "23:00",
+      restaurantType: "Veg",
     },
   });
 
@@ -106,6 +108,7 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
         },
         cuisineType: cuisines,
         priceRange: `${values.priceRangeMin}-${values.priceRangeMax}`,
+        restaurantType: values.restaurantType,
         operatingHours: {
           open: values.openTime,
           close: values.closeTime,
@@ -367,6 +370,55 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
                   <FormMessage className="text-red-400" />
                 </FormItem>
               )}
+            />
+
+            <FormField
+              control={form.control}
+              name="restaurantType"
+              render={({ field }) => {
+                const isVeg = field.value === "Veg" || field.value === "Both";
+                const isNonVeg = field.value === "Non-Veg" || field.value === "Both";
+
+                const handleToggle = (type: 'veg' | 'non-veg') => {
+                  if (type === 'veg') {
+                    if (isVeg && isNonVeg) field.onChange("Non-Veg");
+                    else if (!isVeg && isNonVeg) field.onChange("Both");
+                    else if (!isVeg && !isNonVeg) field.onChange("Veg");
+                  } else {
+                    if (isNonVeg && isVeg) field.onChange("Veg");
+                    else if (!isNonVeg && isVeg) field.onChange("Both");
+                    else if (!isNonVeg && !isVeg) field.onChange("Non-Veg");
+                  }
+                };
+
+                return (
+                  <FormItem>
+                    <FormLabel className="text-slate-300">Dietary Service</FormLabel>
+                    <div className="flex gap-4">
+                      <div 
+                        onClick={() => { if (isVeg && !isNonVeg) return; handleToggle('veg'); }}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-[11px] rounded-xl border cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${isVeg ? 'bg-emerald-500/10 border-emerald-500 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}
+                      >
+                        <div className={`w-4 h-4 border-[1.5px] rounded-[4px] flex items-center justify-center transition-colors ${isVeg ? 'border-emerald-500 bg-emerald-500' : 'border-slate-600'}`}>
+                           {isVeg && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                        </div>
+                        <span className="font-bold text-sm tracking-wide">Veg</span>
+                      </div>
+                      
+                      <div 
+                        onClick={() => { if (isNonVeg && !isVeg) return; handleToggle('non-veg'); }}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-[11px] rounded-xl border cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] ${isNonVeg ? 'bg-rose-500/10 border-rose-500 text-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.15)]' : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'}`}
+                      >
+                        <div className={`w-4 h-4 border-[1.5px] rounded-[4px] flex items-center justify-center transition-colors ${isNonVeg ? 'border-rose-500 bg-rose-500' : 'border-slate-600'}`}>
+                           {isNonVeg && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                        </div>
+                        <span className="font-bold text-sm tracking-wide">Non-Veg</span>
+                      </div>
+                    </div>
+                    <FormMessage className="text-red-400" />
+                  </FormItem>
+                );
+              }}
             />
 
             <div className="grid grid-cols-2 gap-4">
