@@ -466,7 +466,7 @@ const RestaurantApp = () => {
     };
 
     // --- BILL GENERATION LOGIC ---
-    const generateBill = (order: any, restaurantName: string) => {
+    const generateBill = (order: any, restaurantData: any) => {
         const doc = new jsPDF({
             orientation: "portrait",
             unit: "mm",
@@ -497,12 +497,33 @@ const RestaurantApp = () => {
         doc.setTextColor(0, 0, 0);
 
         // Header
-        addCenteredText((restaurantName || "RESTAURANT").toUpperCase(), y, 12, true);
+        addCenteredText((restaurantData?.name || "RESTAURANT").toUpperCase(), y, 12, true);
         y += 5;
-        addCenteredText("Pure Veg", y, 9);
-        y += 4;
-        addCenteredText("Dadar(W), Mumbai", y, 9);
-        y += 4;
+        
+        if (restaurantData?.description) {
+            addCenteredText(restaurantData.description.substring(0, 40), y, 9);
+            y += 4;
+        }
+        
+        let locStr = "Location details not available";
+        if (restaurantData?.location) {
+            const loc = restaurantData.location;
+            if (loc.address && loc.city) locStr = `${loc.address}, ${loc.city}`;
+            else if (loc.address) locStr = loc.address;
+            else if (loc.city) locStr = loc.city;
+        }
+        
+        if (locStr.length > 35) {
+           addCenteredText(locStr.substring(0, 35), y, 9);
+           y += 4;
+           if (locStr.length > 35) {
+               addCenteredText(locStr.substring(35, 70), y, 9);
+               y += 4;
+           }
+        } else {
+           addCenteredText(locStr, y, 9);
+           y += 4;
+        }
         
         drawDashedLine(y);
         y += 4;
@@ -971,7 +992,7 @@ const RestaurantApp = () => {
                                     </div>
                                     <div className="border-t border-dashed border-gray-200 mt-3 pt-2 flex justify-between items-center">
                                         <button 
-                                            onClick={() => generateBill(order, restaurantInfo?.name || "THE LOCAL DINERS")}
+                                            onClick={() => generateBill(order, restaurantInfo)}
                                             className="text-[11px] font-bold text-gray-700 border border-gray-300 rounded px-2.5 py-1 hover:bg-gray-100 transition-colors uppercase tracking-wide bg-gray-50 flex items-center gap-1.5"
                                         >
                                             <Download className="w-3.5 h-3.5" /> Download Bill
