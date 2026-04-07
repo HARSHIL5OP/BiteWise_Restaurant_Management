@@ -68,7 +68,14 @@ const PublicOnly = ({ children }: { children: JSX.Element }) => {
       // return <Navigate to="/home" replace />;
     }
 
-    if (role === "customer") return <Navigate to="/customer" replace />;
+    if (role === "customer") {
+      const restro = sessionStorage.getItem('currentRestaurant');
+      const table = sessionStorage.getItem('currentTable');
+      if (restro && table && restro !== 'DEFAULT_RESTAURANT') {
+        return <Navigate to={`/home/${table}?restaurantId=${restro}`} replace />;
+      }
+      return <Navigate to="/customer" replace />;
+    }
 
     return <Navigate to="/home" replace />;
   }
@@ -129,7 +136,14 @@ const RoleRoute = ({
       }
     }
 
-    if (role === "customer") return <Navigate to="/customer" replace />;
+    if (role === "customer") {
+      const restro = sessionStorage.getItem('currentRestaurant');
+      const table = sessionStorage.getItem('currentTable');
+      if (restro && table && restro !== 'DEFAULT_RESTAURANT') {
+        return <Navigate to={`/home/${table}?restaurantId=${restro}`} replace />;
+      }
+      return <Navigate to="/customer" replace />;
+    }
 
     return <Navigate to="/home" replace />;
   }
