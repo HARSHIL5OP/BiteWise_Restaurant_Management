@@ -204,7 +204,9 @@ const AdminDashboard = () => {
     });
 
     const [tables, setTables] = useState([]);
-    const [newTable, setNewTable] = useState({ tableNumber: '', capacity: '4' });
+    const [newTable, setNewTable] = useState({ tableNumber: '', capacity: '4', floor: '0' });
+    const [floors, setFloors] = useState(1);
+    const [selectedFloor, setSelectedFloor] = useState(0);
 
     // Computed
     const chefs = staff.filter(s => s.role === 'chef');
@@ -338,6 +340,7 @@ const AdminDashboard = () => {
                 if (data.logoUrl || data.logo) {
                     setLogo(data.logoUrl || data.logo);
                 }
+                if (data.floors) setFloors(data.floors);
             }
         }, (error) => {
             console.error("Restaurant fetch error:", error);
@@ -751,7 +754,7 @@ const AdminDashboard = () => {
                 capacity: parseInt(newTable.capacity),
                 status: 'available',
                 qrUrl: qrUrl,
-                floor: 1,
+                floor: parseInt(newTable.floor),
                 blueprintX: 0,
                 blueprintY: 0,
                 lastOccupiedAt: null
@@ -759,7 +762,7 @@ const AdminDashboard = () => {
 
             await setDoc(tableRef, tableData);
 
-            setNewTable({ tableNumber: '', capacity: '4' });
+            setNewTable({ tableNumber: '', capacity: '4', floor: '0' });
             setShowAddTable(false);
             alert(`Table ${tableNum} added successfully!`);
         } catch (error) {
@@ -887,6 +890,9 @@ const AdminDashboard = () => {
                                 setShowAddTable={setShowAddTable}
                                 setNewTable={setNewTable}
                                 newTable={newTable}
+                                floors={floors}
+                                selectedFloor={selectedFloor}
+                                setSelectedFloor={setSelectedFloor}
                             />
                         </motion.div>
                     )}
@@ -1159,6 +1165,8 @@ const AdminDashboard = () => {
                     newTable={newTable}
                     setNewTable={setNewTable}
                     handleAddTable={handleAddTable}
+                    floors={floors}
+                    tables={tables}
                 />
             </Modal>
 

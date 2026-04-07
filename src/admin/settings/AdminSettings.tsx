@@ -29,7 +29,8 @@ const AdminSettings = () => {
         operatingHours: {
             open: '09:00',
             close: '22:00',
-        }
+        },
+        floors: 1
     });
 
     const [originalData, setOriginalData] = useState<any>(null);
@@ -60,7 +61,8 @@ const AdminSettings = () => {
                         operatingHours: {
                             open: data.operatingHours?.open || '09:00',
                             close: data.operatingHours?.close || '22:00',
-                        }
+                        },
+                        floors: data.floors || 1
                     };
                     setFormData(initialData);
                     setOriginalData(initialData);
@@ -129,6 +131,7 @@ const AdminSettings = () => {
                 cuisineType: formData.cuisineType.split(',').map((c: string) => c.trim()).filter(Boolean),
                 priceRange: `${formData.priceRangeMin}-${formData.priceRangeMax}`,
                 operatingHours: formData.operatingHours,
+                floors: parseInt(formData.floors as any) || 1,
                 updatedAt: serverTimestamp()
             };
 
@@ -205,6 +208,20 @@ const AdminSettings = () => {
                                     onChange={handleChange}
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Number of Floors <span className="text-rose-500">*</span></label>
+                                <div className="relative">
+                                    <Building2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="number"
+                                        name="floors"
+                                        min="1"
+                                        value={formData.floors}
+                                        onChange={handleChange}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-10 pr-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                                    />
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Description</label>

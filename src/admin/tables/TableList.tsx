@@ -2,15 +2,32 @@ import React from 'react';
 import { Plus, Grid, User, Clock, Trash2, Users, Download, Printer } from 'lucide-react';
 import RestaurantFloorBlueprint from '../../components/RestaurantFloorBlueprint';
 
-const TableList = ({ tables, handleDeleteTable, setShowAddTable, setNewTable, newTable }: any) => {
+const TableList = ({ tables, handleDeleteTable, setShowAddTable, setNewTable, newTable, floors, selectedFloor, setSelectedFloor }: any) => {
+    const filteredTables = tables.filter((t: any) => (parseInt(t.floor) || 0) === selectedFloor);
+
     return (
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Table Management</h1>
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Table Management</h1>
+                    <p className="text-slate-500 text-sm mt-1">Manage and monitor all tables across floors</p>
+                </div>
                 <button
                     onClick={() => {
-                        const maxNum = tables.reduce((max: number, t: any) => Math.max(max, parseInt(t.tableNumber) || 0), 0);
-                        setNewTable({ ...newTable, tableNumber: (maxNum + 1).toString(), capacity: '4' });
+                        // Logic based on selected floor
+                        const floorTables = tables.filter((t: any) => (parseInt(t.floor) || 0) === selectedFloor);
+                        let nextTableNum = '';
+                        if (selectedFloor === 0) {
+                            const maxNum = floorTables.reduce((max: number, t: any) => Math.max(max, parseInt(t.tableNumber) || 0), 0);
+                            nextTableNum = (maxNum + 1).toString();
+                        } else {
+                            const prefix = selectedFloor * 100;
+                            const suffixes = floorTables.map((t: any) => parseInt(t.tableNumber) % 100);
+                            const maxSuffix = suffixes.length > 0 ? Math.max(...suffixes, 0) : 0;
+                            nextTableNum = (prefix + maxSuffix + 1).toString();
+                        }
+                        
+                        setNewTable({ ...newTable, floor: selectedFloor.toString(), tableNumber: nextTableNum, capacity: '4' });
                         setShowAddTable(true);
                     }}
                     className="w-full sm:w-auto px-5 py-3 sm:py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 transition-all active:scale-95 min-h-[44px]"
@@ -19,49 +36,69 @@ const TableList = ({ tables, handleDeleteTable, setShowAddTable, setNewTable, ne
                 </button>
             </div>
 
-            {/* Table Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
+            {/* Floor Selector Tabs */}
+            <div className="mt-8 flex items-center gap-1 bg-slate-200/50 dark:bg-slate-800/50 p-1 rounded-xl w-fit">
+                {Array.from({ length: floors }).map((_, idx) => (
+                    <button
+                        key={idx}
+                        onClick={() => setSelectedFloor(idx)}
+                        className={`
+                            px-6 py-2 rounded-lg text-sm font-bold transition-all
+                            ${selectedFloor === idx 
+                                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-white shadow-sm' 
+                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                            }
+                        `}
+                    >
+                        {idx === 0 ? 'Ground Floor' : `Floor ${idx}`}
+                    </button>
+                ))}
+            </div>
+
+            {/* Table Stats (Filtered for current floor) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 shadow-sm dark:shadow-none">
                     <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg text-indigo-600 dark:text-indigo-400">
                         <Grid size={24} />
                     </div>
                     <div>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Tables</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{tables.length}</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Floor Tables</p>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{filteredTables.length}</h3>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
-                    <div className="p-3 bg-slate-100 dark:bg-white/10 rounded-lg text-slate-600 dark:text-white">
-                        <div className="w-6 h-6 rounded-full border-2 border-slate-400 dark:border-white/50" />
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 shadow-sm dark:shadow-none">
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg text-emerald-600 dark:text-emerald-400">
+                        <div className="w-6 h-6 rounded-full border-2 border-emerald-400 dark:border-emerald-400/50" />
                     </div>
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Available</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{tables.filter((t: any) => t.status === 'available').length}</h3>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{filteredTables.filter((t: any) => t.status === 'available').length}</h3>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 shadow-sm dark:shadow-none">
                     <div className="p-3 bg-rose-50 dark:bg-red-500/10 rounded-lg text-rose-600 dark:text-red-400">
                         <User size={24} />
                     </div>
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Occupied</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{tables.filter((t: any) => t.status === 'occupied').length}</h3>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{filteredTables.filter((t: any) => t.status === 'occupied').length}</h3>
                     </div>
                 </div>
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 transition-colors duration-300 shadow-sm dark:shadow-none">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-xl flex items-center gap-4 shadow-sm dark:shadow-none">
                     <div className="p-3 bg-amber-50 dark:bg-orange-500/10 rounded-lg text-amber-600 dark:text-orange-400">
                         <Clock size={24} />
                     </div>
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Reserved</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{tables.filter((t: any) => t.status === 'reserved').length}</h3>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{filteredTables.filter((t: any) => t.status === 'reserved').length}</h3>
                     </div>
                 </div>
             </div>
 
             {/* Table Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-8">
-                {tables.map((table: any) => (
+                {filteredTables.map((table: any) => (
+                    // ... existing item card mapping ...
                     <div
                         key={table.id}
                         className={`
@@ -138,11 +175,27 @@ const TableList = ({ tables, handleDeleteTable, setShowAddTable, setNewTable, ne
                         </div>
                     </div>
                 ))}
+                {filteredTables.length === 0 && (
+                    <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                        <Grid size={48} className="mb-4 opacity-20" />
+                        <p className="font-bold">No tables on this floor yet</p>
+                        <button 
+                            onClick={() => setShowAddTable(true)}
+                            className="mt-4 text-indigo-600 font-bold hover:underline"
+                        >
+                            Add your first table for {selectedFloor === 0 ? 'Ground Floor' : `Floor ${selectedFloor}`}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Floor Plan Blueprint */}
             <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-8">
-                <RestaurantFloorBlueprint tables={tables} />
+                <div className="mb-4">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">Floor Blueprint</h3>
+                    <p className="text-sm text-slate-500">Visual layout of tables for {selectedFloor === 0 ? 'Ground Floor' : `Floor ${selectedFloor}`}</p>
+                </div>
+                <RestaurantFloorBlueprint tables={filteredTables} />
             </div>
         </div>
     );

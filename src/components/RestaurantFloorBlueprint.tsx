@@ -48,16 +48,17 @@ const RestaurantFloorBlueprint = ({ tables: propTables = [], isCustomerView = fa
             const tableId = `T${realTable.tableNumber}`;
             const layout = BLUEPRINT_LAYOUT.find(l => l.tableId === tableId);
 
-            if (layout) {
-                return {
-                    ...realTable,
-                    ...layout,
-                    capacity: realTable.capacity || layout.capacity,
-                    tableId: tableId
-                };
-            }
-            return null;
-        }).filter(Boolean);
+            return {
+                ...realTable,
+                tableId: tableId,
+                // Fallback to coordinates from db if layout isn't found
+                position: layout ? layout.position : { 
+                    x: realTable.blueprintX !== undefined ? realTable.blueprintX : 50, 
+                    y: realTable.blueprintY !== undefined ? realTable.blueprintY : 50 
+                },
+                capacity: realTable.capacity || (layout ? layout.capacity : 4)
+            };
+        });
     }, [propTables]);
 
     const getStatusColor = (status) => {
@@ -188,7 +189,7 @@ const RestaurantFloorBlueprint = ({ tables: propTables = [], isCustomerView = fa
                     >
                         {/* Table Number */}
                         <div className={`text-sm font-bold transition-colors ${isSelected ? 'text-white' : (theme === 'dark' ? 'text-slate-800' : 'text-slate-700')}`}>
-                            {table.tableId}
+                            T-{table.tableNumber}
                         </div>
 
                         {/* Capacity */}
@@ -207,7 +208,7 @@ const RestaurantFloorBlueprint = ({ tables: propTables = [], isCustomerView = fa
                     {isHovered && (
                         <div className="absolute left-1/2 -translate-x-1/2 -top-20 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="px-4 py-3 bg-white dark:bg-slate-900 text-slate-800 dark:text-white rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 min-w-[140px]">
-                                <div className="text-sm font-bold mb-1">{table.tableId}</div>
+                                <div className="text-sm font-bold mb-1">T-{table.tableNumber}</div>
                                 <div className="text-xs text-slate-500 dark:text-slate-300 mb-2">Capacity: {table.capacity} guests</div>
                                 <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold border ${getStatusBadgeColor(table.status)
                                     }`}>
@@ -323,7 +324,7 @@ const RestaurantFloorBlueprint = ({ tables: propTables = [], isCustomerView = fa
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                     <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/30">
-                                        <span className="text-2xl font-bold">{selectedTable.tableId}</span>
+                                        <span className="text-2xl font-bold">T-{selectedTable.tableNumber}</span>
                                     </div>
                                     <div>
                                         <div className="text-sm opacity-90 mb-1">Selected Table</div>

@@ -1,6 +1,23 @@
 import React from 'react';
 
-const AddTableForm = ({ newTable, setNewTable, handleAddTable }: any) => {
+const AddTableForm = ({ newTable, setNewTable, handleAddTable, floors, tables }: any) => {
+    const handleFloorChange = (floor: number) => {
+        const floorTables = tables.filter((t: any) => parseInt(t.floor) === floor);
+        let nextTableNum = '';
+        
+        if (floor === 0) {
+            const maxNum = floorTables.reduce((max: number, t: any) => Math.max(max, parseInt(t.tableNumber) || 0), 0);
+            nextTableNum = (maxNum + 1).toString();
+        } else {
+            const prefix = floor * 100;
+            const suffixes = floorTables.map((t: any) => parseInt(t.tableNumber) % 100);
+            const maxSuffix = suffixes.length > 0 ? Math.max(...suffixes, 0) : 0;
+            nextTableNum = (prefix + maxSuffix + 1).toString();
+        }
+
+        setNewTable({ ...newTable, floor: floor.toString(), tableNumber: nextTableNum });
+    };
+
     return (
         <div className="space-y-6">
             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-4 transition-colors">
@@ -18,7 +35,25 @@ const AddTableForm = ({ newTable, setNewTable, handleAddTable }: any) => {
             </div>
 
             <div>
-                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Table Number</label>
+                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Select Floor</label>
+                <div className="flex flex-wrap gap-2">
+                    {Array.from({ length: floors }).map((_, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => handleFloorChange(idx)}
+                            className={`px-4 py-2 rounded-lg font-bold border transition-all ${parseInt(newTable.floor) === idx
+                                ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                                : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-indigo-500 dark:hover:border-slate-600 hover:text-indigo-600 dark:hover:text-white'
+                            }`}
+                        >
+                            {idx === 0 ? 'Ground' : `Floor ${idx}`}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Table Number (Auto-generated)</label>
                 <input
                     type="number"
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none font-mono text-lg transition-colors"
