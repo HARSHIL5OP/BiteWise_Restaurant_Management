@@ -11,6 +11,7 @@ interface Props {
     editingId: string | null;
     inventoryItems: InventoryItem[];
     initialIngredients?: DraftIngredient[];
+    restaurantType: string;
 }
 
 const fieldCls = "w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors text-sm";
@@ -27,7 +28,7 @@ type DraftIngredient = {
 const emptyIngredient = (): DraftIngredient => ({ inventoryId: '', name: '', unit: '', quantityUsed: '', deductOnOrder: true });
 
 const AddMenuForm: React.FC<Props> = ({
-    newMenuItem, setNewMenuItem, handleAddMenu, categories, isLoading, editingId, inventoryItems, initialIngredients
+    newMenuItem, setNewMenuItem, handleAddMenu, categories, isLoading, editingId, inventoryItems, initialIngredients, restaurantType
 }) => {
     const [ingredients, setIngredients] = useState<DraftIngredient[]>([]);
     const [showIngredients, setShowIngredients] = useState(false);
@@ -174,11 +175,20 @@ const AddMenuForm: React.FC<Props> = ({
 
             {/* Checkboxes Grid */}
             <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className={`flex items-center gap-2 ${restaurantType === 'Veg' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
                     <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                        checked={newMenuItem.veg ?? false} onChange={e => setNewMenuItem({ ...newMenuItem, veg: e.target.checked })} />
+                        checked={restaurantType === 'Veg' ? true : (newMenuItem.veg ?? false)}
+                        disabled={restaurantType === 'Veg'}
+                        onChange={e => setNewMenuItem({ ...newMenuItem, veg: e.target.checked })} />
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Vegetarian</span>
                 </label>
+                {(restaurantType === 'Veg' || newMenuItem.veg) && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" className="w-4 h-4 text-emerald-500 rounded border-slate-300 focus:ring-emerald-500"
+                            checked={newMenuItem.isJain ?? false} onChange={e => setNewMenuItem({ ...newMenuItem, isJain: e.target.checked })} />
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Jain Friendly</span>
+                    </label>
+                )}
                 <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
                         checked={newMenuItem.isAvailable ?? true} onChange={e => setNewMenuItem({ ...newMenuItem, isAvailable: e.target.checked })} />

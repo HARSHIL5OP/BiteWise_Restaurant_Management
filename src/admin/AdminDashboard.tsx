@@ -152,6 +152,7 @@ const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [restaurantName, setRestaurantName] = useState('Luxe Bistro');
     const [logo, setLogo] = useState('🍽️');
+    const [restaurantType, setRestaurantType] = useState('Both');
     const [isLoading, setIsLoading] = useState(false);
 
     // Dashboard Metrics State
@@ -186,7 +187,7 @@ const AdminDashboard = () => {
     const [newMenuItem, setNewMenuItem] = useState({
         name: '', price: '', image: null as any, category: 'Main Course',
         newCategory: '', // for adding custom category
-        description: '', veg: true, spicyLevel: 0, preparationTime: 0, calories: 0,
+        description: '', veg: true, isJain: false, spicyLevel: 0, preparationTime: 0, calories: 0,
         isAvailable: true, isRecommended: false
     });
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -340,6 +341,7 @@ const AdminDashboard = () => {
                 if (data.logoUrl || data.logo) {
                     setLogo(data.logoUrl || data.logo);
                 }
+                if (data.restaurantType) setRestaurantType(data.restaurantType);
                 if (data.floors) setFloors(data.floors);
             }
         }, (error) => {
@@ -398,6 +400,15 @@ const AdminDashboard = () => {
                 ? doc(db, 'restaurants', restaurantId, 'menu', editingId)
                 : doc(collection(db, 'restaurants', restaurantId, 'menu'));
 
+            let computedVeg = newMenuItem.veg !== undefined ? newMenuItem.veg : true;
+            let computedIsJain = newMenuItem.isJain || false;
+
+            if (restaurantType === 'Veg') {
+                computedVeg = true;
+            } else if (restaurantType === 'Non-Veg') {
+                computedIsJain = false; // Never jain if non-veg? Actually wait, prompt: "after that in restaurantType veg also add a check that the give itme can be made in the jain or not" 
+            }
+
             const itemData = {
                 menuItemId: menuItemRef.id,
                 restaurantId: restaurantId,
@@ -406,7 +417,8 @@ const AdminDashboard = () => {
                 price: parseFloat(newMenuItem.price) || 0,
                 category: categoryToSave,
                 image: imageUrl || 'https://source.unsplash.com/random/800x600/?food',
-                veg: newMenuItem.veg !== undefined ? newMenuItem.veg : true,
+                veg: computedVeg,
+                isJain: computedIsJain,
                 spicyLevel: parseInt(newMenuItem.spicyLevel as any) || 0,
                 preparationTime: parseInt(newMenuItem.preparationTime as any) || 0,
                 calories: parseInt(newMenuItem.calories as any) || 0,
@@ -435,7 +447,7 @@ const AdminDashboard = () => {
 
             setNewMenuItem({ 
                 name: '', price: '', image: null, category: 'Main Course', newCategory: '',
-                description: '', veg: true, spicyLevel: 0, preparationTime: 0, calories: 0,
+                description: '', veg: true, isJain: false, spicyLevel: 0, preparationTime: 0, calories: 0,
                 isAvailable: true, isRecommended: false
             });
             setEditingId(null);
@@ -462,6 +474,7 @@ const AdminDashboard = () => {
             newCategory: '',
             description: item.description || '',
             veg: item.veg !== undefined ? item.veg : true,
+            isJain: item.isJain || false,
             spicyLevel: item.spicyLevel || 0,
             preparationTime: item.preparationTime || 0,
             calories: item.calories || 0,
@@ -1128,7 +1141,7 @@ const AdminDashboard = () => {
                 setEditingId(null);
                 setNewMenuItem({ 
                     name: '', price: '', image: null, category: 'Main Course', newCategory: '',
-                    description: '', veg: true, spicyLevel: 0, preparationTime: 0, calories: 0,
+                    description: '', veg: true, isJain: false, spicyLevel: 0, preparationTime: 0, calories: 0,
                     isAvailable: true, isRecommended: false
                 });
                 setMenuIngredientsForEdit([]);
@@ -1142,6 +1155,7 @@ const AdminDashboard = () => {
                     editingId={editingId}
                     inventoryItems={inventoryItems}
                     initialIngredients={menuIngredientsForEdit}
+                    restaurantType={restaurantType}
                 />
             </Modal>
 
