@@ -13,12 +13,19 @@ const ViewMenuItem: React.FC<ViewMenuItemProps> = ({ item, ingredients, isLoadin
     return (
         <div className="space-y-6">
             <div className="flex justify-center">
-                <div className="w-full h-48 rounded-xl overflow-hidden relative shadow-md">
-                    <img 
-                        src={item.image} 
-                        alt={item.name} 
-                        className="w-full h-full object-cover" 
-                    />
+                <div className="w-full h-48 rounded-xl overflow-hidden relative shadow-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                    {item.image ? (
+                        <img 
+                            src={item.image} 
+                            alt={item.name} 
+                            className="w-full h-full object-cover" 
+                        />
+                    ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-600">
+                            <svg className="w-12 h-12 mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            <span className="text-sm font-semibold uppercase tracking-widest">No Image Provided</span>
+                        </div>
+                    )}
                     <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm">
                         {item.category}
                     </div>
@@ -26,15 +33,47 @@ const ViewMenuItem: React.FC<ViewMenuItemProps> = ({ item, ingredients, isLoadin
             </div>
 
             <div>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">{item.name}</h3>
-                <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">₹{item.price}</p>
-                <div className="mt-2 flex items-center gap-2">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white capitalize">{item.name}</h3>
+                        <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">₹{item.price}</p>
+                    </div>
+                    {item.isRecommended && (
+                        <span className="flex items-center gap-1 bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 px-3 py-1 rounded-full text-xs font-bold">
+                            <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            Recommended
+                        </span>
+                    )}
+                </div>
+
+                {item.description && (
+                    <p className="text-slate-600 dark:text-slate-400 mt-3 text-sm leading-relaxed">
+                        {item.description}
+                    </p>
+                )}
+
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                     <span className={`px-2 py-1 text-xs font-semibold rounded-full ${item.isAvailable !== false ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400'}`}>
                         {item.isAvailable !== false ? 'Available' : 'Out of Stock'}
                     </span>
                     {item.veg !== undefined && (
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${item.veg ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-400'}`}>
-                            {item.veg ? 'Veg' : 'Non-Veg'}
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${item.veg ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20'}`}>
+                            {item.veg ? '🟢 Veg' : '🔴 Non-Veg'}
+                        </span>
+                    )}
+                    {item.spicyLevel > 0 && (
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 flex items-center gap-1">
+                            🌶️ Level {item.spicyLevel}
+                        </span>
+                    )}
+                    {item.preparationTime > 0 && (
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                            ⏱️ {item.preparationTime} min
+                        </span>
+                    )}
+                    {item.calories > 0 && (
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 flex items-center gap-1">
+                            🔥 {item.calories} kcal
                         </span>
                     )}
                 </div>

@@ -21,9 +21,10 @@ type DraftIngredient = {
     name: string;
     unit: string;
     quantityUsed: string;
+    deductOnOrder: boolean;
 };
 
-const emptyIngredient = (): DraftIngredient => ({ inventoryId: '', name: '', unit: '', quantityUsed: '' });
+const emptyIngredient = (): DraftIngredient => ({ inventoryId: '', name: '', unit: '', quantityUsed: '', deductOnOrder: true });
 
 const AddMenuForm: React.FC<Props> = ({
     newMenuItem, setNewMenuItem, handleAddMenu, categories, isLoading, editingId, inventoryItems, initialIngredients
@@ -76,7 +77,7 @@ const AddMenuForm: React.FC<Props> = ({
                 name: ing.name,
                 quantityUsed: qty,
                 unit: ing.unit as any,
-                deductOnOrder: true,
+                deductOnOrder: ing.deductOnOrder !== undefined ? ing.deductOnOrder : true,
             });
         }
         return result;
@@ -142,6 +143,54 @@ const AddMenuForm: React.FC<Props> = ({
                 </div>
             </div>
 
+            {/* Description */}
+            <div>
+                <label className={labelCls}>Description</label>
+                <textarea className={`${fieldCls} resize-none`} placeholder="Item description..." rows={3}
+                    value={newMenuItem.description || ''} onChange={e => setNewMenuItem({ ...newMenuItem, description: e.target.value })} />
+            </div>
+
+            {/* Attributes Grid */}
+            <div className="grid grid-cols-2 gap-4">
+                {/* Spicy Level */}
+                <div>
+                    <label className={labelCls}>Spiciness (1-5)</label>
+                    <input type="number" min="1" max="5" className={fieldCls} placeholder="1"
+                        value={newMenuItem.spicyLevel || ''} onChange={e => setNewMenuItem({ ...newMenuItem, spicyLevel: parseInt(e.target.value) || 1 })} />
+                </div>
+                {/* Preparation Time */}
+                <div>
+                    <label className={labelCls}>Prep Time (mins)</label>
+                    <input type="number" min="0" className={fieldCls} placeholder="15"
+                        value={newMenuItem.preparationTime || ''} onChange={e => setNewMenuItem({ ...newMenuItem, preparationTime: parseInt(e.target.value) || 0 })} />
+                </div>
+                {/* Calories */}
+                <div>
+                    <label className={labelCls}>Calories</label>
+                    <input type="number" min="0" className={fieldCls} placeholder="350"
+                        value={newMenuItem.calories || ''} onChange={e => setNewMenuItem({ ...newMenuItem, calories: parseInt(e.target.value) || 0 })} />
+                </div>
+            </div>
+
+            {/* Checkboxes Grid */}
+            <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                        checked={newMenuItem.veg ?? false} onChange={e => setNewMenuItem({ ...newMenuItem, veg: e.target.checked })} />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Vegetarian</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                        checked={newMenuItem.isAvailable ?? true} onChange={e => setNewMenuItem({ ...newMenuItem, isAvailable: e.target.checked })} />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Available</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                        checked={newMenuItem.isRecommended ?? false} onChange={e => setNewMenuItem({ ...newMenuItem, isRecommended: e.target.checked })} />
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Recommended</span>
+                </label>
+            </div>
+
             {/* ─── Ingredients Section ─────────────────────────────────── */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
                 <button
@@ -175,7 +224,7 @@ const AddMenuForm: React.FC<Props> = ({
                                 )}
 
                                 {ingredients.map((ing, idx) => (
-                                    <div key={idx} className="grid grid-cols-[1fr_80px_32px] gap-2 items-end">
+                                    <div key={idx} className="grid grid-cols-[1fr_80px_32px_32px] gap-2 items-end">
                                         {/* Inventory Picker */}
                                         <div>
                                             {idx === 0 && <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Ingredient</label>}
@@ -203,6 +252,14 @@ const AddMenuForm: React.FC<Props> = ({
                                                 value={ing.quantityUsed}
                                                 onChange={e => updateIngredient(idx, 'quantityUsed', e.target.value)}
                                             />
+                                        </div>
+
+                                        {/* Auto-Deduct */}
+                                        <div className="flex items-center h-full pb-3 justify-center">
+                                            <label className="flex items-center cursor-pointer" title="Auto deduct on order">
+                                                <input type="checkbox" className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                                    checked={ing.deductOnOrder} onChange={e => updateIngredient(idx, 'deductOnOrder', e.target.checked as any)} />
+                                            </label>
                                         </div>
 
                                         {/* Remove */}

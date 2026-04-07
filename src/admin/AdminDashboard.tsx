@@ -185,7 +185,9 @@ const AdminDashboard = () => {
 
     const [newMenuItem, setNewMenuItem] = useState({
         name: '', price: '', image: null as any, category: 'Main Course',
-        newCategory: '' // for adding custom category
+        newCategory: '', // for adding custom category
+        description: '', veg: true, spicyLevel: 0, preparationTime: 0, calories: 0,
+        isAvailable: true, isRecommended: false
     });
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
@@ -397,16 +399,16 @@ const AdminDashboard = () => {
                 menuItemId: menuItemRef.id,
                 restaurantId: restaurantId,
                 name: newMenuItem.name,
-                description: "",
+                description: newMenuItem.description || '',
                 price: parseFloat(newMenuItem.price) || 0,
                 category: categoryToSave,
                 image: imageUrl || 'https://source.unsplash.com/random/800x600/?food',
-                veg: true,
-                spicyLevel: 0,
-                preparationTime: 15,
-                calories: 0,
-                isAvailable: true,
-                isRecommended: false,
+                veg: newMenuItem.veg !== undefined ? newMenuItem.veg : true,
+                spicyLevel: parseInt(newMenuItem.spicyLevel as any) || 0,
+                preparationTime: parseInt(newMenuItem.preparationTime as any) || 0,
+                calories: parseInt(newMenuItem.calories as any) || 0,
+                isAvailable: newMenuItem.isAvailable !== undefined ? newMenuItem.isAvailable : true,
+                isRecommended: newMenuItem.isRecommended || false,
             };
 
             if (editingId) {
@@ -428,7 +430,11 @@ const AdminDashboard = () => {
                 setCategories([...categories, newMenuItem.newCategory]);
             }
 
-            setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
+            setNewMenuItem({ 
+                name: '', price: '', image: null, category: 'Main Course', newCategory: '',
+                description: '', veg: true, spicyLevel: 0, preparationTime: 0, calories: 0,
+                isAvailable: true, isRecommended: false
+            });
             setEditingId(null);
             setShowAddMenu(false);
         } catch (error: any) {
@@ -446,11 +452,18 @@ const AdminDashboard = () => {
     const openEditMenu = async (item: any) => {
         setEditingId(item.id);
         setNewMenuItem({
-            name: item.name,
-            price: item.price,
-            image: item.image,
-            category: item.category,
-            newCategory: ''
+            name: item.name || '',
+            price: item.price || '',
+            image: item.image || null,
+            category: item.category || 'Main Course',
+            newCategory: '',
+            description: item.description || '',
+            veg: item.veg !== undefined ? item.veg : true,
+            spicyLevel: item.spicyLevel || 0,
+            preparationTime: item.preparationTime || 0,
+            calories: item.calories || 0,
+            isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
+            isRecommended: item.isRecommended || false
         });
 
         try {
@@ -1107,7 +1120,11 @@ const AdminDashboard = () => {
             <Modal isOpen={showAddMenu} onClose={() => {
                 setShowAddMenu(false);
                 setEditingId(null);
-                setNewMenuItem({ name: '', price: '', image: null, category: 'Main Course', newCategory: '' });
+                setNewMenuItem({ 
+                    name: '', price: '', image: null, category: 'Main Course', newCategory: '',
+                    description: '', veg: true, spicyLevel: 0, preparationTime: 0, calories: 0,
+                    isAvailable: true, isRecommended: false
+                });
                 setMenuIngredientsForEdit([]);
             }} title={editingId ? "Edit Menu Item" : "Add New Menu Item"}>
                 <AddMenuForm
