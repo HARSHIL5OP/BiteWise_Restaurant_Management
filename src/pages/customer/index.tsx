@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Coffee, Pizza, Leaf, Store, UtensilsCrossed, Wine, PartyPopper } from "lucide-react";
-import RestaurantCard from "@/components/customer/RestaurantCard";
-import { LocationBar, SearchBar, CategoryChip, SectionHeader, OfferBanner } from "@/components/customer/SharedUI";
+import RestaurantCard from "./components/RestaurantCard";
+import { LocationBar, SearchBar, CategoryChip, SectionHeader, OfferBanner } from "./components/SharedUI";
 import { getAllRestaurants, getRestaurantMenu } from "@/services/restaurantService";
 import { useAuth } from "@/contexts/AuthContext";
 

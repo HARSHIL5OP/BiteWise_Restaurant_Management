@@ -8,7 +8,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 // Pages
-import HomePage from "./pages/Home";
+import HomePage from "./pages/customer/RestaurantApp";
 import AdminPage from "./admin/AdminDashboard";
 import LoginPage from "./pages/auth/LoginPage";
 import SignupPage from "./pages/auth/SignupPage";
