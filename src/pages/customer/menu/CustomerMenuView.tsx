@@ -20,13 +20,14 @@ interface CustomerMenuViewProps {
     filteredItems: any[];
     handleCategoryClick: (cat: string) => void;
     renderSpicy: (level: number) => React.ReactNode;
+    currentUserName: string;
 }
 
 const CustomerMenuView: React.FC<CustomerMenuViewProps> = ({
     menuViewMode, setMenuViewMode, menuData, selectedCategory,
     isVegOnly, setIsVegOnly, sortBy, setSortBy, categoryScrollRef,
     cart, addToCart, updateQuantity, currentCategoryData, filteredItems,
-    handleCategoryClick, renderSpicy
+    handleCategoryClick, renderSpicy, currentUserName
 }) => {
     return (
         <motion.div
@@ -168,32 +169,35 @@ const CustomerMenuView: React.FC<CustomerMenuViewProps> = ({
                                         <div className="font-bold text-gray-900 text-lg">₹{item.price}</div>
 
                                         {/* Add Button */}
-                                        {cart.find(c => c.id === item.id) ? (
-                                            <div className="flex items-center bg-white shadow-md border border-orange-100 rounded-lg overflow-hidden h-9">
-                                                <button
-                                                    onClick={() => updateQuantity(item.id, -1)}
-                                                    className="w-8 h-full flex items-center justify-center text-orange-600 hover:bg-orange-50 active:bg-orange-100"
-                                                >
-                                                    <Minus className="w-4 h-4" />
-                                                </button>
-                                                <span className="w-8 text-center font-bold text-sm text-gray-800">
-                                                    {cart.find(c => c.id === item.id).quantity}
-                                                </span>
+                                        {(() => {
+                                            const myCartItem = cart.find(c => c.id === item.id && c.addedBy === currentUserName);
+                                            return myCartItem ? (
+                                                <div className="flex items-center bg-white shadow-md border border-orange-100 rounded-lg overflow-hidden h-9">
+                                                    <button
+                                                        onClick={() => updateQuantity(myCartItem.cartDocId, -1)}
+                                                        className="w-8 h-full flex items-center justify-center text-orange-600 hover:bg-orange-50 active:bg-orange-100"
+                                                    >
+                                                        <Minus className="w-4 h-4" />
+                                                    </button>
+                                                    <span className="w-8 text-center font-bold text-sm text-gray-800">
+                                                        {myCartItem.quantity}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => updateQuantity(myCartItem.cartDocId, 1)}
+                                                        className="w-8 h-full flex items-center justify-center text-orange-600 hover:bg-orange-50 active:bg-orange-100"
+                                                    >
+                                                        <Plus className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ) : (
                                                 <button
                                                     onClick={() => addToCart(item)}
-                                                    className="w-8 h-full flex items-center justify-center text-orange-600 hover:bg-orange-50 active:bg-orange-100"
+                                                    className="h-9 px-6 bg-white border border-gray-200 text-orange-600 font-bold text-sm rounded-lg shadow-sm uppercase tracking-wide hover:bg-orange-50 active:scale-95 transition-all"
                                                 >
-                                                    <Plus className="w-4 h-4" />
+                                                    ADD
                                                 </button>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => addToCart(item)}
-                                                className="h-9 px-6 bg-white border border-gray-200 text-orange-600 font-bold text-sm rounded-lg shadow-sm uppercase tracking-wide hover:bg-orange-50 active:scale-95 transition-all"
-                                            >
-                                                ADD
-                                            </button>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </motion.div>

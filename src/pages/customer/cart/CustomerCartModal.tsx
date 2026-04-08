@@ -10,10 +10,11 @@ interface CustomerCartModalProps {
     cartTotal: number;
     updateQuantity: (id: string, delta: number) => void;
     placeOrder: () => void;
+    isGuest: boolean;
 }
 
 const CustomerCartModal: React.FC<CustomerCartModalProps> = ({
-    showCart, setShowCart, cart, cartItemCount, cartTotal, updateQuantity, placeOrder
+    showCart, setShowCart, cart, cartItemCount, cartTotal, updateQuantity, placeOrder, isGuest
 }) => {
     return (
         <AnimatePresence>
@@ -35,7 +36,7 @@ const CustomerCartModal: React.FC<CustomerCartModalProps> = ({
 
                         <div className="p-5 border-b border-gray-100 flex items-center justify-between mt-2">
                             <h2 className="text-xl font-bold flex items-center gap-2">
-                                Your Cart
+                                Shared Cart
                                 <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full">{cartItemCount}</span>
                             </h2>
                             <button className="p-2 bg-gray-100 rounded-full hover:bg-gray-200" onClick={() => setShowCart(false)}>
@@ -45,7 +46,7 @@ const CustomerCartModal: React.FC<CustomerCartModalProps> = ({
 
                         <div className="flex-1 overflow-y-auto p-5 space-y-4">
                             {cart.map((item) => (
-                                <div key={item.id} className="flex gap-4">
+                                <div key={item.cartDocId} className="flex gap-4">
                                     <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
                                         <img src={item.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c"} alt={item.name} className="w-full h-full object-cover" />
                                         <div className={`absolute top-0 right-0 p-0.5 bg-white/90 rounded-bl-md`}>
@@ -54,14 +55,15 @@ const CustomerCartModal: React.FC<CustomerCartModalProps> = ({
                                     </div>
                                     <div className="flex-1">
                                         <h4 className="font-semibold text-gray-800 line-clamp-1">{item.name}</h4>
+                                        <p className="text-xs text-gray-400 mb-1">Added by: {item.addedBy}</p>
                                         <p className="text-sm font-medium text-gray-900">₹{item.price * item.quantity}</p>
                                     </div>
                                     <div className="flex items-center gap-3 h-8 bg-white border border-gray-200 rounded-lg px-2">
-                                        <button onClick={() => updateQuantity(item.id, -1)} className="text-orange-600">
+                                        <button onClick={() => updateQuantity(item.cartDocId, -1)} className="text-orange-600">
                                             <Minus className="w-4 h-4" />
                                         </button>
                                         <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
-                                        <button onClick={() => updateQuantity(item.id, 1)} className="text-orange-600">
+                                        <button onClick={() => updateQuantity(item.cartDocId, 1)} className="text-orange-600">
                                             <Plus className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -84,12 +86,18 @@ const CustomerCartModal: React.FC<CustomerCartModalProps> = ({
                                 <span>Grand Total</span>
                                 <span>₹{Math.round(cartTotal * 1.05)}</span>
                             </div>
-                            <button
-                                onClick={placeOrder}
-                                className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-2xl font-bold shadow-xl shadow-orange-200 transform transition-transform active:scale-95"
-                            >
-                                Place Order To Kitchen
-                            </button>
+                            {isGuest ? (
+                                <button className="w-full py-4 bg-gray-200 text-gray-500 rounded-2xl font-bold uppercase text-sm tracking-wider cursor-not-allowed">
+                                    Waiting for Host to Place Order
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={placeOrder}
+                                    className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-2xl font-bold shadow-xl shadow-orange-200 transform transition-transform active:scale-95"
+                                >
+                                    Place Order To Kitchen
+                                </button>
+                            )}
                         </div>
                     </motion.div>
                 </motion.div>

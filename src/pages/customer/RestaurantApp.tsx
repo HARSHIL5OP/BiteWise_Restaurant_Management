@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { UtensilsCrossed, LogOut, Heart, ChevronRight, Flame } from 'lucide-react';
+import { UtensilsCrossed, LogOut, Heart, ChevronRight, Flame, Share2, Copy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
     collection, onSnapshot, serverTimestamp, query,
-    where, updateDoc, doc, getDocs, setDoc, getDoc
+    where, updateDoc, doc, getDocs, setDoc, getDoc, deleteDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,19 +38,8 @@ const RestaurantApp = () => {
     const [searchParams] = useSearchParams();
 
     // --- STATE MANAGEMENT ---
-    const [cart, setCart] = useState<any[]>(() => {
-        try {
-            const saved = localStorage.getItem('cart_items');
-            return saved ? JSON.parse(saved) : [];
-        } catch (e) {
-            return [];
-        }
-    });
-
-    useEffect(() => {
-        localStorage.setItem('cart_items', JSON.stringify(cart));
-    }, [cart]);
-
+    const [cart, setCart] = useState<any[]>([]);
+    
     const [activeView, setActiveView] = useState<'menu' | 'orders' | 'history' | 'payment'>('menu');
     const [menuViewMode, setMenuViewMode] = useState<'overview' | 'items'>('overview');
     const [orders, setOrders] = useState<any[]>([]);
@@ -58,6 +47,38 @@ const RestaurantApp = () => {
     const [showCart, setShowCart] = useState(false);
     const [menuData, setMenuData] = useState<any[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+    // Shared Session States
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [guestNameModal, setGuestNameModal] = useState(false);
+    const [guestNameInput, setGuestNameInput] = useState('');
+    const [currentUserName, setCurrentUserName] = useState('');
+    const [isGuest, setIsGuest] = useState(false);
+
+    useEffect(() => {
+        const isShared = searchParams.get('shared') === 'true';
+        setIsGuest(isShared);
+        if (isShared) {
+            const storedName = sessionStorage.getItem('guestName');
+            if (storedName) {
+                setCurrentUserName(storedName);
+            } else {
+                setGuestNameModal(true);
+            }
+        } else {
+            if (userProfile?.firstName) {
+                setCurrentUserName(userProfile.firstName);
+            }
+        }
+    }, [searchParams, userProfile]);
+
+    const handleJoinGuest = () => {
+        if (guestNameInput.trim()) {
+            sessionStorage.setItem('guestName', guestNameInput.trim());
+            setCurrentUserName(guestNameInput.trim());
+            setGuestNameModal(false);
+        }
+    };
 
     // Filters
     const [isVegOnly, setIsVegOnly] = useState(false);
@@ -188,20 +209,57 @@ const RestaurantApp = () => {
         };
     }, [user, restaurantId]);
 
+    // Firestore synced cart
+    useEffect(() => {
+        if (!restaurantId || !tableId) return;
+        const resolvedTableId = tableInfo?.id || tableId;
+        const cartRef = collection(db, 'restaurants', restaurantId, 'tables', resolvedTableId, 'cart');
+        
+        const unsub = onSnapshot(cartRef, (snap) => {
+            const items = snap.docs.map(doc => ({ ...doc.data(), cartDocId: doc.id }));
+            setCart(items);
+        });
+        return () => unsub();
+    }, [restaurantId, tableId, tableInfo]);
+
     // --- CART LOGIC ---
-    const addToCart = (item: any) => {
-        const existing = cart.find(c => c.id === item.id);
+    const addToCart = async (item: any) => {
+        const resolvedTableId = tableInfo?.id || tableId;
+        const userNameToUse = currentUserName || (userProfile?.firstName) || "Guest";
+        
+        if (!restaurantId || !resolvedTableId || !userNameToUse) return;
+        
+        const safeName = userNameToUse.replace(/\s+/g, '_');
+        const docId = `${item.id}_${safeName}`;
+        const itemRef = doc(db, 'restaurants', restaurantId, 'tables', resolvedTableId, 'cart', docId);
+
+        const existing = cart.find(c => c.cartDocId === docId);
         if (existing) {
-            setCart(cart.map(c => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
+            await updateDoc(itemRef, { quantity: existing.quantity + 1 });
         } else {
-            setCart([...cart, { ...item, quantity: 1 }]);
+            await setDoc(itemRef, {
+                ...item,
+                quantity: 1,
+                addedBy: userNameToUse
+            });
         }
     };
 
-    const updateQuantity = (id: string, delta: number) => {
-        setCart(cart.map(item =>
-            item.id === id ? { ...item, quantity: Math.max(0, item.quantity + delta) } : item
-        ).filter(item => item.quantity > 0));
+    const updateQuantity = async (cartDocId: string, delta: number) => {
+        const resolvedTableId = tableInfo?.id || tableId;
+        if (!restaurantId || !resolvedTableId) return;
+        
+        const existing = cart.find(c => c.cartDocId === cartDocId);
+        if (!existing) return;
+        
+        const newQty = existing.quantity + delta;
+        const itemRef = doc(db, 'restaurants', restaurantId, 'tables', resolvedTableId, 'cart', cartDocId);
+        
+        if (newQty <= 0) {
+            await deleteDoc(itemRef);
+        } else {
+            await updateDoc(itemRef, { quantity: newQty });
+        }
     };
 
     const cartTotal = useMemo(() => cart.reduce((sum, item) => sum + (item.price * item.quantity), 0), [cart]);
@@ -272,46 +330,73 @@ const RestaurantApp = () => {
             const discount = 0;
             const totalAmount = subtotal + tax - discount;
 
-            const { waiterId } = await assignWaiter();
+            const resolvedTableId = tableInfo?.id || tableId;
+            const activeOrder = orders.find(o => o.tableId === resolvedTableId && o.status !== 'completed');
 
-            // 🔥 CREATE ORDER
-            const orderRef = doc(collection(db, 'restaurants', restaurantId, 'orders'));
-            await setDoc(orderRef, {
-                orderId: orderRef.id,
-                tableId: tableInfo?.id || tableId,
-                orderNumber: Math.floor(1000 + Math.random() * 9000).toString(),
-                customerId: user.uid,
-                waiterId: waiterId || null,
-                restaurantId: restaurantId,
-                status: 'pending',
-                orderSource: 'QR',
-                subtotal: subtotal,
-                tax: tax,
-                discount: discount,
-                totalAmount: totalAmount,
-                paymentStatus: 'pending',
-                paymentId: null,
-                notes: "",
-                createdAt: serverTimestamp(),
-                preparedAt: null,
-                servedAt: null,
-                completedAt: null
-            });
+            let orderRefId = "";
+
+            if (activeOrder) {
+                // 🔥 APPEND TO EXISTING ORDER
+                orderRefId = activeOrder.id;
+                
+                const newSubtotal = (activeOrder.subtotal || 0) + subtotal;
+                const newTax = (activeOrder.tax || 0) + tax;
+                const newTotalAmount = (activeOrder.totalAmount || 0) + totalAmount;
+
+                await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', orderRefId), {
+                    subtotal: newSubtotal,
+                    tax: newTax,
+                    totalAmount: newTotalAmount,
+                    status: 'pending', // Reset status back to pending so the chef sees updates
+                    updatedAt: serverTimestamp()
+                });
+            } else {
+                // 🔥 CREATE NEW ORDER
+                const { waiterId } = await assignWaiter();
+                const orderRef = doc(collection(db, 'restaurants', restaurantId, 'orders'));
+                orderRefId = orderRef.id;
+                
+                await setDoc(orderRef, {
+                    orderId: orderRef.id,
+                    tableId: resolvedTableId,
+                    orderNumber: Math.floor(1000 + Math.random() * 9000).toString(),
+                    customerId: user.uid,
+                    waiterId: waiterId || null,
+                    restaurantId: restaurantId,
+                    status: 'pending',
+                    orderSource: 'QR',
+                    subtotal: subtotal,
+                    tax: tax,
+                    discount: discount,
+                    totalAmount: totalAmount,
+                    paymentStatus: 'pending',
+                    paymentId: null,
+                    notes: "",
+                    createdAt: serverTimestamp(),
+                    preparedAt: null,
+                    servedAt: null,
+                    completedAt: null
+                });
+            }
 
             // 🔥 SAVE ORDER ITEMS
             for (const item of cart) {
-                const itemRef = doc(collection(db, 'restaurants', restaurantId, 'orders', orderRef.id, 'items'));
+                const itemRef = doc(collection(db, 'restaurants', restaurantId, 'orders', orderRefId, 'items'));
                 await setDoc(itemRef, {
                     itemId: itemRef.id,
-                    orderId: orderRef.id,
+                    orderId: orderRefId,
                     menuItemId: item.id,
                     name: item.name,
                     price: item.price,
                     quantity: item.quantity,
                     total: item.price * item.quantity,
                     notes: '',
-                    status: 'pending'
+                    status: 'pending',
+                    addedBy: item.addedBy || 'Guest'
                 });
+                
+                // Clear out from structured cart
+                await deleteDoc(doc(db, 'restaurants', restaurantId, 'tables', resolvedTableId, 'cart', item.cartDocId));
             }
 
             // Update table status
@@ -328,8 +413,6 @@ const RestaurantApp = () => {
                 }
             }
 
-            // 🔥 CLEAR CART
-            setCart([]);
             setShowCart(false);
             setActiveView('orders');
 
@@ -647,11 +730,20 @@ const RestaurantApp = () => {
                             <h1 className="text-lg font-bold text-gray-800 leading-tight">{restaurantInfo?.name || "Restaurant"}</h1>
                             <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
                                 <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded-md">T-{tableInfo ? tableInfo.tableNumber : tableId}</span>
-                                <span>{userProfile?.firstName || 'Guest'}</span>
+                                <span>{currentUserName || 'Guest'}</span>
                             </div>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        {!isGuest && user && (
+                            <button
+                                onClick={() => setShowShareModal(true)}
+                                className="p-2 text-blue-500 hover:text-blue-600 transition-colors bg-blue-50 rounded-full"
+                                title="Share Cart Link"
+                            >
+                                <Share2 className="w-4 h-4 fill-blue-500" />
+                            </button>
+                        )}
                         <button
                             onClick={() => navigate('/social-impact')}
                             className="p-2 text-green-500 hover:text-green-600 transition-colors"
@@ -722,6 +814,7 @@ const RestaurantApp = () => {
                         filteredItems={filteredItems}
                         handleCategoryClick={handleCategoryClick}
                         renderSpicy={renderSpicy}
+                        currentUserName={currentUserName}
                     />
                 )}
                 {activeView === 'orders' && (
@@ -766,7 +859,65 @@ const RestaurantApp = () => {
                 cartTotal={cartTotal}
                 updateQuantity={updateQuantity}
                 placeOrder={placeOrder}
+                isGuest={isGuest}
             />
+
+            {/* --- SHARE MODAL --- */}
+            {showShareModal && (
+                <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowShareModal(false)}>
+                    <div className="bg-white rounded-xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-xl font-bold mb-4 text-center">Share Table Cart</h2>
+                        <p className="text-sm text-gray-500 text-center mb-6">Let your friends browse the menu and add items directly to your cart!</p>
+                        
+                        <div className="flex justify-center mb-6">
+                            <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + window.location.pathname + "?restaurantId=" + restaurantId + "&tableId=" + tableId + "&shared=true")}`}
+                                alt="QR Code"
+                                className="w-40 h-40 border border-gray-100 rounded-lg shadow-sm"
+                            />
+                        </div>
+
+                        <button 
+                            onClick={() => {
+                                navigator.clipboard.writeText(window.location.origin + window.location.pathname + "?restaurantId=" + restaurantId + "&tableId=" + tableId + "&shared=true");
+                                alert('Link copied to clipboard!');
+                            }}
+                            className="w-full flex items-center justify-center gap-2 bg-gray-100 text-gray-700 font-bold py-3 rounded-lg hover:bg-gray-200 transition-colors"
+                        >
+                            <Copy className="w-5 h-5" /> Copy Shareable Link
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* --- GUEST NAME MODAL --- */}
+            {guestNameModal && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white/95 rounded-2xl p-8 w-full max-w-sm shadow-2xl border border-white/20">
+                        <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-sm">
+                            <UtensilsCrossed className="w-8 h-8 text-orange-500" />
+                        </div>
+                        <h2 className="text-2xl font-black mb-2 text-center text-gray-800">Join Table</h2>
+                        <p className="text-sm text-gray-500 text-center mb-6">Enter your name to add items to the table's shared cart.</p>
+                        <input 
+                            type="text" 
+                            placeholder="Your Name" 
+                            className="w-full border-2 border-gray-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 p-3 rounded-xl mb-4 font-medium transition-all outline-none"
+                            value={guestNameInput}
+                            onChange={e => setGuestNameInput(e.target.value)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') handleJoinGuest();
+                            }}
+                        />
+                        <button 
+                            onClick={handleJoinGuest}
+                            className="w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-orange-500/30 transform active:scale-95 transition-all"
+                        >
+                            Start Browsing
+                        </button>
+                    </div>
+                </div>
+            )}
 
         </div>
     );
