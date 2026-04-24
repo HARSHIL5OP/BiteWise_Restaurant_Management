@@ -4,7 +4,15 @@ import { doc, updateDoc, collection, getDocs, runTransaction } from 'firebase/fi
 import { ShoppingBag, Clock, CheckCircle, ChefHat, ExternalLink, Receipt, X, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 
-const OrderList = ({ orders, restaurantId }: any) => {
+import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
+import { orderBy } from 'firebase/firestore';
+
+const OrderList = ({ restaurantId, tables = [], staff = [] }: any) => {
+    const { items: orders, loading, loadingMore, hasMore, loadMore, refetch } = usePaginatedQuery<any>(
+        ['restaurants', restaurantId, 'orders'],
+        [orderBy('createdAt', 'desc')],
+        15
+    );
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [orderItems, setOrderItems] = useState<any[]>([]);
     const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
@@ -90,20 +98,42 @@ const OrderList = ({ orders, restaurantId }: any) => {
         }
     };
 
-    // Sort orders, newest first
-    const sortedOrders = [...orders].sort((a: any, b: any) => {
-        const timeA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
-        const timeB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
-        return timeB - timeA;
-    });
+    // Optional: Sort locally just in case, though Firestore orderBy handles it
+    const sortedOrders = orders;
+
+    const getTableDisplay = (order: any) => {
+        if (order.tableNumber) return order.tableNumber;
+        const matchingTable = tables.find((t: any) => t.id === order.tableId || t.tableId === order.tableId);
+        return matchingTable?.tableNumber || order.tableId;
+    };
+
+    const getWaiterDisplay = (order: any) => {
+        if (order.waiterName) return order.waiterName;
+        if (!order.waiterId) return 'Unassigned';
+        const waiter = staff.find((s: any) => s.userId === order.waiterId || s.id === order.waiterId);
+        if (waiter) {
+            return waiter.name || `${waiter.firstName || ''} ${waiter.lastName || ''}`.trim() || order.waiterId;
+        }
+        return order.waiterId;
+    };
 
     return (
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Order Management</h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Track and manage incoming orders in real-time.</p>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        Order Management
+                        {loading && <span className="text-xs font-normal px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Loading...</span>}
+                    </h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Track and manage incoming orders.</p>
                 </div>
+                <button 
+                    onClick={refetch}
+                    disabled={loading}
+                    className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 disabled:opacity-50"
+                >
+                    Refresh
+                </button>
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
@@ -126,8 +156,8 @@ const OrderList = ({ orders, restaurantId }: any) => {
                                         #{order.id.slice(0, 8)}...
                                     </td>
                                     <td className="p-4">
-                                        <div className="text-sm font-bold text-slate-800 dark:text-white">Table {order.tableNumber || order.tableId}</div>
-                                        <div className="text-xs text-slate-500">{order.waiterName || 'Unassigned'}</div>
+                                        <div className="text-sm font-bold text-slate-800 dark:text-white">Table {getTableDisplay(order)}</div>
+                                        <div className="text-xs text-slate-500">{getWaiterDisplay(order)}</div>
                                     </td>
                                     <td className="p-4 font-bold text-indigo-600 dark:text-indigo-400">
                                         ₹{Number(order.totalAmount || 0).toFixed(2)}
@@ -174,6 +204,19 @@ const OrderList = ({ orders, restaurantId }: any) => {
                         </tbody>
                     </table>
                 </div>
+                
+                {/* Pagination Controls */}
+                {hasMore && (
+                    <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex justify-center bg-slate-50 dark:bg-slate-800/30">
+                        <button 
+                            onClick={loadMore}
+                            disabled={loadingMore}
+                            className="px-6 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-full text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:shadow-md transition-all disabled:opacity-50 flex items-center gap-2 relative overflow-hidden group"
+                        >
+                            {loadingMore ? 'Loading Data...' : 'Load More Orders'}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Billing Modal */}
@@ -192,7 +235,7 @@ const OrderList = ({ orders, restaurantId }: any) => {
                         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
                             <div className="text-center mb-6">
                                 <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Receipt</h2>
-                                <p className="text-sm text-slate-500">Table: {selectedOrder.tableNumber || selectedOrder.tableId}</p>
+                                <p className="text-sm text-slate-500">Table: {getTableDisplay(selectedOrder)}</p>
                                 <p className="text-xs text-slate-400">{selectedOrder.createdAt?.toDate ? selectedOrder.createdAt.toDate().toLocaleString() : new Date().toLocaleString()}</p>
                             </div>
 

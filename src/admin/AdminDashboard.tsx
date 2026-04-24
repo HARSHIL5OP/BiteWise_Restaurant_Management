@@ -262,47 +262,6 @@ const AdminDashboard = () => {
             console.error("Staff fetch error:", error);
         });
 
-        const unsubscribeOrders = onSnapshot(collection(db, 'restaurants', restaurantId, 'orders'), (snapshot) => {
-            const fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[];
-            setOrders(fetchedOrders);
-
-            // 1. Calculate Total Revenue (Completed Only)
-            const totalRevenue = fetchedOrders
-                .filter(o => o.status === 'completed')
-                .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
-            setRevenue(totalRevenue);
-
-            // 2. Calculate Daily Trends
-            const statsMap = {};
-            fetchedOrders.forEach(order => {
-                if (order.createdAt) {
-                    const date = order.createdAt.toDate ? order.createdAt.toDate() : new Date(order.createdAt);
-                    const dayKey = date.toLocaleDateString('en-US', { weekday: 'short' }); // Mon, Tue...
-
-                    if (!statsMap[dayKey]) {
-                        statsMap[dayKey] = { name: dayKey, revenue: 0, orders: 0, sortKey: date.getDay() };
-                    }
-
-                    statsMap[dayKey].orders += 1;
-                    if (order.status === 'completed') {
-                        statsMap[dayKey].revenue += (Number(order.totalAmount) || 0);
-                    }
-                }
-            });
-
-            // Sort by day of week
-            const sortedStats = Object.values(statsMap).sort((a: any, b: any) => {
-                // Adjust for Monday start if needed, currently Sun=0
-                return a.sortKey - b.sortKey;
-            });
-
-            // If empty, show fallback or empty array
-            setDailyStats(sortedStats.length > 0 ? sortedStats : []);
-
-        }, (error) => {
-            console.error("Orders fetch error:", error);
-        });
-
         // Fetch Tables
         const unsubscribeTables = onSnapshot(collection(db, 'restaurants', restaurantId, 'tables'), (snapshot) => {
             const tablesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -312,27 +271,8 @@ const AdminDashboard = () => {
             console.error("Tables fetch error:", error);
         });
 
-        // Fetch Inventory (real-time)
-        const unsubscribeInventory = onSnapshot(
-            collection(db, 'restaurants', restaurantId, 'inventory'),
-            (snapshot) => {
-                const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as InventoryItem));
-                setInventoryItems(items);
-            },
-            (error) => console.error('Inventory fetch error:', error)
-        );
-
-        // Fetch Donations (real-time)
-        const unsubscribeDonations = onSnapshot(
-            collection(db, 'food_donations'),
-            (snapshot) => {
-                const items = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Donation[];
-                // filter by restaurant
-                const myDonations = items.filter((d: Donation) => d.restaurantId === restaurantId);
-                setDonations(myDonations);
-            },
-            (error) => console.error('Donations fetch error:', error)
-        );
+        // Aggregated listeners removed for pagination.
+        // For stats, we'll keep a simple getDocs fetch or summary listener if needed later.
 
         // Fetch Restaurant details
         const unsubscribeRestaurant = onSnapshot(doc(db, 'restaurants', restaurantId), (docSnap) => {
@@ -353,10 +293,7 @@ const AdminDashboard = () => {
             unsubscribeMenu();
             unsubscribeStaff();
             unsubscribeTables();
-            unsubscribeOrders();
             unsubscribeRestaurant();
-            unsubscribeInventory();
-            unsubscribeDonations();
         };
     }, []);
 
@@ -1022,7 +959,7 @@ const AdminDashboard = () => {
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="space-y-8"
                         >
-                            <OrderList orders={orders} restaurantId={restaurantId} />
+                            <OrderList restaurantId={restaurantId} tables={tables} staff={staff} />
                         </motion.div>
                     )}
 
@@ -1094,7 +1031,7 @@ const AdminDashboard = () => {
                             {/* Inventory table */}
                             <div className="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
                                 <InventoryList
-                                    items={inventoryItems}
+                                    restaurantId={restaurantId}
                                     onAdd={openAddInventory}
                                     onEdit={openEditInventory}
                                     onRestock={openRestockInventory}
@@ -1112,10 +1049,10 @@ const AdminDashboard = () => {
                             exit={{ opacity: 0, scale: 0.95 }}
                         >
                             <DonationList
-                                donations={donations}
+                                restaurantId={restaurantId}
                                 onAdd={() => setShowAddDonation(true)}
-                                onView={(id) => {
-                                    setViewingDonation(donations.find(d => d.id === id));
+                                onView={(donation) => {
+                                    setViewingDonation(donation);
                                     setShowViewDonation(true);
                                 }}
                             />

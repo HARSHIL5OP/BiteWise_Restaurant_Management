@@ -1,15 +1,22 @@
 import React from 'react';
 import { Plus, Edit2, RefreshCcw, AlertTriangle, Package } from 'lucide-react';
-import { InventoryItem } from '../../services/inventoryService';
+import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
+import { orderBy, limit } from 'firebase/firestore';
 
 interface Props {
-    items: InventoryItem[];
+    restaurantId: string;
     onAdd: () => void;
     onEdit: (item: InventoryItem) => void;
     onRestock: (item: InventoryItem) => void;
 }
 
-const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => {
+const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock }) => {
+    const { items, loading, loadingMore, hasMore, loadMore, refetch } = usePaginatedQuery<InventoryItem>(
+        ['restaurants', restaurantId, 'inventory'],
+        [orderBy('name', 'asc')],
+        15
+    );
+
     return (
         <div>
             {/* Header */}
@@ -22,7 +29,19 @@ const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => 
                         <Plus size={16} /> Add Item
                     </button>
                 </div>
-                <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{items.length} Item{items.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="flex gap-4 items-center">
+                    {loading && <span className="text-sm text-slate-500">Loading...</span>}
+                    <button 
+                        onClick={refetch}
+                        disabled={loading}
+                        className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                        title="Refresh"
+                    >
+                        <RefreshCcw size={18} />
+                    </button>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">{items.length} Loaded</p>
+                </div>
             </div>
 
             {/* Empty state */}
@@ -244,6 +263,19 @@ const InventoryList: React.FC<Props> = ({ items, onAdd, onEdit, onRestock }) => 
                             </tbody>
                         </table>
                     </div>
+                </div>
+            )}
+
+            {/* Pagination Controls */}
+            {hasMore && (
+                <div className="mt-4 p-4 flex justify-center">
+                    <button 
+                        onClick={loadMore}
+                        disabled={loadingMore}
+                        className="px-6 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-full text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:shadow-md transition-all disabled:opacity-50"
+                    >
+                        {loadingMore ? 'Loading Items...' : 'Load More Inventory'}
+                    </button>
                 </div>
             )}
         </div>

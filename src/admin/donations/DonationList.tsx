@@ -1,7 +1,8 @@
 import React from 'react';
 import { Plus, Eye, PackageOpen, CheckCircle, Clock } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
 
 export interface Donation {
     id: string;
@@ -19,12 +20,17 @@ export interface Donation {
 }
 
 interface Props {
-    donations: Donation[];
+    restaurantId: string;
     onAdd: () => void;
-    onView: (id: string) => void;
+    onView: (donation: Donation) => void;
 }
 
-const DonationList: React.FC<Props> = ({ donations, onAdd, onView }) => {
+const DonationList: React.FC<Props> = ({ restaurantId, onAdd, onView }) => {
+    const { items: donations, loading, loadingMore, hasMore, loadMore, refetch } = usePaginatedQuery<Donation>(
+        ['food_donations'],
+        [where('restaurantId', '==', restaurantId), orderBy('createdAt', 'desc')],
+        10
+    );
     const [ngoMap, setNgoMap] = React.useState<Record<string, string>>({});
 
     React.useEffect(() => {
@@ -48,7 +54,17 @@ const DonationList: React.FC<Props> = ({ donations, onAdd, onView }) => {
                 >
                     <Plus size={16} /> Add Donation
                 </button>
-                <p className="text-slate-500 text-sm font-medium">{donations.length} Donation{donations.length !== 1 ? 's' : ''}</p>
+                <div className="flex gap-4 items-center">
+                    {loading && <span className="text-sm text-slate-500">Loading...</span>}
+                    <button 
+                        onClick={refetch}
+                        disabled={loading}
+                        className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 text-sm font-semibold"
+                    >
+                        Refresh
+                    </button>
+                    <p className="text-slate-500 text-sm font-medium">{donations.length} Loaded</p>
+                </div>
             </div>
 
             {/* Empty state */}
@@ -92,7 +108,7 @@ const DonationList: React.FC<Props> = ({ donations, onAdd, onView }) => {
                                         {donation.status}
                                     </span>
                                     <button
-                                        onClick={() => onView(donation.id)}
+                                        onClick={() => onView(donation)}
                                         className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm min-h-[36px]"
                                     >
                                         <Eye size={14} /> View
@@ -149,7 +165,7 @@ const DonationList: React.FC<Props> = ({ donations, onAdd, onView }) => {
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-2 justify-end">
                                                     <button
-                                                        onClick={() => onView(donation.id)}
+                                                        onClick={() => onView(donation)}
                                                         title="View"
                                                         className="p-2 rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-800 transition-all"
                                                     >
@@ -162,7 +178,19 @@ const DonationList: React.FC<Props> = ({ donations, onAdd, onView }) => {
                                 })}
                             </tbody>
                         </table>
-                    </div>
+                </div>
+            )}
+
+            {/* Pagination Controls */}
+            {hasMore && (
+                <div className="mt-4 p-4 flex justify-center">
+                    <button 
+                        onClick={loadMore}
+                        disabled={loadingMore}
+                        className="px-6 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-full text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:shadow-md transition-all disabled:opacity-50"
+                    >
+                        {loadingMore ? 'Loading...' : 'Load More Donations'}
+                    </button>
                 </div>
             )}
         </div>
