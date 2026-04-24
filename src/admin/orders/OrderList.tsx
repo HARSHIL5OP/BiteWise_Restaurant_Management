@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { db } from '../../lib/firebase';
-import { doc, updateDoc, collection, getDocs, runTransaction } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs, getDoc, runTransaction } from 'firebase/firestore';
 import { ShoppingBag, Clock, CheckCircle, ChefHat, ExternalLink, Receipt, X, Printer } from 'lucide-react';
 import { toast } from 'sonner';
+import { jsPDF } from 'jspdf';
 
 import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
 import { orderBy } from 'firebase/firestore';
@@ -85,6 +86,174 @@ const OrderList = ({ restaurantId, tables = [], staff = [] }: any) => {
             console.error("Error fetching order items:", error);
             toast.error("Failed to fetch order items for billing");
         }
+    };
+
+    const printBill = async (order: any) => {
+        let restaurantData: any = null;
+        try {
+            const docSnap = await getDoc(doc(db, "restaurants", restaurantId));
+            if (docSnap.exists()) {
+                restaurantData = docSnap.data();
+            }
+        } catch (error) {
+            console.error("Error fetching restaurant info:", error);
+        }
+
+        const docPDF = new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: [80, 200]
+        });
+
+        const pageWidth = docPDF.internal.pageSize.getWidth();
+        let y = 10;
+
+        const addCenteredText = (text: string, yPos: number, size: number = 10, isBold: boolean = false) => {
+            docPDF.setFontSize(size);
+            if (isBold) {
+                docPDF.setFont("helvetica", "bold");
+            } else {
+                docPDF.setFont("helvetica", "normal");
+            }
+            const textWidth = docPDF.getTextWidth(text);
+            const xPos = (pageWidth - textWidth) / 2;
+            docPDF.text(text, xPos, yPos);
+        };
+
+        const drawDashedLine = (yPos: number) => {
+            docPDF.setLineDashPattern([1, 1], 0);
+            docPDF.line(4, yPos, pageWidth - 4, yPos);
+            docPDF.setLineDashPattern([], 0);
+        }
+
+        docPDF.setTextColor(0, 0, 0);
+
+        // Header
+        addCenteredText((restaurantData?.name || "RESTAURANT").toUpperCase(), y, 12, true);
+        y += 5;
+        
+        if (restaurantData?.description) {
+            addCenteredText(restaurantData.description.substring(0, 40), y, 9);
+            y += 4;
+        }
+        
+        let locStr = "Location details not available";
+        if (restaurantData?.location) {
+            const loc = restaurantData.location;
+            if (loc.address && loc.city) locStr = `${loc.address}, ${loc.city}`;
+            else if (loc.address) locStr = loc.address;
+            else if (loc.city) locStr = loc.city;
+        }
+        
+        if (locStr.length > 35) {
+           addCenteredText(locStr.substring(0, 35), y, 9);
+           y += 4;
+           if (locStr.length > 35) {
+               addCenteredText(locStr.substring(35, 70), y, 9);
+               y += 4;
+           }
+        } else {
+           addCenteredText(locStr, y, 9);
+           y += 4;
+        }
+        
+        drawDashedLine(y);
+        y += 4;
+        addCenteredText("TAX INVOICE", y, 10, false);
+        y += 2;
+        drawDashedLine(y);
+        y += 5;
+
+        // Info
+        const billNo = order.orderNumber || order.id.slice(0, 5).toUpperCase();
+        const dateStr = order.createdAt?.toDate ? order.createdAt.toDate().toLocaleDateString() : new Date().toLocaleDateString();
+        docPDF.setFont("helvetica", "normal");
+        docPDF.setFontSize(9);
+        
+        docPDF.text(`Date: ${dateStr}`, 4, y);
+        docPDF.text(`Bill No. : ${billNo}`, pageWidth / 2 + 5, y);
+        y += 5;
+        docPDF.text(`PBoy: COUNTER`, 4, y);
+        y += 6;
+
+        // Table Header
+        docPDF.setFont("helvetica", "bold");
+        docPDF.text("Particulars", 4, y);
+        docPDF.text("Qty", 45, y);
+        docPDF.text("Rate", 55, y);
+        docPDF.text("Amount", 68, y);
+        y += 1;
+        drawDashedLine(y);
+        y += 5;
+
+        // Items
+        docPDF.setFont("helvetica", "normal");
+        docPDF.setFontSize(9);
+        
+        let subTotal = 0;
+        let totalItemsQty = 0;
+
+        orderItems.forEach((item: any) => {
+            const name = (item.name || "").substring(0, 15).toUpperCase();
+            const qty = Number(item.quantity) || 1;
+            const rate = Number(item.price) || 0;
+            const amt = qty * rate;
+
+            docPDF.text(name, 4, y);
+            docPDF.text(qty.toString(), 46, y);
+            docPDF.text(rate.toFixed(0), 55, y);
+            docPDF.text(amt.toFixed(0), 68, y);
+            
+            subTotal += amt;
+            totalItemsQty += qty;
+            y += 5;
+        });
+
+        drawDashedLine(y);
+        y += 5;
+
+        // Subtotal & GST
+        docPDF.text("Sub Total :", 38, y);
+        docPDF.text(subTotal.toFixed(2), 68, y);
+        y += 5;
+
+        const sgst = subTotal * 0.025;
+        docPDF.text(`SGST @2.5% :`, 38, y);
+        docPDF.text(sgst.toFixed(2), 68, y);
+        y += 5;
+
+        const cgst = subTotal * 0.025;
+        docPDF.text(`CGST @2.5% :`, 38, y);
+        docPDF.text(cgst.toFixed(2), 68, y);
+        y += 5;
+
+        drawDashedLine(y);
+        y += 6;
+
+        // Total
+        const finalTotal = subTotal + sgst + cgst;
+        docPDF.setFont("helvetica", "bold");
+        docPDF.setFontSize(11);
+        docPDF.text(`${totalItemsQty} Item(s)`, 4, y);
+        docPDF.text("Total :", 45, y);
+        docPDF.text(finalTotal.toFixed(0), 68, y);
+        y += 3;
+        
+        drawDashedLine(y);
+        y += 6;
+
+        // Footer
+        docPDF.setFont("helvetica", "normal");
+        docPDF.setFontSize(8);
+        docPDF.text("FSSAI NO - 11516004000575", 4, y);
+        const timeStr = order.createdAt?.toDate ? order.createdAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        docPDF.text(`(${timeStr})`, pageWidth - 25, y);
+        y += 5;
+        docPDF.text("E.&O.E.", 4, y);
+        docPDF.text("Thank You", pageWidth / 2 - 8, y);
+        docPDF.text("Visit Again", pageWidth - 22, y);
+
+        docPDF.save(`bill-${billNo}.pdf`);
     };
 
     const getStatusColor = (status: string) => {
@@ -270,7 +439,9 @@ const OrderList = ({ restaurantId, tables = [], staff = [] }: any) => {
                             </div>
                         </div>
                         <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex gap-3">
-                            <button className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 transition-colors flex justify-center items-center gap-2 text-sm">
+                            <button 
+                                onClick={() => printBill(selectedOrder)}
+                                className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 transition-colors flex justify-center items-center gap-2 text-sm">
                                 <Printer size={16} /> Print Bill
                             </button>
                             <button 
