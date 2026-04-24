@@ -178,6 +178,7 @@ const DonationList: React.FC<Props> = ({ restaurantId, onAdd, onView }) => {
                                 })}
                             </tbody>
                         </table>
+                    </div>
                 </div>
             )}
 

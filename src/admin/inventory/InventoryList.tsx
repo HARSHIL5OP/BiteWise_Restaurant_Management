@@ -29,7 +29,6 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
                         <Plus size={16} /> Add Item
                     </button>
                 </div>
-                </div>
                 <div className="flex gap-4 items-center">
                     {loading && <span className="text-sm text-slate-500">Loading...</span>}
                     <button 
