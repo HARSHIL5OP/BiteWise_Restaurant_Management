@@ -126,7 +126,7 @@ const OrderList = ({ orders, restaurantId }: any) => {
                                         #{order.id.slice(0, 8)}...
                                     </td>
                                     <td className="p-4">
-                                        <div className="text-sm font-bold text-slate-800 dark:text-white">Table {order.tableId}</div>
+                                        <div className="text-sm font-bold text-slate-800 dark:text-white">Table {order.tableNumber || order.tableId}</div>
                                         <div className="text-xs text-slate-500">{order.waiterName || 'Unassigned'}</div>
                                     </td>
                                     <td className="p-4 font-bold text-indigo-600 dark:text-indigo-400">
@@ -192,7 +192,7 @@ const OrderList = ({ orders, restaurantId }: any) => {
                         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
                             <div className="text-center mb-6">
                                 <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Receipt</h2>
-                                <p className="text-sm text-slate-500">Table: {selectedOrder.tableId}</p>
+                                <p className="text-sm text-slate-500">Table: {selectedOrder.tableNumber || selectedOrder.tableId}</p>
                                 <p className="text-xs text-slate-400">{selectedOrder.createdAt?.toDate ? selectedOrder.createdAt.toDate().toLocaleString() : new Date().toLocaleString()}</p>
                             </div>
 

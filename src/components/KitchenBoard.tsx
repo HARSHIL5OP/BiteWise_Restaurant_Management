@@ -20,6 +20,7 @@ interface OrderItem {
 interface Order {
     id: string;
     tableId: string;
+    tableNumber?: string | number;
     waiterId: string;
     waiterName: string;
     createdAt: any; // Firestore Timestamp
@@ -276,7 +277,7 @@ const KitchenBoard = () => {
                     ...item,
                     status: item.status,
                     orderId: order.id,
-                    tableId: tablesMap[order.tableId] || order.tableId,
+                    tableId: order.tableNumber || tablesMap[order.tableId] || order.tableId,
                     waiterName: staffMap[order.waiterId] || order.waiterId,
                     orderCreatedAt: order.createdAt,
                     uniqueId: `${order.id}-${item.itemId || index}`
