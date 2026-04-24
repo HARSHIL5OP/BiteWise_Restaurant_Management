@@ -3,15 +3,24 @@ import { Plus, Edit2, RefreshCcw, AlertTriangle, Package } from 'lucide-react';
 import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
 import { orderBy, limit } from 'firebase/firestore';
 
+const parseDate = (dateVal: any): Date | null => {
+    if (!dateVal) return null;
+    if (typeof dateVal === 'object' && 'seconds' in dateVal) {
+        return new Date(dateVal.seconds * 1000);
+    }
+    const d = new Date(dateVal);
+    return isNaN(d.getTime()) ? null : d;
+};
+
 interface Props {
     restaurantId: string;
     onAdd: () => void;
-    onEdit: (item: InventoryItem) => void;
-    onRestock: (item: InventoryItem) => void;
+    onEdit: (item: any) => void;
+    onRestock: (item: any) => void;
 }
 
 const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock }) => {
-    const { items, loading, loadingMore, hasMore, loadMore, refetch } = usePaginatedQuery<InventoryItem>(
+    const { items, loading, loadingMore, hasMore, loadMore, refetch } = usePaginatedQuery<any>(
         ['restaurants', restaurantId, 'inventory'],
         [orderBy('name', 'asc')],
         15
@@ -62,9 +71,9 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
                         if (item.isPerishable) {
                             let targetDate = null;
                             if (item.expiryDate) {
-                                targetDate = new Date(item.expiryDate);
+                                targetDate = parseDate(item.expiryDate);
                             } else if (item.shelfLifeDays) {
-                                const lastRestocked = item.lastRestocked ? new Date(item.lastRestocked) : new Date();
+                                const lastRestocked = parseDate(item.lastRestocked) || new Date();
                                 targetDate = new Date(lastRestocked.getTime() + item.shelfLifeDays * 86400000);
                             }
                             
@@ -161,9 +170,9 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
                                     if (item.isPerishable) {
                                         let targetDate: Date | null = null;
                                         if (item.expiryDate) {
-                                            targetDate = new Date(item.expiryDate);
+                                            targetDate = parseDate(item.expiryDate);
                                         } else if (item.shelfLifeDays) {
-                                            const lastRestocked = item.lastRestocked ? new Date(item.lastRestocked) : new Date();
+                                            const lastRestocked = parseDate(item.lastRestocked) || new Date();
                                             targetDate = new Date(lastRestocked.getTime() + item.shelfLifeDays * 86400000);
                                         }
                                         
@@ -225,9 +234,9 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
                                                 {(() => {
                                                     let targetDate: Date | null = null;
                                                     if (item.expiryDate) {
-                                                        targetDate = new Date(item.expiryDate);
+                                                        targetDate = parseDate(item.expiryDate);
                                                     } else if (item.shelfLifeDays) {
-                                                        const lastRestocked = item.lastRestocked ? new Date(item.lastRestocked) : new Date();
+                                                        const lastRestocked = parseDate(item.lastRestocked) || new Date();
                                                         targetDate = new Date(lastRestocked.getTime() + item.shelfLifeDays * 86400000);
                                                     }
                                                     return targetDate ? targetDate.toLocaleDateString() : '—';
@@ -235,7 +244,7 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
                                             </td>
                                             <td className="px-5 py-4 text-slate-400 text-xs">
                                                 {item.lastRestocked
-                                                    ? new Date(item.lastRestocked).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                                    ? parseDate(item.lastRestocked)?.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) || '—'
                                                     : '—'}
                                             </td>
                                             <td className="px-5 py-4">

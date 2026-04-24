@@ -33,7 +33,9 @@ const AddDonationForm: React.FC<Props> = ({ restaurantId, onClose }) => {
             const validItems = items.filter(item => {
                 if (item.quantity <= 0) return false;
                 if (item.isPerishable && item.expiryDate) {
-                    const expiry = new Date(item.expiryDate);
+                    const expiry = typeof item.expiryDate === 'object' && 'seconds' in (item.expiryDate as any)
+                        ? new Date((item.expiryDate as any).seconds * 1000)
+                        : new Date(item.expiryDate);
                     const now = new Date();
                     if (expiry < now) return false; // Expired
                 }
@@ -64,7 +66,12 @@ const AddDonationForm: React.FC<Props> = ({ restaurantId, onClose }) => {
     // Auto-calculate expiry if explicit expiryDate is missing but shelfLifeDays exists
     const calculatedExpiry = React.useMemo(() => {
         if (!selectedItem) return null;
-        if (selectedItem.expiryDate) return selectedItem.expiryDate;
+        if (selectedItem.expiryDate) {
+            if (typeof selectedItem.expiryDate === 'object' && 'seconds' in (selectedItem.expiryDate as any)) {
+                return new Date((selectedItem.expiryDate as any).seconds * 1000).toISOString().split('T')[0];
+            }
+            return String(selectedItem.expiryDate);
+        }
         if (selectedItem.shelfLifeDays) {
             return new Date(Date.now() + selectedItem.shelfLifeDays * 86400000).toISOString().split('T')[0];
         }
@@ -147,11 +154,21 @@ const AddDonationForm: React.FC<Props> = ({ restaurantId, onClose }) => {
                     }}
                 >
                     <option value="">-- Choose Item --</option>
-                    {inventoryItems.map(item => (
-                        <option key={item.id} value={item.id}>
-                            {item.name} - {item.quantity} {item.unit} {item.expiryDate ? `(Exp: ${item.expiryDate})` : ''}
-                        </option>
-                    ))}
+                    {inventoryItems.map(item => {
+                        let expDisplay = '';
+                        if (item.expiryDate) {
+                            if (typeof item.expiryDate === 'object' && 'seconds' in (item.expiryDate as any)) {
+                                expDisplay = new Date((item.expiryDate as any).seconds * 1000).toISOString().split('T')[0];
+                            } else {
+                                expDisplay = String(item.expiryDate);
+                            }
+                        }
+                        return (
+                            <option key={item.id} value={item.id}>
+                                {item.name} - {item.quantity} {item.unit} {expDisplay ? `(Exp: ${expDisplay})` : ''}
+                            </option>
+                        );
+                    })}
                 </select>
             </div>
 
