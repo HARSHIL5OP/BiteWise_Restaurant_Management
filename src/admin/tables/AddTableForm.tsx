@@ -4,7 +4,7 @@ const AddTableForm = ({ newTable, setNewTable, handleAddTable, floors, tables }:
     const handleFloorChange = (floor: number) => {
         const floorTables = tables.filter((t: any) => parseInt(t.floor) === floor);
         let nextTableNum = '';
-        
+
         if (floor === 0) {
             const maxNum = floorTables.reduce((max: number, t: any) => Math.max(max, parseInt(t.tableNumber) || 0), 0);
             nextTableNum = (maxNum + 1).toString();
@@ -23,7 +23,7 @@ const AddTableForm = ({ newTable, setNewTable, handleAddTable, floors, tables }:
             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-4 transition-colors">
                 <div className="bg-white p-2 rounded-lg shadow-sm">
                     <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://odoo-cafe-project-eight.vercel.app/home/${newTable.tableNumber || ''}`}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://bitewise-srms.vercel.app/home/${newTable.tableNumber || ''}`}
                         alt="QR Preview"
                         className="w-16 h-16"
                     />
@@ -44,7 +44,7 @@ const AddTableForm = ({ newTable, setNewTable, handleAddTable, floors, tables }:
                             className={`px-4 py-2 rounded-lg font-bold border transition-all ${parseInt(newTable.floor) === idx
                                 ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-500/20'
                                 : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-indigo-500 dark:hover:border-slate-600 hover:text-indigo-600 dark:hover:text-white'
-                            }`}
+                                }`}
                         >
                             {idx === 0 ? 'Ground' : `Floor ${idx}`}
                         </button>
