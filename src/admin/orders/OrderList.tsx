@@ -130,7 +130,7 @@ const OrderList = ({ orders, restaurantId }: any) => {
                                         <div className="text-xs text-slate-500">{order.waiterName || 'Unassigned'}</div>
                                     </td>
                                     <td className="p-4 font-bold text-indigo-600 dark:text-indigo-400">
-                                        ${Number(order.totalAmount || 0).toFixed(2)}
+                                        ₹{Number(order.totalAmount || 0).toFixed(2)}
                                     </td>
                                     <td className="p-4 text-sm text-slate-500">
                                         {order.createdAt?.toDate ? order.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
@@ -201,9 +201,9 @@ const OrderList = ({ orders, restaurantId }: any) => {
                                     <div key={index} className="flex justify-between items-start">
                                         <div className="flex-1">
                                             <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.name}</p>
-                                            <p className="text-xs text-slate-500">{item.quantity} x ${Number(item.price).toFixed(2)}</p>
+                                            <p className="text-xs text-slate-500">{item.quantity} x ₹{Number(item.price).toFixed(2)}</p>
                                         </div>
-                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200">${(item.quantity * item.price).toFixed(2)}</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200">₹{(item.quantity * item.price).toFixed(2)}</p>
                                     </div>
                                 ))}
                                 {orderItems.length === 0 && (
@@ -214,15 +214,15 @@ const OrderList = ({ orders, restaurantId }: any) => {
                             <div className="space-y-2">
                                 <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
                                     <span>Subtotal</span>
-                                    <span>${orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0).toFixed(2)}</span>
+                                    <span>₹{orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0).toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
                                     <span>Tax (Est.)</span>
-                                    <span>${(orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0) * 0.05).toFixed(2)}</span>
+                                    <span>₹{(orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0) * 0.05).toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between text-lg font-black text-slate-800 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-700">
                                     <span>Total</span>
-                                    <span>${Number(selectedOrder.totalAmount || (orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0) * 1.05)).toFixed(2)}</span>
+                                    <span>₹{Number(selectedOrder.totalAmount || (orderItems.reduce((acc, item) => acc + (item.quantity * item.price), 0) * 1.05)).toFixed(2)}</span>
                                 </div>
                             </div>
                         </div>

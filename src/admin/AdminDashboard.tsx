@@ -937,10 +937,10 @@ const AdminDashboard = () => {
                         >
                             {/* Stats Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <StatCard title="Total Revenue" value={`$${revenue.toLocaleString()}`} subtext="Lifetime Earnings" trend={12} icon={DollarSign} />
+                                <StatCard title="Total Revenue" value={`₹${revenue.toLocaleString()}`} subtext="Lifetime Earnings" trend={12} icon={DollarSign} />
                                 <StatCard title="Total Orders" value={orders.length} subtext="All time" trend={8} icon={ShoppingBag} />
                                 <StatCard title="Active Staff" value={staff.length} subtext="Registered Staff" trend={0} icon={Users} />
-                                <StatCard title="Avg Order Value" value={`$${orders.length > 0 ? Math.round(revenue / orders.filter(o => o.status === 'completed').length || 1) : 0}`} subtext="Per completed order" trend={5} icon={TrendingUp} />
+                                <StatCard title="Avg Order Value" value={`₹${orders.length > 0 ? Math.round(revenue / orders.filter(o => o.status === 'completed').length || 1) : 0}`} subtext="Per completed order" trend={5} icon={TrendingUp} />
                             </div>
 
                             {/* Charts */}

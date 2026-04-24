@@ -53,7 +53,7 @@ const MenuList = ({ menuItems, openEditMenu, handleDeleteMenu, setShowAddMenu, s
                         <div className="p-5">
                             <div className="flex justify-between items-start mb-1">
                                 <h3 className="font-bold text-lg text-slate-800 dark:text-white line-clamp-1" title={item.name}>{item.name}</h3>
-                                <span className="font-bold text-indigo-600 dark:text-indigo-400">${item.price}</span>
+                                <span className="font-bold text-indigo-600 dark:text-indigo-400">₹{item.price}</span>
                             </div>
                             
                             {/* Detailed Description */}
