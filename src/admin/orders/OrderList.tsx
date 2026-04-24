@@ -315,7 +315,7 @@ const OrderList = ({ restaurantId, tables = [], staff = [] }: any) => {
                                 <th className="p-4 font-semibold text-slate-500 text-sm">Amount</th>
                                 <th className="p-4 font-semibold text-slate-500 text-sm">Time</th>
                                 <th className="p-4 font-semibold text-slate-500 text-sm">Status</th>
-                                <th className="p-4 font-semibold text-slate-500 text-sm">Action</th>
+                                {/* <th className="p-4 font-semibold text-slate-500 text-sm">Action</th> */}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -340,7 +340,7 @@ const OrderList = ({ restaurantId, tables = [], staff = [] }: any) => {
                                         </span>
                                     </td>
                                     <td className="p-4 flex items-center gap-2">
-                                        <select 
+                                        {/* <select 
                                             value={order.status || 'pending'}
                                             onChange={(e) => updateOrderStatus(order.id, e.target.value)}
                                             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm px-3 py-1.5 focus:outline-none focus:border-indigo-500 text-slate-700 dark:text-slate-300 transition-colors"
@@ -351,7 +351,7 @@ const OrderList = ({ restaurantId, tables = [], staff = [] }: any) => {
                                             <option value="served">Served</option>
                                             <option value="completed">Completed</option>
                                             <option value="cancelled">Cancelled</option>
-                                        </select>
+                                        </select> */}
                                         <button 
                                             onClick={() => viewBill(order)}
                                             className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
@@ -444,7 +444,7 @@ const OrderList = ({ restaurantId, tables = [], staff = [] }: any) => {
                                 className="flex-1 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 transition-colors flex justify-center items-center gap-2 text-sm">
                                 <Printer size={16} /> Print Bill
                             </button>
-                            <button 
+                            {/* <button 
                                 onClick={() => {
                                     updateOrderStatus(selectedOrder.id, 'completed');
                                     setIsBillingModalOpen(false);
@@ -452,7 +452,7 @@ const OrderList = ({ restaurantId, tables = [], staff = [] }: any) => {
                                 className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20 text-sm"
                             >
                                 Settle & Complete
-                            </button>
+                            </button> */}
                         </div>
                     </div>
                 </div>

@@ -271,8 +271,55 @@ const AdminDashboard = () => {
             console.error("Tables fetch error:", error);
         });
 
-        // Aggregated listeners removed for pagination.
-        // For stats, we'll keep a simple getDocs fetch or summary listener if needed later.
+        // Fetch Inventory Items (needed for menu creation and summary stats)
+        const unsubscribeInventory = onSnapshot(collection(db, 'restaurants', restaurantId, 'inventory'), (snapshot) => {
+            const inventoryData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setInventoryItems(inventoryData as any);
+        }, (error) => {
+            console.error("Inventory fetch error:", error);
+        });
+
+        // Fetch Orders for Stats
+        const fetchOrdersStats = async () => {
+            try {
+                const ordersSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'orders'));
+                let totalRev = 0;
+                const fetchedOrders = ordersSnap.docs.map(doc => {
+                    const data = doc.data();
+                    if (data.status === 'completed') {
+                        totalRev += Number(data.totalAmount) || 0;
+                    }
+                    return { id: doc.id, ...data };
+                });
+                
+                setOrders(fetchedOrders as any);
+                setRevenue(totalRev);
+
+                // Group by day for the chart
+                const dayMap: Record<string, { revenue: number, orders: number }> = {};
+                fetchedOrders.forEach((o: any) => {
+                    if (o.status !== 'completed') return;
+                    const date = o.createdAt?.toDate ? o.createdAt.toDate() : new Date();
+                    const dateStr = date.toLocaleDateString('en-US', { weekday: 'short' });
+                    if (!dayMap[dateStr]) dayMap[dateStr] = { revenue: 0, orders: 0 };
+                    dayMap[dateStr].revenue += (Number(o.totalAmount) || 0);
+                    dayMap[dateStr].orders += 1;
+                });
+                
+                // Sort days based on day of week
+                const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const statsArray = Object.keys(dayMap).map(key => ({
+                    name: key,
+                    revenue: dayMap[key].revenue,
+                    orders: dayMap[key].orders
+                })).sort((a, b) => daysOfWeek.indexOf(a.name) - daysOfWeek.indexOf(b.name));
+                
+                setDailyStats(statsArray);
+            } catch (err) {
+                console.error("Error fetching order stats:", err);
+            }
+        };
+        fetchOrdersStats();
 
         // Fetch Restaurant details
         const unsubscribeRestaurant = onSnapshot(doc(db, 'restaurants', restaurantId), (docSnap) => {
@@ -294,6 +341,7 @@ const AdminDashboard = () => {
             unsubscribeStaff();
             unsubscribeTables();
             unsubscribeRestaurant();
+            unsubscribeInventory();
         };
     }, []);
 
