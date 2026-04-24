@@ -3,7 +3,7 @@ import {
     LayoutDashboard, Users, UtensilsCrossed, Settings, Plus, X,
     Search, Trash2, Edit2, ChevronRight, TrendingUp, DollarSign,
     ShoppingBag, Bell, LogOut, ChefHat, User, UserCheck, Upload,
-    QrCode, Grid, Download, Printer, Clock, Sun, Moon, Boxes, Heart
+    QrCode, Grid, Download, Printer, Clock, Sun, Moon, Boxes, Heart, Calendar
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import RestaurantFloorBlueprint from '../components/RestaurantFloorBlueprint';
@@ -46,6 +46,7 @@ import {
 import DonationList, { Donation } from './donations/DonationList';
 import AddDonationForm from './donations/AddDonationForm';
 import ViewDonation from './donations/ViewDonation';
+import BookingsAndOffers from './bookings/BookingsAndOffers';
 
 interface MenuItem {
     id: string;
@@ -808,6 +809,7 @@ const AdminDashboard = () => {
                     <SidebarItem icon={UtensilsCrossed} label="Menu" active={activeTab === 'menu'} onClick={() => setActiveTab('menu')} />
                     <SidebarItem icon={Boxes} label="Inventory" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
                     <SidebarItem icon={Heart} label="Donations" active={activeTab === 'donations'} onClick={() => setActiveTab('donations')} />
+                    <SidebarItem icon={Calendar} label="Bookings & Offers" active={activeTab === 'bookings'} onClick={() => setActiveTab('bookings')} />
                     <SidebarItem icon={Users} label="Staff" active={activeTab === 'staff'} onClick={() => setActiveTab('staff')} />
                     <SidebarItem icon={Settings} label="Settings" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
                     <SidebarItem icon={LogOut} label="Logout" active={false} onClick={handleLogout} className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 mt-10" />
@@ -842,6 +844,7 @@ const AdminDashboard = () => {
                 <UtensilsCrossed onClick={() => setActiveTab('menu')} className={activeTab === 'menu' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Boxes onClick={() => setActiveTab('inventory')} className={activeTab === 'inventory' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Heart onClick={() => setActiveTab('donations')} className={activeTab === 'donations' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
+                <Calendar onClick={() => setActiveTab('bookings')} className={activeTab === 'bookings' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Users onClick={() => setActiveTab('staff')} className={activeTab === 'staff' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Settings onClick={() => setActiveTab('settings')} className={activeTab === 'settings' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
             </div>
@@ -1089,6 +1092,18 @@ const AdminDashboard = () => {
                                     setShowViewDonation(true);
                                 }}
                             />
+                        </motion.div>
+                    )}
+
+                    {/* BOOKINGS TAB */}
+                    {activeTab === 'bookings' && (
+                        <motion.div
+                            key="bookings"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                        >
+                            <BookingsAndOffers restaurantId={restaurantId} />
                         </motion.div>
                     )}
 
