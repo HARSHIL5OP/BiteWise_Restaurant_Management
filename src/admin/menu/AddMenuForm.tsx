@@ -33,6 +33,7 @@ const AddMenuForm: React.FC<Props> = ({
     const [ingredients, setIngredients] = useState<DraftIngredient[]>([]);
     const [showIngredients, setShowIngredients] = useState(false);
     const [ingError, setIngError] = useState('');
+    const [isAiLoading, setIsAiLoading] = useState(false);
 
     React.useEffect(() => {
         if (initialIngredients && initialIngredients.length > 0) {
@@ -43,6 +44,61 @@ const AddMenuForm: React.FC<Props> = ({
             setShowIngredients(false);
         }
     }, [initialIngredients]);
+
+    const handleAiSuggest = async () => {
+        if (!newMenuItem.name) {
+            setIngError("Please enter an Item Name first to get AI suggestions.");
+            setShowIngredients(true);
+            return;
+        }
+        
+        setIsAiLoading(true);
+        setIngError('');
+        try {
+            const res = await fetch("http://localhost:8080/api/ai/suggest-ingredients", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ dishName: newMenuItem.name })
+            });
+            
+            if (!res.ok) throw new Error("AI request failed");
+            
+            const aiIngredients = await res.json();
+            
+            if (!Array.isArray(aiIngredients) || aiIngredients.length === 0) {
+                setIngError("AI returned no ingredients. Try manually adding them.");
+                setShowIngredients(true);
+                return;
+            }
+
+            const newIngredients: DraftIngredient[] = [];
+            
+            aiIngredients.forEach((aiIng: any) => {
+                // Try to find a matching inventory item
+                const aiName = (aiIng.name || "").toLowerCase();
+                const matchedInv = inventoryItems.find(inv => inv.name.toLowerCase() === aiName) 
+                                 || inventoryItems.find(inv => inv.name.toLowerCase().includes(aiName) || aiName.includes(inv.name.toLowerCase()));
+                
+                newIngredients.push({
+                    inventoryId: matchedInv ? matchedInv.id : "",
+                    name: matchedInv ? matchedInv.name : aiIng.name || "",
+                    unit: matchedInv ? matchedInv.unit : "",
+                    quantityUsed: parseFloat(aiIng.quantity) ? parseFloat(aiIng.quantity).toString() : "1",
+                    deductOnOrder: true
+                });
+            });
+            
+            setIngredients(newIngredients);
+            setShowIngredients(true);
+            
+        } catch (err) {
+            console.error("AI Suggestion error:", err);
+            setIngError("Failed to get AI suggestions.");
+            setShowIngredients(true);
+        } finally {
+            setIsAiLoading(false);
+        }
+    };
 
     const addIngredientRow = () => setIngredients(prev => [...prev, emptyIngredient()]);
 
@@ -203,21 +259,33 @@ const AddMenuForm: React.FC<Props> = ({
 
             {/* ─── Ingredients Section ─────────────────────────────────── */}
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                <button
-                    type="button"
-                    onClick={() => setShowIngredients(v => !v)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <div className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/50">
+                    <button
+                        type="button"
+                        onClick={() => setShowIngredients(v => !v)}
+                        className="flex-1 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-indigo-600 transition-colors text-left"
+                    >
                         🥗 Ingredients
                         {ingredients.length > 0 && (
                             <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-full">
                                 {ingredients.length}
                             </span>
                         )}
-                    </span>
-                    <ChevronDown size={16} className={`text-slate-400 transition-transform ${showIngredients ? 'rotate-180' : ''}`} />
-                </button>
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <button 
+                            type="button" 
+                            onClick={handleAiSuggest}
+                            disabled={isAiLoading}
+                            className="text-xs font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-500/30 transition-colors disabled:opacity-50 flex items-center gap-1"
+                        >
+                            {isAiLoading ? "Thinking..." : "✨ AI Suggest"}
+                        </button>
+                        <button type="button" onClick={() => setShowIngredients(v => !v)}>
+                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${showIngredients ? 'rotate-180' : ''}`} />
+                        </button>
+                    </div>
+                </div>
 
                 {showIngredients && (
                     <div className="p-4 space-y-3">
@@ -234,9 +302,10 @@ const AddMenuForm: React.FC<Props> = ({
                                 )}
 
                                 {ingredients.map((ing, idx) => (
-                                    <div key={idx} className="grid grid-cols-[1fr_80px_32px_32px] gap-2 items-end">
+                                    <React.Fragment key={idx}>
+                                    <div className="grid grid-cols-[1fr_80px_32px_32px] gap-2 items-end">
                                         {/* Inventory Picker */}
-                                        <div>
+                                        <div className="relative">
                                             {idx === 0 && <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Ingredient</label>}
                                             <select
                                                 className={fieldCls}
@@ -250,6 +319,11 @@ const AddMenuForm: React.FC<Props> = ({
                                                     </option>
                                                 ))}
                                             </select>
+                                            {(!ing.inventoryId && ing.name) && (
+                                                <div className="absolute top-full left-0 mt-0.5 text-[10px] text-amber-500 font-medium whitespace-nowrap">
+                                                    ⚠️ AI: {ing.name} (Unmatched)
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Quantity Used */}
@@ -281,6 +355,8 @@ const AddMenuForm: React.FC<Props> = ({
                                             <Trash2 size={14} />
                                         </button>
                                     </div>
+                                    <div className="h-4"></div> {/* Spacer for absolute unmatched text */}
+                                    </React.Fragment>
                                 ))}
 
                                 <button
