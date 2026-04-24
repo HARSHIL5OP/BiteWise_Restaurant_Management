@@ -1,9 +1,25 @@
 import React from 'react';
 import { Plus, Grid, User, Clock, Trash2, Users, Download, Printer } from 'lucide-react';
+import { db } from '../../lib/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import RestaurantFloorBlueprint from '../../components/RestaurantFloorBlueprint';
+import { toast } from 'sonner';
 
-const TableList = ({ tables, handleDeleteTable, setShowAddTable, setNewTable, newTable, floors, selectedFloor, setSelectedFloor }: any) => {
+const TableList = ({ tables, handleDeleteTable, setShowAddTable, setNewTable, newTable, floors, selectedFloor, setSelectedFloor, restaurantId }: any) => {
     const filteredTables = tables.filter((t: any) => (parseInt(t.floor) || 0) === selectedFloor);
+
+    const updateTableStatus = async (tableId: string, newStatus: string) => {
+        if (!restaurantId || !tableId) return;
+        try {
+            await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', tableId), {
+                status: newStatus
+            });
+            toast.success(`Table status updated to ${newStatus}`);
+        } catch (error) {
+            console.error("Error updating table status:", error);
+            toast.error("Failed to update status");
+        }
+    };
 
     return (
         <div>
@@ -124,14 +140,20 @@ const TableList = ({ tables, handleDeleteTable, setShowAddTable, setNewTable, ne
                                     <Users size={14} /> {table.capacity} Seats
                                 </p>
                             </div>
-                            <div className={`
-                                px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
-                                ${table.status === 'available' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' : ''}
-                                ${table.status === 'occupied' ? 'bg-rose-100 text-rose-600 dark:bg-red-500 dark:text-white' : ''}
-                                ${table.status === 'reserved' ? 'bg-amber-100 text-amber-600 dark:bg-orange-500 dark:text-white' : ''}
-                            `}>
-                                {table.status}
-                            </div>
+                            <select
+                                value={table.status}
+                                onChange={(e) => updateTableStatus(table.id, e.target.value)}
+                                className={`
+                                    appearance-none cursor-pointer outline-none px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
+                                    ${table.status === 'available' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' : ''}
+                                    ${table.status === 'occupied' ? 'bg-rose-100 text-rose-600 dark:bg-red-500 dark:text-white' : ''}
+                                    ${table.status === 'reserved' ? 'bg-amber-100 text-amber-600 dark:bg-orange-500 dark:text-white' : ''}
+                                `}
+                            >
+                                <option value="available">Available</option>
+                                <option value="occupied">Occupied</option>
+                                <option value="reserved">Reserved</option>
+                            </select>
                         </div>
 
                         {/* QR Code Preview */}

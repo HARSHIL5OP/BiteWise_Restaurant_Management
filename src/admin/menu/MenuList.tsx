@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, Edit2, Trash2, Eye } from 'lucide-react';
 
-const MenuList = ({ menuItems, openEditMenu, handleDeleteMenu, setShowAddMenu, setEditingId, setNewMenuItem, openViewMenu }: any) => {
+const MenuList = ({ menuItems, openEditMenu, handleDeleteMenu, setShowAddMenu, setEditingId, setNewMenuItem, openViewMenu, toggleMenuAvailability }: any) => {
     return (
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -80,7 +80,12 @@ const MenuList = ({ menuItems, openEditMenu, handleDeleteMenu, setShowAddMenu, s
                             </div>
 
                             <p className="text-slate-500 text-xs mb-4 flex items-center justify-between">
-                                <span className={item.isAvailable === false ? 'text-rose-500 font-bold' : 'text-emerald-500 font-bold'}>{item.isAvailable === false ? 'Out of Stock' : 'Available'}</span>
+                                <button 
+                                    onClick={() => toggleMenuAvailability && toggleMenuAvailability(item)}
+                                    className={`px-2 py-1 rounded-md transition-colors ${item.isAvailable === false ? 'text-rose-500 bg-rose-50 hover:bg-rose-100 font-bold' : 'text-emerald-500 bg-emerald-50 hover:bg-emerald-100 font-bold'}`}
+                                >
+                                    {item.isAvailable === false ? 'Out of Stock' : 'Available'}
+                                </button>
                                 {item.createdAt && <span className="text-[10px] text-slate-400">Added: {new Date(item.createdAt).toLocaleDateString()}</span>}
                             </p>
                             <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">

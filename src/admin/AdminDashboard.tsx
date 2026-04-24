@@ -631,6 +631,17 @@ const AdminDashboard = () => {
         }
     };
 
+    const toggleMenuAvailability = async (item: any) => {
+        if (!restaurantId || !item.id) return;
+        try {
+            await updateDoc(doc(db, 'restaurants', restaurantId, 'menu', item.id), {
+                isAvailable: item.isAvailable === false ? true : false
+            });
+        } catch (error) {
+            console.error("Error toggling menu availability", error);
+        }
+    };
+
     // ─── Inventory Handlers ───────────────────────────────────────────────────
 
     const openAddInventory = () => {
@@ -750,7 +761,7 @@ const AdminDashboard = () => {
             // LOCAL DEV URL (Toggle comment for production)
             // const qrData = `http://10.200.8.111:5173/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
             // 🔴 KEEP THIS (DO NOT DELETE - for production)
-            const qrData = `https://odoo-cafe-project-eight.vercel.app/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
+            const qrData = `https://bitewise-srms.vercel.app/home?restaurantId=${restaurantId}&tableId=${tableIdStr}`;
 
             const qrDataUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
 
@@ -805,6 +816,7 @@ const AdminDashboard = () => {
                 <div className="space-y-1 flex-1">
                     <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
                     <SidebarItem icon={ChefHat} label="Kitchen Live" active={activeTab === 'kitchen'} onClick={() => setActiveTab('kitchen')} />
+                    <SidebarItem icon={ShoppingBag} label="Orders" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} />
                     <SidebarItem icon={Grid} label="Tables" active={activeTab === 'tables'} onClick={() => setActiveTab('tables')} />
                     <SidebarItem icon={UtensilsCrossed} label="Menu" active={activeTab === 'menu'} onClick={() => setActiveTab('menu')} />
                     <SidebarItem icon={Boxes} label="Inventory" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
@@ -841,6 +853,7 @@ const AdminDashboard = () => {
             {/* Mobile Sidebar (Simplified) */}
             <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/80 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 p-4 flex justify-around z-50 transition-colors duration-300">
                 <LayoutDashboard onClick={() => setActiveTab('dashboard')} className={activeTab === 'dashboard' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
+                <ShoppingBag onClick={() => setActiveTab('orders')} className={activeTab === 'orders' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <UtensilsCrossed onClick={() => setActiveTab('menu')} className={activeTab === 'menu' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Boxes onClick={() => setActiveTab('inventory')} className={activeTab === 'inventory' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
                 <Heart onClick={() => setActiveTab('donations')} className={activeTab === 'donations' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'} />
@@ -1000,6 +1013,19 @@ const AdminDashboard = () => {
                         </motion.div>
                     )}
 
+                    {/* ORDERS TAB */}
+                    {activeTab === 'orders' && (
+                        <motion.div
+                            key="orders"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="space-y-8"
+                        >
+                            <OrderList orders={orders} restaurantId={restaurantId} />
+                        </motion.div>
+                    )}
+
                     {/* MENU TAB */}
                     {activeTab === 'menu' && (
                         <motion.div
@@ -1016,6 +1042,7 @@ const AdminDashboard = () => {
                                 setEditingId={setEditingId}
                                 setNewMenuItem={setNewMenuItem}
                                 openViewMenu={openViewMenu}
+                                toggleMenuAvailability={toggleMenuAvailability}
                             />
                         </motion.div>
                     )}
