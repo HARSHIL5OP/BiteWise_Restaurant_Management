@@ -117,7 +117,7 @@ const CustomerMenuView: React.FC<CustomerMenuViewProps> = ({
                                         placeholder="Search in this category..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                        className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 text-sm text-black focus:outline-none focus:ring-1 focus:ring-orange-500"
                                     />
                                     <svg className="w-4 h-4 text-gray-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                                 </div>

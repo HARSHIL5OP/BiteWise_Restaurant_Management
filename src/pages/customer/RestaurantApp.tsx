@@ -729,7 +729,7 @@ const RestaurantApp = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#FDFBF7] font-sans pb-24 max-w-md mx-auto shadow-2xl overflow-hidden relative">
+        <div className="min-h-screen bg-[#FDFBF7] font-sans pb-24 max-w-md mx-auto shadow-2xl overflow-hidden relative text-black">
 
             {/* --- HEADER --- */}
             <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md shadow-sm transition-all">
