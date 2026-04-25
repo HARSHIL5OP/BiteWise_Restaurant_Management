@@ -82,9 +82,9 @@ export default function SignupPage() {
 
       toast.success("Account created successfully");
 
-      // Since signup creates customer role by default, redirect to home
+      // Since signup creates customer role by default, redirect to customer dashboard
       // If you need to check role, you can fetch it here
-      navigate('/home');
+      navigate('/customer');
     } catch (error: any) {
       console.error("Signup error:", error);
       let errorMessage = "An error occurred";
