@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { Upload, Save, RotateCcw, Building2, MapPin, Clock, DollarSign, Image as ImageIcon, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { uploadToCloudinary } from '../../lib/cloudinary';
+import { MapPicker } from '../../components/MapPicker';
 
 const AdminSettings = () => {
     const { userProfile } = useAuth();
@@ -266,30 +267,21 @@ const AdminSettings = () => {
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Latitude</label>
-                                    <input
-                                        type="number"
-                                        step="any"
-                                        name="location.lat"
-                                        value={formData.location.lat}
-                                        onChange={handleChange}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Longitude</label>
-                                    <input
-                                        type="number"
-                                        step="any"
-                                        name="location.lng"
-                                        value={formData.location.lng}
-                                        onChange={handleChange}
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                                    />
-                                </div>
-                            </div>
+                            <MapPicker 
+                                lat={formData.location.lat}
+                                lng={formData.location.lng}
+                                onChange={(lat, lng, address) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        location: {
+                                            ...prev.location,
+                                            lat,
+                                            lng,
+                                            address: address ? address : prev.location.address
+                                        }
+                                    }));
+                                }}
+                            />
                         </div>
                     </div>
 
