@@ -82,6 +82,8 @@ const RestaurantApp = () => {
 
     // Filters
     const [isVegOnly, setIsVegOnly] = useState(false);
+    const [isJainOnly, setIsJainOnly] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<'default' | 'price_low'>('default');
 
     // Refs
@@ -521,8 +523,16 @@ const RestaurantApp = () => {
         if (!currentCategoryData) return [];
         let items = [...currentCategoryData.items];
 
+        if (searchQuery.trim()) {
+            items = items.filter(item => item.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+        }
+
         if (isVegOnly) {
             items = items.filter(item => item.veg);
+        }
+
+        if (isJainOnly) {
+            items = items.filter(item => item.jain);
         }
 
         if (sortBy === 'price_low') {
@@ -530,12 +540,14 @@ const RestaurantApp = () => {
         }
 
         return items;
-    }, [currentCategoryData, isVegOnly, sortBy]);
+    }, [currentCategoryData, isVegOnly, isJainOnly, sortBy, searchQuery]);
 
     const handleCategoryClick = (categoryName: string) => {
         setSelectedCategory(categoryName);
         setMenuViewMode('items');
         setIsVegOnly(false); // Reset filters when changing category
+        setIsJainOnly(false);
+        setSearchQuery('');
         setSortBy('default');
     };
 
@@ -804,6 +816,10 @@ const RestaurantApp = () => {
                         setSelectedCategory={setSelectedCategory}
                         isVegOnly={isVegOnly}
                         setIsVegOnly={setIsVegOnly}
+                        isJainOnly={isJainOnly}
+                        setIsJainOnly={setIsJainOnly}
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
                         sortBy={sortBy}
                         setSortBy={setSortBy}
                         categoryScrollRef={categoryScrollRef}

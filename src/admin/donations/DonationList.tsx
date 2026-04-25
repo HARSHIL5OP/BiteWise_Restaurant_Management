@@ -26,23 +26,41 @@ interface Props {
 }
 
 const DonationList: React.FC<Props> = ({ restaurantId, onAdd, onView }) => {
-    const { items: donations, loading, loadingMore, hasMore, loadMore, refetch } = usePaginatedQuery<Donation>(
-        ['food_donations'],
-        [where('restaurantId', '==', restaurantId), orderBy('createdAt', 'desc')],
-        10
-    );
+    const [donations, setDonations] = React.useState<Donation[]>([]);
+    const [loading, setLoading] = React.useState(true);
     const [ngoMap, setNgoMap] = React.useState<Record<string, string>>({});
 
     React.useEffect(() => {
-        const unsubscribe = onSnapshot(query(collection(db, 'ngos'), where('isVerified', '==', true)), (snapshot) => {
+        setLoading(true);
+        const q = query(collection(db, 'food_donations'), where('restaurantId', '==', restaurantId));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Donation[];
+            // Sort locally to avoid needing a composite index
+            data.sort((a, b) => {
+                const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
+                const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
+                return dateB - dateA;
+            });
+            setDonations(data);
+            setLoading(false);
+        }, (error) => {
+            console.error("Error fetching donations:", error);
+            setLoading(false);
+        });
+
+        const unsubscribeNgos = onSnapshot(query(collection(db, 'ngos'), where('isVerified', '==', true)), (snapshot) => {
             const map: Record<string, string> = {};
             snapshot.forEach(doc => {
                 map[doc.id] = doc.data().name;
             });
             setNgoMap(map);
         });
-        return () => unsubscribe();
-    }, []);
+
+        return () => {
+            unsubscribe();
+            unsubscribeNgos();
+        };
+    }, [restaurantId]);
 
     return (
         <div>
@@ -56,13 +74,6 @@ const DonationList: React.FC<Props> = ({ restaurantId, onAdd, onView }) => {
                 </button>
                 <div className="flex gap-4 items-center">
                     {loading && <span className="text-sm text-slate-500">Loading...</span>}
-                    <button 
-                        onClick={refetch}
-                        disabled={loading}
-                        className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 text-sm font-semibold"
-                    >
-                        Refresh
-                    </button>
                     <p className="text-slate-500 text-sm font-medium">{donations.length} Loaded</p>
                 </div>
             </div>
@@ -182,18 +193,7 @@ const DonationList: React.FC<Props> = ({ restaurantId, onAdd, onView }) => {
                 </div>
             )}
 
-            {/* Pagination Controls */}
-            {hasMore && (
-                <div className="mt-4 p-4 flex justify-center">
-                    <button 
-                        onClick={loadMore}
-                        disabled={loadingMore}
-                        className="px-6 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-full text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:shadow-md transition-all disabled:opacity-50"
-                    >
-                        {loadingMore ? 'Loading...' : 'Load More Donations'}
-                    </button>
-                </div>
-            )}
+
         </div>
     );
 };

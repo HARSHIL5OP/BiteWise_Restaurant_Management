@@ -23,6 +23,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { firebaseConfig } from '../lib/firebase';
+import toast from 'react-hot-toast';
 
 import StaffList from './staff/StaffList';
 import AddStaffForm from './staff/AddStaffForm';
@@ -272,9 +273,27 @@ const AdminDashboard = () => {
         });
 
         // Fetch Inventory Items (needed for menu creation and summary stats)
+        let inventoryNotified = false;
         const unsubscribeInventory = onSnapshot(collection(db, 'restaurants', restaurantId, 'inventory'), (snapshot) => {
-            const inventoryData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setInventoryItems(inventoryData as any);
+            const inventoryData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[];
+            setInventoryItems(inventoryData);
+            
+            if (!inventoryNotified) {
+                const lowStockItems = inventoryData.filter(i => i.quantity <= i.threshold);
+                if (lowStockItems.length > 0) {
+                    toast.error(`${lowStockItems.length} inventory items are low on stock!`, { duration: 5000, icon: '⚠️' });
+                }
+                
+                const expiringItems = inventoryData.filter(i => {
+                    if (!i.expiryDate) return false;
+                    const days = (new Date(i.expiryDate).getTime() - Date.now()) / (1000 * 3600 * 24);
+                    return days > 0 && days <= 7;
+                });
+                if (expiringItems.length > 0) {
+                    toast.error(`${expiringItems.length} inventory items are expiring soon!`, { duration: 5000, icon: '⏰' });
+                }
+                inventoryNotified = true;
+            }
         }, (error) => {
             console.error("Inventory fetch error:", error);
         });

@@ -10,6 +10,10 @@ interface CustomerMenuViewProps {
     setSelectedCategory: (cat: string) => void;
     isVegOnly: boolean;
     setIsVegOnly: (veg: boolean) => void;
+    isJainOnly: boolean;
+    setIsJainOnly: (jain: boolean) => void;
+    searchQuery: string;
+    setSearchQuery: (query: string) => void;
     sortBy: 'default' | 'price_low';
     setSortBy: (sort: 'default' | 'price_low' | ((prev: 'default' | 'price_low') => 'default' | 'price_low')) => void;
     categoryScrollRef: React.RefObject<HTMLDivElement>;
@@ -25,7 +29,7 @@ interface CustomerMenuViewProps {
 
 const CustomerMenuView: React.FC<CustomerMenuViewProps> = ({
     menuViewMode, setMenuViewMode, menuData, selectedCategory,
-    isVegOnly, setIsVegOnly, sortBy, setSortBy, categoryScrollRef,
+    isVegOnly, setIsVegOnly, isJainOnly, setIsJainOnly, searchQuery, setSearchQuery, sortBy, setSortBy, categoryScrollRef,
     cart, addToCart, updateQuantity, currentCategoryData, filteredItems,
     handleCategoryClick, renderSpicy, currentUserName
 }) => {
@@ -104,15 +108,36 @@ const CustomerMenuView: React.FC<CustomerMenuViewProps> = ({
                             ))}
                         </div>
 
-                        {/* Filter / Sort Bar */}
-                        <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-50 bg-white">
-                            <button
-                                onClick={() => setIsVegOnly(!isVegOnly)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${isVegOnly ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-500'}`}
-                            >
-                                <div className={`w-2 h-2 rounded-full ${isVegOnly ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-                                Veg Only
-                            </button>
+                        {/* Filter / Sort / Search Bar */}
+                        <div className="px-4 py-2 flex flex-col gap-2 border-b border-gray-50 bg-white">
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        placeholder="Search in this category..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                    />
+                                    <svg className="w-4 h-4 text-gray-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setIsVegOnly(!isVegOnly)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${isVegOnly ? 'bg-green-50 border-green-200 text-green-700' : 'bg-white border-gray-200 text-gray-500'}`}
+                                >
+                                    <div className={`w-2 h-2 rounded-full ${isVegOnly ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
+                                    Veg Only
+                                </button>
+
+                                <button
+                                    onClick={() => setIsJainOnly(!isJainOnly)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border ${isJainOnly ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-500'}`}
+                                >
+                                    <div className={`w-2 h-2 rounded-full ${isJainOnly ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'}`} />
+                                    Jain Only
+                                </button>
 
                             <button
                                 onClick={() => setSortBy(prev => prev === 'default' ? 'price_low' : 'default')}
@@ -121,6 +146,7 @@ const CustomerMenuView: React.FC<CustomerMenuViewProps> = ({
                                 {sortBy === 'default' ? <Filter className="w-3 h-3" /> : <ArrowDownAz className="w-3 h-3" />}
                                 {sortBy === 'default' ? 'Sort' : 'Low Price'}
                             </button>
+                            </div>
                         </div>
                     </div>
 
