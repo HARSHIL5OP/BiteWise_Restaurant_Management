@@ -95,7 +95,7 @@ export async function getInventoryItems(restaurantId: string): Promise<Inventory
 export async function updateInventoryItem(
     restaurantId: string,
     inventoryId: string,
-    changes: Partial<Pick<InventoryItem, 'quantity' | 'supplier' | 'costPerUnit' | 'isPerishable' | 'expiryDate' | 'shelfLifeDays' | 'expiryAlertThreshold' | 'batchId'>>
+    changes: Partial<Pick<InventoryItem, 'name' | 'threshold' | 'quantity' | 'supplier' | 'costPerUnit' | 'isPerishable' | 'expiryDate' | 'shelfLifeDays' | 'expiryAlertThreshold' | 'batchId'>>
 ): Promise<void> {
     if (changes.quantity !== undefined) validateQuantity(changes.quantity);
 

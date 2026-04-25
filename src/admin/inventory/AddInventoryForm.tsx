@@ -7,7 +7,7 @@ const UNITS: InventoryUnit[] = ['kg', 'g', 'l', 'ml', 'pcs'];
 interface Props {
     onAdd: (data: Omit<InventoryItem, 'id' | 'restaurantId' | 'updatedAt' | 'lastRestocked'>) => Promise<void>;
     onRestock: (id: string, currentQty: number, addQty: number) => Promise<void>;
-    onUpdate: (id: string, changes: Partial<Pick<InventoryItem, 'quantity' | 'supplier' | 'costPerUnit' | 'isPerishable' | 'expiryDate' | 'shelfLifeDays' | 'expiryAlertThreshold' | 'batchId'>>) => Promise<void>;
+    onUpdate: (id: string, changes: Partial<Pick<InventoryItem, 'name' | 'threshold' | 'quantity' | 'supplier' | 'costPerUnit' | 'isPerishable' | 'expiryDate' | 'shelfLifeDays' | 'expiryAlertThreshold' | 'batchId'>>) => Promise<void>;
     editingItem?: InventoryItem | null;
     isLoading: boolean;
     mode: 'add' | 'edit' | 'restock';
@@ -49,6 +49,8 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
             }
             if (mode === 'edit') {
                 await onUpdate(editingItem!.id!, {
+                    name: form.name.trim(),
+                    threshold: parseFloat(form.threshold) || 0,
                     quantity: parseFloat(form.quantity) || 0,
                     supplier: form.supplier,
                     costPerUnit: parseFloat(form.costPerUnit) || 0,
@@ -114,13 +116,11 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
                 </>
             ) : (
                 <>
-                    {mode === 'add' && (
-                        <div>
-                            <label className={labelCls}>Item Name *</label>
-                            <input className={fieldCls} placeholder="e.g. Basmati Rice"
-                                value={form.name} onChange={e => set('name', e.target.value)} />
-                        </div>
-                    )}
+                    <div>
+                        <label className={labelCls}>Item Name *</label>
+                        <input className={fieldCls} placeholder="e.g. Basmati Rice"
+                            value={form.name} onChange={e => set('name', e.target.value)} />
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -144,14 +144,12 @@ const AddInventoryForm: React.FC<Props> = ({ onAdd, onRestock, onUpdate, editing
                         )}
                     </div>
 
-                    {mode === 'add' && (
-                        <div>
-                            <label className={labelCls}>Low Stock Threshold</label>
-                            <input type="number" min="0" step="0.01" className={fieldCls}
-                                placeholder="0.00"
-                                value={form.threshold} onChange={e => set('threshold', e.target.value)} />
-                        </div>
-                    )}
+                    <div>
+                        <label className={labelCls}>Low Stock Threshold</label>
+                        <input type="number" min="0" step="0.01" className={fieldCls}
+                            placeholder="0.00"
+                            value={form.threshold} onChange={e => set('threshold', e.target.value)} />
+                    </div>
 
                     <div>
                         <label className={labelCls}>Supplier</label>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, Edit2, RefreshCcw, AlertTriangle, Package } from 'lucide-react';
 import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
-import { orderBy, limit } from 'firebase/firestore';
+import { orderBy } from 'firebase/firestore';
 
 const parseDate = (dateVal: any): Date | null => {
     if (!dateVal) return null;
@@ -20,7 +20,14 @@ interface Props {
 }
 
 const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock }) => {
-    const { items, loading, loadingMore, hasMore, loadMore, refetch } = usePaginatedQuery<any>(
+    const { 
+        items, 
+        loading, 
+        loadingMore, 
+        hasMore, 
+        loadMore, 
+        refetch 
+    } = usePaginatedQuery<any>(
         ['restaurants', restaurantId, 'inventory'],
         [orderBy('name', 'asc')],
         15
@@ -43,7 +50,7 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
                     <button 
                         onClick={refetch}
                         disabled={loading}
-                        className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                        className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 transition-all active:rotate-180 duration-500"
                         title="Refresh"
                     >
                         <RefreshCcw size={18} />
@@ -53,7 +60,7 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
             </div>
 
             {/* Empty state */}
-            {items.length === 0 && (
+            {items.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-600">
                     <Package size={48} strokeWidth={1.5} className="mb-4" />
                     <p className="font-semibold text-lg">No inventory items yet</p>
@@ -67,7 +74,7 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
                     {items.map(item => {
                         const isLow = item.quantity <= item.threshold;
                         
-                        let expiryStatus = null;
+                        let expiryStatus: 'fresh' | 'near_expiry' | 'expired' | null = null;
                         if (item.isPerishable) {
                             let targetDate = null;
                             if (item.expiryDate) {
@@ -274,15 +281,20 @@ const InventoryList: React.FC<Props> = ({ restaurantId, onAdd, onEdit, onRestock
                 </div>
             )}
 
-            {/* Pagination Controls */}
+            {/* Load More */}
             {hasMore && (
-                <div className="mt-4 p-4 flex justify-center">
-                    <button 
+                <div className="mt-8 flex justify-center">
+                    <button
                         onClick={loadMore}
                         disabled={loadingMore}
-                        className="px-6 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-full text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:shadow-md transition-all disabled:opacity-50"
+                        className="px-8 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
                     >
-                        {loadingMore ? 'Loading Items...' : 'Load More Inventory'}
+                        {loadingMore ? (
+                            <div className="w-5 h-5 border-2 border-slate-300 border-t-indigo-600 rounded-full animate-spin" />
+                        ) : (
+                            <RefreshCcw size={16} />
+                        )}
+                        {loadingMore ? 'Loading...' : 'Load More Items'}
                     </button>
                 </div>
             )}

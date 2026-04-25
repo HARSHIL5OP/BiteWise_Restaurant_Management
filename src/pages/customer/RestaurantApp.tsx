@@ -47,6 +47,7 @@ const RestaurantApp = () => {
     const [showCart, setShowCart] = useState(false);
     const [menuData, setMenuData] = useState<any[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [inventory, setInventory] = useState<any[]>([]);
 
     // Shared Session States
     const [showShareModal, setShowShareModal] = useState(false);
@@ -205,9 +206,15 @@ const RestaurantApp = () => {
             });
         }
 
+        const unsubscribeInventory = onSnapshot(collection(db, 'restaurants', restaurantId, 'inventory'), (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setInventory(data);
+        });
+
         return () => {
             unsubscribe();
             unsubscribeOrders();
+            unsubscribeInventory();
         };
     }, [user, restaurantId]);
 
@@ -236,8 +243,41 @@ const RestaurantApp = () => {
         const itemRef = doc(db, 'restaurants', restaurantId, 'tables', resolvedTableId, 'cart', docId);
 
         const existing = cart.find(c => c.cartDocId === docId);
+        const currentQty = existing ? existing.quantity : 0;
+        const newQty = currentQty + 1;
+
+        // --- INVENTORY CHECK ---
+        try {
+            const ingsSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'menu', item.id, 'ingredients'));
+            const ings = ingsSnap.docs.map(d => d.data());
+
+            for (const ing of ings) {
+                if (!ing.deductOnOrder) continue;
+                const invItem = inventory.find(i => i.id === ing.inventoryId);
+                if (!invItem) continue;
+
+                // Total quantity of this ingredient needed for ALL items in the cart
+                // (Simplified: just check for this menu item's total across the whole table's cart)
+                const totalQtyNeeded = cart.reduce((sum, cartItem) => {
+                    // This is tricky because we don't know the ingredients of OTHER items in the cart here without fetching them.
+                    // For now, let's just check if the inventory is enough for THIS specific menu item's total quantity at this table.
+                    if (cartItem.id === item.id) {
+                        return sum + (cartItem.quantity * ing.quantityUsed);
+                    }
+                    return sum;
+                }, 0) + (1 * ing.quantityUsed);
+
+                if (invItem.quantity < totalQtyNeeded) {
+                    alert(`Sorry, we don't have enough ingredients to add another ${item.name}. (Insufficient ${ing.name})`);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.error("Inventory check failed", e);
+        }
+
         if (existing) {
-            await updateDoc(itemRef, { quantity: existing.quantity + 1 });
+            await updateDoc(itemRef, { quantity: newQty });
         } else {
             await setDoc(itemRef, {
                 ...item,
@@ -251,14 +291,41 @@ const RestaurantApp = () => {
         const resolvedTableId = tableInfo?.id || tableId;
         if (!restaurantId || !resolvedTableId) return;
         
-        const existing = cart.find(c => c.cartDocId === cartDocId);
-        if (!existing) return;
-        
-        const newQty = existing.quantity + delta;
         const itemRef = doc(db, 'restaurants', restaurantId, 'tables', resolvedTableId, 'cart', cartDocId);
-        
+        const item = cart.find(c => c.cartDocId === cartDocId);
+        if (!item) return;
+
+        const newQty = item.quantity + delta;
+
         if (newQty <= 0) {
             await deleteDoc(itemRef);
+        } else if (delta > 0) {
+            // --- INVENTORY CHECK FOR INCREMENT ---
+            try {
+                const ingsSnap = await getDocs(collection(db, 'restaurants', restaurantId, 'menu', item.id, 'ingredients'));
+                const ings = ingsSnap.docs.map(d => d.data());
+
+                for (const ing of ings) {
+                    if (!ing.deductOnOrder) continue;
+                    const invItem = inventory.find(i => i.id === ing.inventoryId);
+                    if (!invItem) continue;
+
+                    const totalQtyNeeded = cart.reduce((sum, cartItem) => {
+                        if (cartItem.id === item.id) {
+                            return sum + (cartItem.quantity * ing.quantityUsed);
+                        }
+                        return sum;
+                    }, 0) + (delta * ing.quantityUsed);
+
+                    if (invItem.quantity < totalQtyNeeded) {
+                        alert(`Sorry, we don't have enough ingredients for more ${item.name}.`);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error("Inventory check failed", e);
+            }
+            await updateDoc(itemRef, { quantity: newQty });
         } else {
             await updateDoc(itemRef, { quantity: newQty });
         }

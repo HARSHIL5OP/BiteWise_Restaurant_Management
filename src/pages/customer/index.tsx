@@ -122,6 +122,28 @@ export default function CustomerHome() {
     fetchData();
   }, []);
 
+  const handlePreBook = () => {
+    const options = {
+      key: "rzp_test_yourkey", // Replace with actual key if available
+      amount: 50000, // INR 500 in paise
+      currency: "INR",
+      name: "BiteWise Pre-book",
+      description: "Exclusive Offer Reservation",
+      handler: function (response: any) {
+        alert("Payment Successful! Your offer is reserved. Payment ID: " + response.razorpay_payment_id);
+      },
+      prefill: {
+        name: userProfile?.firstName || "Guest",
+        email: userProfile?.email || ""
+      },
+      theme: {
+        color: "#F97316"
+      }
+    };
+    const rzp = new (window as any).Razorpay(options);
+    rzp.open();
+  };
+
   return (
     <div className="bg-slate-50 dark:bg-[#0A0F1C] min-h-screen text-slate-900 dark:text-slate-200 pb-20 font-sans max-w-md mx-auto shadow-[0_0_50px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] border-x border-slate-200 dark:border-slate-900 overflow-x-hidden relative scroll-smooth selection:bg-orange-500/30 transition-colors duration-300">
       
@@ -215,7 +237,10 @@ export default function CustomerHome() {
               <span className="text-orange-500 text-xs">→</span>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-white to-slate-50 dark:from-[#1e293b] dark:to-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-lg active:scale-95 transition-all flex flex-col justify-end min-h-[120px] relative overflow-hidden group">
+          <div 
+            onClick={handlePreBook}
+            className="bg-gradient-to-br from-white to-slate-50 dark:from-[#1e293b] dark:to-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-lg active:scale-95 transition-all flex flex-col justify-end min-h-[120px] relative overflow-hidden group cursor-pointer"
+          >
             <div className="absolute right-[-10px] bottom-[-10px] w-20 h-20 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-colors"></div>
             <h4 className="text-sm font-bold text-slate-800 dark:text-white z-10 w-3/4 transition-colors">Pre-book exclusive offers</h4>
             <div className="w-6 h-6 bg-slate-100 dark:bg-slate-800 rounded-full mt-2 flex items-center justify-center z-10 transition-colors">
