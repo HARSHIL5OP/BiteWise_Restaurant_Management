@@ -91,7 +91,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
           >
             <div className="flex items-center gap-4">
               {/* Just a subtle footer element */}
-              <p className="text-sm text-slate-500">© 2024 Bitewise Inc. Enterprise Grade Security.</p>
+              <p className="text-sm text-slate-500">© 2026 Bitewise Inc. Enterprise Grade Security.</p>
             </div>
           </motion.div>
         </motion.div>
