@@ -64,7 +64,7 @@ export default function RestaurantDetail() {
   const name = restaurant?.name || "Sample Restaurant";
   const rating = restaurant?.averageRating || 4.2;
   const cuisine = restaurant?.cuisineType?.join(", ") || "Multi Cuisine";
-  const price = restaurant?.priceRange || "₹₹";
+  const price = restaurant?.averagePriceForTwo ? `₹${restaurant.averagePriceForTwo} for two` : "₹₹";
   const address = restaurant?.location?.address || "Ahmedabad";
   const timing = (restaurant?.operatingHours?.open && restaurant?.operatingHours?.close)
     ? `${restaurant?.operatingHours?.open} - ${restaurant?.operatingHours?.close}`

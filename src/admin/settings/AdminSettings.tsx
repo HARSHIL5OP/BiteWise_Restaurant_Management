@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Upload, Save, RotateCcw, Building2, MapPin, Clock, DollarSign, Image as ImageIcon, Check } from 'lucide-react';
@@ -24,16 +24,39 @@ const AdminSettings = () => {
             lat: 0,
             lng: 0,
         },
-        cuisineType: '',
+        cuisineType: [] as string[],
         restaurantType: 'Veg',
-        priceRangeMin: 200,
-        priceRangeMax: 500,
+        outletType: 'Restaurant',
+        isJainAvailable: false,
+        averagePriceForTwo: 500,
         operatingHours: {
             open: '09:00',
             close: '22:00',
         },
         floors: 1
     });
+
+    const [availableCuisines, setAvailableCuisines] = useState<string[]>([]);
+    const [newCuisine, setNewCuisine] = useState("");
+    
+    useEffect(() => {
+        const fetchCuisines = async () => {
+            try {
+                const snapshot = await getDocs(collection(db, "restaurants"));
+                const cuisinesSet = new Set<string>();
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    if (data.cuisineType && Array.isArray(data.cuisineType)) {
+                        data.cuisineType.forEach((c: string) => cuisinesSet.add(c.trim()));
+                    }
+                });
+                setAvailableCuisines(Array.from(cuisinesSet).filter(Boolean));
+            } catch (error) {
+                console.error("Error fetching cuisines", error);
+            }
+        };
+        fetchCuisines();
+    }, []);
 
     const [originalData, setOriginalData] = useState<any>(null);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -57,10 +80,11 @@ const AdminSettings = () => {
                             lat: data.location?.lat || 0,
                             lng: data.location?.lng || 0,
                         },
-                        cuisineType: Array.isArray(data.cuisineType) ? data.cuisineType.join(', ') : (data.cuisineType || ''),
+                        cuisineType: Array.isArray(data.cuisineType) ? data.cuisineType : (data.cuisineType ? [data.cuisineType] : []),
                         restaurantType: data.restaurantType || 'Veg',
-                        priceRangeMin: data.priceRange ? parseInt(data.priceRange.split('-')[0]) || 200 : 200,
-                        priceRangeMax: data.priceRange ? parseInt(data.priceRange.split('-')[1]) || 500 : 500,
+                        outletType: data.outletType || 'Restaurant',
+                        isJainAvailable: data.isJainAvailable || false,
+                        averagePriceForTwo: data.averagePriceForTwo || (data.priceRange ? parseInt(data.priceRange.split('-')[0]) : 500),
                         operatingHours: {
                             open: data.operatingHours?.open || '09:00',
                             close: data.operatingHours?.close || '22:00',
@@ -131,9 +155,11 @@ const AdminSettings = () => {
                 logoUrl: finalLogoUrl,
                 bannerImage: finalBannerImage,
                 location: formData.location,
-                cuisineType: formData.cuisineType.split(',').map((c: string) => c.trim()).filter(Boolean),
+                cuisineType: formData.cuisineType,
                 restaurantType: formData.restaurantType,
-                priceRange: `${formData.priceRangeMin}-${formData.priceRangeMax}`,
+                outletType: formData.outletType,
+                isJainAvailable: formData.isJainAvailable,
+                averagePriceForTwo: formData.averagePriceForTwo,
                 operatingHours: formData.operatingHours,
                 floors: parseInt(formData.floors as any) || 1,
                 updatedAt: serverTimestamp()
@@ -212,6 +238,22 @@ const AdminSettings = () => {
                                     onChange={handleChange}
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Type of Food Outlet <span className="text-rose-500">*</span></label>
+                                <select
+                                    name="outletType"
+                                    value={formData.outletType}
+                                    onChange={handleChange as any}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                                >
+                                    <option value="Restaurant">Restaurant</option>
+                                    <option value="Cafe">Cafe</option>
+                                    <option value="QSR">QSR (Quick Service)</option>
+                                    <option value="Food Truck">Food Truck</option>
+                                    <option value="Bakery">Bakery</option>
+                                    <option value="Cloud Kitchen">Cloud Kitchen</option>
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Number of Floors <span className="text-rose-500">*</span></label>
@@ -296,14 +338,51 @@ const AdminSettings = () => {
                         
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Cuisine Types (comma separated)</label>
-                                <input
-                                    name="cuisineType"
-                                    value={formData.cuisineType}
-                                    placeholder="e.g. Italian, Fast Food, Indian"
-                                    onChange={handleChange}
-                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                                />
+                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Cuisine Types</label>
+                                <div className="space-y-4">
+                                    <div className="flex flex-wrap gap-2">
+                                        {availableCuisines.map((cuisine) => {
+                                            const isSelected = formData.cuisineType.includes(cuisine);
+                                            return (
+                                                <div 
+                                                    key={cuisine}
+                                                    onClick={() => {
+                                                        const current = [...formData.cuisineType];
+                                                        if (current.includes(cuisine)) {
+                                                            setFormData(prev => ({...prev, cuisineType: current.filter(c => c !== cuisine)}));
+                                                        } else {
+                                                            setFormData(prev => ({...prev, cuisineType: [...current, cuisine]}));
+                                                        }
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-full text-sm cursor-pointer transition-colors border ${isSelected ? 'bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'}`}
+                                                >
+                                                    {cuisine}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            placeholder="Add new cuisine..." 
+                                            value={newCuisine}
+                                            onChange={(e) => setNewCuisine(e.target.value)}
+                                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition w-full max-w-xs text-sm" 
+                                        />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                if (newCuisine.trim() && !availableCuisines.includes(newCuisine.trim())) {
+                                                    setAvailableCuisines([...availableCuisines, newCuisine.trim()]);
+                                                    setFormData(prev => ({...prev, cuisineType: [...prev.cuisineType, newCuisine.trim()]}));
+                                                    setNewCuisine("");
+                                                }
+                                            }}
+                                            className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             {(() => {
                                 const isVeg = formData.restaurantType === "Veg" || formData.restaurantType === "Both";
@@ -350,29 +429,30 @@ const AdminSettings = () => {
                                     </div>
                                 );
                             })()}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Price (Lower) for 2 Persons</label>
-                                    <input
-                                        type="number"
-                                        name="priceRangeMin"
-                                        value={formData.priceRangeMin}
-                                        onChange={handleChange}
-                                        placeholder="200"
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                                    />
+                                    <h4 className="text-sm font-medium text-slate-800 dark:text-white">Jain Food Available</h4>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Does this outlet serve Jain food?</p>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Price (Upper) for 2 Persons</label>
-                                    <input
-                                        type="number"
-                                        name="priceRangeMax"
-                                        value={formData.priceRangeMax}
-                                        onChange={handleChange}
-                                        placeholder="300"
-                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                                    />
-                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({...prev, isJainAvailable: !prev.isJainAvailable}))}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.isJainAvailable ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.isJainAvailable ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">Average Price for 2 Persons</label>
+                                <input
+                                    type="number"
+                                    name="averagePriceForTwo"
+                                    value={formData.averagePriceForTwo}
+                                    onChange={handleChange}
+                                    placeholder="500"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                                />
                             </div>
                         </div>
                     </div>
@@ -498,10 +578,10 @@ const AdminSettings = () => {
                              </div>
                              <div className="p-4 pt-6">
                                  <h4 className="font-bold text-slate-900 dark:text-white text-base truncate">{formData.name || 'Restaurant Name'}</h4>
-                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{formData.cuisineType || 'Cuisine Types'}</p>
+                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{formData.cuisineType.length > 0 ? formData.cuisineType.join(', ') : 'Cuisine Types'}</p>
                                  <div className="mt-2 flex items-center text-xs text-slate-500 dark:text-slate-400 justify-between">
                                      <span className="flex items-center gap-1"><MapPin size={12}/> {formData.location.city || 'City'}</span>
-                                     <span className="font-medium text-slate-700 dark:text-slate-300">₹{formData.priceRangeMin} - ₹{formData.priceRangeMax}</span>
+                                     <span className="font-medium text-slate-700 dark:text-slate-300">₹{formData.averagePriceForTwo} for two</span>
                                  </div>
                              </div>
                         </div>

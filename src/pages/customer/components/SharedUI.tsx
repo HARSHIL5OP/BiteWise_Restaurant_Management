@@ -198,9 +198,10 @@ export function LocationBar() {
 interface SearchBarProps {
   searchQuery?: string;
   setSearchQuery?: (query: string) => void;
+  onFilterClick?: () => void;
 }
 
-export function SearchBar({ searchQuery = "", setSearchQuery }: SearchBarProps) {
+export function SearchBar({ searchQuery = "", setSearchQuery, onFilterClick }: SearchBarProps) {
   return (
     <div className="px-4 py-3 sticky top-[72px] z-40 bg-white/90 dark:bg-[#0A0F1C]/90 backdrop-blur-md transition-colors duration-300">
       <div className="relative group">
@@ -215,7 +216,7 @@ export function SearchBar({ searchQuery = "", setSearchQuery }: SearchBarProps) 
           className="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-full py-3.5 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/30 shadow-sm dark:shadow-lg transition-all duration-300"
         />
         <div className="absolute inset-y-0 right-2 flex items-center">
-          <button className="p-2 rounded-full text-slate-400 dark:text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors active:scale-95">
+          <button onClick={onFilterClick} className="p-2 rounded-full text-slate-400 dark:text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors active:scale-95">
             <SlidersHorizontal className="h-5 w-5" />
           </button>
         </div>

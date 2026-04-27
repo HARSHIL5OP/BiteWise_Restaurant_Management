@@ -5,8 +5,8 @@ import { db, auth } from "@/lib/firebase";
 export interface RestaurantData {
   name: string;
   description: string;
-  logoUrl: string;
-  bannerImage: string;
+  logoUrl: any;
+  bannerImage: any;
   firstName: string;
   lastName: string;
   email: string;
@@ -19,7 +19,9 @@ export interface RestaurantData {
     lng: number;
   };
   cuisineType: string[];
-  priceRange: string;
+  averagePriceForTwo: number;
+  outletType: string;
+  isJainAvailable: boolean;
   operatingHours: {
     open: string;
     close: string;
@@ -65,14 +67,16 @@ export const addRestaurant = async (data: RestaurantData) => {
         lng: Number(data.location.lng)
       },
       cuisineType: data.cuisineType,
-      priceRange: data.priceRange,
+      averagePriceForTwo: data.averagePriceForTwo,
+      outletType: data.outletType,
+      isJainAvailable: data.isJainAvailable,
       operatingHours: {
         open: data.operatingHours.open,
         close: data.operatingHours.close
       },
       averageRating: 0,
       totalOrders: 0,
-      status: "pending",
+      status: "Active",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       isDeleted: false
