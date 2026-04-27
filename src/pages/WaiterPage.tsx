@@ -148,13 +148,17 @@ const WaiterDashboard = () => {
                 const updatedItems = allItems.map(i => i.id === virtualItem.itemId ? { ...i, status: 'served' } : i);
                 const allServed = updatedItems.length > 0 && updatedItems.every(i => i.status === 'served');
 
+                // Always update the parent order so the customer app's onSnapshot triggers
+                let orderUpdates: any = {
+                    updatedAt: serverTimestamp()
+                };
+
                 if (allServed) {
-                    await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', virtualItem.orderId), {
-                        completedAt: serverTimestamp(),
-                        updatedAt: serverTimestamp(),
-                        status: 'served'
-                    });
+                    orderUpdates.completedAt = serverTimestamp();
+                    orderUpdates.status = 'served';
                 }
+
+                await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', virtualItem.orderId), orderUpdates);
             } catch (err) {
                 console.error("Failed to serve item", err);
             }
