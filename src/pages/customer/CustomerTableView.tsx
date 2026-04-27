@@ -21,6 +21,8 @@ export default function CustomerTableView() {
   const [loading, setLoading] = useState(true);
   const [slots, setSlots] = useState<any[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+  const [reservationsForDate, setReservationsForDate] = useState<any[]>([]);
+  
   
   // Booking States
   const [selectedGuests, setSelectedGuests] = useState(2);
@@ -88,6 +90,23 @@ export default function CustomerTableView() {
 
     return () => unsubscribe();
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const dateStr = format(dates[selectedDate], 'yyyy-MM-dd');
+    const q = query(
+      collection(db, "reservations"),
+      where("restaurantId", "==", id),
+      where("reservationDate", "==", dateStr),
+      where("status", "==", "confirmed")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setReservationsForDate(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    return () => unsubscribe();
+  }, [id, selectedDate]);
 
   const handleProceed = async () => {
     if (!user) {
@@ -233,23 +252,78 @@ export default function CustomerTableView() {
         updatedAt: serverTimestamp()
       };
 
-      const reservationRef = await addDoc(collection(db, "reservations"), reservationData);
-      
-      // Update table statuses using a batch write
-      const batch = writeBatch(db);
-      allocation.tableIds.forEach((tableId) => {
-          const tableRef = doc(db, "restaurants", id as string, "tables", tableId);
-          batch.update(tableRef, {
-              status: "reserved",
-              reservedFor: reservationRef.id,
-              reservedDate: reservationDateStr,
-              reservedTime: selectedSlot.startTime
-          });
-      });
-      await batch.commit();
-      
-      toast.success(`Booking confirmed! Allocated capacity for ${allocation.totalAllocatedCapacity} guests.`);
-      navigate(`/customer/restaurant/${id}`);
+      const saveReservation = async (resData: any, alloc: any, dateStr: string) => {
+        const reservationRef = await addDoc(collection(db, "reservations"), resData);
+        
+        // Update table statuses using a batch write
+        const batch = writeBatch(db);
+        alloc.tableIds.forEach((tableId: string) => {
+            const tableRef = doc(db, "restaurants", id as string, "tables", tableId);
+            batch.update(tableRef, {
+                status: "reserved",
+                reservedFor: reservationRef.id,
+                reservedDate: dateStr,
+                reservedTime: selectedSlot.startTime,
+                reservedCustomerId: user.uid
+            });
+        });
+        await batch.commit();
+        
+        toast.success(`Booking confirmed! Allocated capacity for ${alloc.totalAllocatedCapacity} guests.`);
+        navigate(`/customer/restaurant/${id}`);
+      };
+
+      if (bookingOption === 'exclusive' && totalAmount > 0) {
+        try {
+            const response = await fetch(`https://bitewise-restaurant-management.onrender.com/order?amount=${totalAmount}`);
+            const data = await response.json();
+
+            if (!data.orderID) {
+                toast.error("Server error. Are you running the backend?");
+                return;
+            }
+
+            const options = {
+                key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+                amount: data.amount,
+                currency: "INR",
+                name: restaurant?.name || "Restaurant",
+                description: "Table Reservation",
+                order_id: data.orderID,
+                handler: async function (response: any) {
+                    try {
+                        const verifyRes = await fetch("https://bitewise-restaurant-management.onrender.com/verify", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(response),
+                        });
+                        const verifyData = await verifyRes.json();
+                        if (verifyData.success) {
+                            reservationData.paymentId = response.razorpay_payment_id;
+                            await saveReservation(reservationData, allocation, reservationDateStr);
+                        } else {
+                            toast.error("Payment Verification Failed");
+                        }
+                    } catch (error) {
+                        toast.error("Verification Error");
+                    }
+                },
+                prefill: {
+                    name: user?.displayName || "Guest",
+                    email: user?.email || "guest@example.com",
+                    contact: "9999999999"
+                },
+                theme: { color: "#F97316" }
+            };
+
+            const rzp = new (window as any).Razorpay(options);
+            rzp.open();
+        } catch (e) {
+            toast.error("Payment initialization failed");
+        }
+      } else {
+          await saveReservation(reservationData, allocation, reservationDateStr);
+      }
     } catch (error) {
       console.error("Booking failed:", error);
       toast.error("Failed to book table");
@@ -270,8 +344,12 @@ export default function CustomerTableView() {
   const now = new Date();
   const currentHourMinute = format(now, 'HH:mm');
 
-  // Filter slots for past times if today is selected
-  const validSlots = slots.filter(slot => {
+  // Filter slots for past times if today is selected and calculate available seats dynamically
+  const validSlots = slots.map(slot => {
+     const slotReservations = reservationsForDate.filter(r => r.slotId === slot.id);
+     const bookedCapacity = slotReservations.reduce((sum, r) => sum + (r.totalAllocatedCapacity || 0), 0);
+     return { ...slot, availableSeats: Math.max(0, slot.maxCapacity - bookedCapacity) };
+  }).filter(slot => {
     if (selectedDate === 0) {
       return slot.startTime > currentHourMinute;
     }

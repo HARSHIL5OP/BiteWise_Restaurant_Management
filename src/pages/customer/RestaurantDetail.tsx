@@ -7,6 +7,8 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { getRestaurantById, getRestaurantMenu } from "@/services/restaurantService";
+import { db } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 const AMENITIES = [
   { icon: <Car className="w-5 h-5 text-slate-400" />, label: "Valet Parking" },
@@ -20,6 +22,7 @@ export default function RestaurantDetail() {
   const [activeTab, setActiveTab] = useState("offers");
 
   const [restaurant, setRestaurant] = useState<any>(null);
+  const [slots, setSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,6 +32,10 @@ export default function RestaurantDetail() {
         if (data) {
           const menu = await getRestaurantMenu(id as string);
           setRestaurant({ ...data, menu });
+          
+          const slotsSnap = await getDocs(collection(db, "restaurants", id as string, "slots"));
+          const slotsData = slotsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setSlots(slotsData.filter((s: any) => s.isActive && s.discountPercent > 0));
         } else {
           setRestaurant(null);
         }
@@ -69,6 +76,19 @@ export default function RestaurantDetail() {
   const timing = (restaurant?.operatingHours?.open && restaurant?.operatingHours?.close)
     ? `${restaurant?.operatingHours?.open} - ${restaurant?.operatingHours?.close}`
     : "11:00 AM - 11:00 PM";
+
+  const dynamicAmenities = [];
+  if (restaurant?.isJainAvailable) {
+    dynamicAmenities.push({ icon: <Leaf className="w-5 h-5 text-emerald-500" />, label: "Jain Food Available" });
+  }
+  if (restaurant?.restaurantType === 'Veg') {
+    dynamicAmenities.push({ icon: <Leaf className="w-5 h-5 text-emerald-500" />, label: "Pure Veg" });
+  }
+  dynamicAmenities.push({ icon: <Car className="w-5 h-5 text-slate-400" />, label: "Valet Parking" });
+  dynamicAmenities.push({ icon: <CreditCard className="w-5 h-5 text-blue-400" />, label: "Cards & UPI Accepted" });
+
+  const categories = restaurant?.menu ? Array.from(new Set(restaurant.menu.map((i: any) => i.category || 'Other'))) : [];
+  const dynamicPhotos = restaurant?.photos?.length > 0 ? restaurant.photos : [imgUrl, dummyHeroImage];
 
   return (
     <div className="bg-[#0A0F1C] min-h-screen text-slate-200 font-sans max-w-md mx-auto shadow-[0_0_50px_rgba(0,0,0,0.5)] border-x border-slate-900 overflow-x-hidden relative scroll-smooth selection:bg-orange-500/30 pb-24">
@@ -166,26 +186,22 @@ export default function RestaurantDetail() {
               <Tag className="text-orange-500 w-5 h-5" /> Available Offers
             </h3>
             
-            <div className="bg-gradient-to-br from-orange-500/10 to-orange-900/10 border border-orange-500/30 rounded-2xl p-4 flex gap-4 active:scale-95 transition-transform cursor-pointer shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl group-hover:bg-orange-500/30 transition-colors"></div>
-              <div className="w-12 h-12 bg-orange-500 text-white rounded-xl shadow-lg flex items-center justify-center font-black text-xl shrink-0 z-10">
-                %
+            {slots.length > 0 ? slots.map((slot, i) => (
+              <div key={i} className="bg-gradient-to-br from-orange-500/10 to-orange-900/10 border border-orange-500/30 rounded-2xl p-4 flex gap-4 active:scale-95 transition-transform cursor-pointer shadow-lg relative overflow-hidden group mb-3">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-2xl group-hover:bg-orange-500/30 transition-colors"></div>
+                <div className="w-12 h-12 bg-orange-500 text-white rounded-xl shadow-lg flex items-center justify-center font-black text-xl shrink-0 z-10">
+                  %
+                </div>
+                <div className="z-10">
+                  <h4 className="text-white font-bold text-lg mb-1">Flat {slot.discountPercent}% OFF</h4>
+                  <p className="text-xs text-orange-200/70">Valid for {slot.category} ({slot.startTime} - {slot.endTime}).</p>
+                </div>
               </div>
-              <div className="z-10">
-                <h4 className="text-white font-bold text-lg mb-1">Flat 25% OFF</h4>
-                <p className="text-xs text-orange-200/70">Applicable on entire dining bill. Valid today.</p>
+            )) : (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center text-slate-400 text-sm">
+                No active offers at the moment.
               </div>
-            </div>
-
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex gap-4 active:scale-95 transition-transform cursor-pointer shadow-lg">
-              <div className="w-12 h-12 bg-slate-800 border border-slate-700 text-slate-300 rounded-xl flex items-center justify-center font-black shrink-0">
-                <CreditCard className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="text-white font-bold text-lg mb-1">Up to ₹500 Cashback</h4>
-                <p className="text-xs text-slate-400">Pay via HDFC Credit Cards. Min order ₹1,500.</p>
-              </div>
-            </div>
+            )}
           </section>
         )}
 
@@ -194,20 +210,22 @@ export default function RestaurantDetail() {
           <section className="space-y-4">
             <h3 className="text-lg font-bold text-white">Menu Highlights</h3>
             
-            {/* Dummy Sections Kept */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {["Starters", "Main Course", "Breads", "Desserts"].map((cat, i) => (
-                <div key={i} className="relative h-32 rounded-2xl overflow-hidden border border-slate-800 shadow-md group cursor-pointer active:scale-95 transition-all">
-                  <div className="absolute inset-0 bg-slate-900/50 group-hover:bg-slate-900/40 transition-colors z-10"></div>
-                  <img src={`https://images.unsplash.com/photo-1546069901-${1000 + i}?auto=format&fit=crop&w=400&q=80`} alt={cat} className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-500" />
-                  <div className="absolute inset-0 flex items-center justify-center z-20">
-                    <span className="bg-black/40 backdrop-blur-md text-white font-bold px-3 py-1.5 rounded-lg border border-white/20 text-sm shadow-xl drop-shadow-md">
-                      {cat}
-                    </span>
+            {/* Dynamic Menu Categories Preview */}
+            {categories.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {categories.slice(0, 4).map((cat: any, i: number) => (
+                  <div key={i} className="relative h-32 rounded-2xl overflow-hidden border border-slate-800 shadow-md group cursor-pointer active:scale-95 transition-all">
+                    <div className="absolute inset-0 bg-slate-900/50 group-hover:bg-slate-900/40 transition-colors z-10"></div>
+                    <img src={`https://images.unsplash.com/photo-1546069901-${1000 + i}?auto=format&fit=crop&w=400&q=80`} alt={cat} className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 transition-all duration-500" />
+                    <div className="absolute inset-0 flex items-center justify-center z-20">
+                      <span className="bg-black/40 backdrop-blur-md text-white font-bold px-3 py-1.5 rounded-lg border border-white/20 text-sm shadow-xl drop-shadow-md">
+                        {cat}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* 🔥 Dynamic Menu Listing */}
             <div className="space-y-3">
@@ -281,9 +299,9 @@ export default function RestaurantDetail() {
           <section className="space-y-4">
             <h3 className="text-lg font-bold text-white">Ambience & Food</h3>
             <div className="columns-2 gap-3 space-y-3">
-              {[800, 600, 700, 500, 900].map((h, i) => (
+              {dynamicPhotos.map((photo: string, i: number) => (
                 <div key={i} className="rounded-2xl overflow-hidden border border-slate-800 relative break-inside-avoid shadow-lg group">
-                  <img src={`https://images.unsplash.com/photo-1555396273-${400 + i}?auto=format&fit=crop&w=400&h=${h}&q=80`} alt="Gallery" className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700" />
+                  <img src={photo} alt="Gallery" className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700" />
                 </div>
               ))}
             </div>
@@ -294,9 +312,16 @@ export default function RestaurantDetail() {
         {activeTab === 'about' && (
           <section className="space-y-8">
             <div className="space-y-4">
+              <h3 className="text-lg font-bold text-white">About</h3>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                {restaurant?.description || "No description provided."}
+              </p>
+            </div>
+
+            <div className="space-y-4">
               <h3 className="text-lg font-bold text-white">Amenities</h3>
               <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 grid gap-4">
-                {AMENITIES.map((amt, i) => (
+                {dynamicAmenities.map((amt, i) => (
                   <div key={i} className="flex items-center gap-3">
                     <div className="p-2 border border-slate-800 bg-slate-950 rounded-xl shadow-inner">
                       {amt.icon}
@@ -310,9 +335,25 @@ export default function RestaurantDetail() {
             <div className="space-y-4">
               <h3 className="text-lg font-bold text-white flex justify-between items-end">
                 Location
-                <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">Get Directions</span>
+                <button 
+                  onClick={() => {
+                    if (restaurant?.location?.lat && restaurant?.location?.lng) {
+                      window.open(`https://www.google.com/maps/dir/?api=1&destination=${restaurant.location.lat},${restaurant.location.lng}`, '_blank');
+                    }
+                  }}
+                  className="text-xs text-orange-500 font-bold uppercase tracking-wider hover:underline"
+                >
+                  Get Directions
+                </button>
               </h3>
-              <div className="h-48 rounded-2xl border border-slate-800 overflow-hidden relative group cursor-pointer shadow-lg active:scale-[0.98] transition-transform">
+              <div 
+                onClick={() => {
+                  if (restaurant?.location?.lat && restaurant?.location?.lng) {
+                    window.open(`https://www.google.com/maps/dir/?api=1&destination=${restaurant.location.lat},${restaurant.location.lng}`, '_blank');
+                  }
+                }}
+                className="h-48 rounded-2xl border border-slate-800 overflow-hidden relative group cursor-pointer shadow-lg active:scale-[0.98] transition-transform"
+              >
                 <div className="absolute inset-0 bg-slate-900/20 group-hover:bg-transparent transition-colors z-10"></div>
                 {/* Mock Map Background */}
                 <div className="w-full h-full bg-[url('https://kajabi-storefronts-production.kajabi-cdn.com/kajabi-storefronts-production/blogs/15923/images/wIF15f7iQR2cOQ6D6FmF_Google_Maps_Dark_Mode.png')] bg-cover bg-center grayscale-[30%] opacity-80" />

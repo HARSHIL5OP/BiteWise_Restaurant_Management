@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { MapPin, Loader2 } from 'lucide-react';
 
@@ -30,6 +30,16 @@ const MapEventsListener = ({ onClick }: { onClick: (lat: number, lng: number) =>
     return null;
 };
 
+const MapUpdater = ({ lat, lng }: { lat: number; lng: number }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (lat && lng) {
+            map.flyTo([lat, lng], map.getZoom());
+        }
+    }, [lat, lng, map]);
+    return null;
+};
+
 
 export const MapPicker: React.FC<MapPickerProps> = ({ lat, lng, onChange }) => {
     const defaultLat = 23.0225;
@@ -43,13 +53,15 @@ export const MapPicker: React.FC<MapPickerProps> = ({ lat, lng, onChange }) => {
     const [currentAddress, setCurrentAddress] = useState('');
     const markerRef = useRef<L.Marker>(null);
 
-    // Initial address fetch if lat/lng are provided
+    // Update position if props change
     useEffect(() => {
         if (lat && lng && lat !== 0 && lng !== 0) {
             setPosition([lat, lng]);
-            reverseGeocode(lat, lng, false);
+            if (!currentAddress) {
+                reverseGeocode(lat, lng, false);
+            }
         }
-    }, []);
+    }, [lat, lng]);
 
     const reverseGeocode = async (lat: number, lng: number, shouldOnChange: boolean = true) => {
         setLoading(true);
@@ -105,6 +117,7 @@ export const MapPicker: React.FC<MapPickerProps> = ({ lat, lng, onChange }) => {
                         attribution='&amp;copy; &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap&lt;/a&gt; contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
+                    <MapUpdater lat={position[0]} lng={position[1]} />
                     <MapEventsListener onClick={(lat, lng) => {
                         setPosition([lat, lng]);
                         reverseGeocode(lat, lng);

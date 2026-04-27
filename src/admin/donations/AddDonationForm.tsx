@@ -8,14 +8,15 @@ import { useAuth } from '../../contexts/AuthContext';
 interface Props {
     restaurantId: string;
     onClose: () => void;
+    initialInventoryId?: string;
 }
 
 const fieldCls = "w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-slate-900 dark:text-white focus:border-indigo-500 outline-none transition-colors text-sm";
 const labelCls = "block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wider";
 
-const AddDonationForm: React.FC<Props> = ({ restaurantId, onClose }) => {
+const AddDonationForm: React.FC<Props> = ({ restaurantId, onClose, initialInventoryId }) => {
     const [form, setForm] = useState({
-        inventoryId: '',
+        inventoryId: initialInventoryId || '',
         quantityText: '',
         locationAddress: '',
     });
@@ -42,6 +43,13 @@ const AddDonationForm: React.FC<Props> = ({ restaurantId, onClose }) => {
                 return true;
             });
             setInventoryItems(validItems);
+            
+            if (initialInventoryId) {
+                const preItem = validItems.find(i => i.id === initialInventoryId);
+                if (preItem) {
+                    setForm(prev => ({ ...prev, inventoryId: initialInventoryId, quantityText: preItem.quantity.toString() }));
+                }
+            }
         };
 
         const fetchRestaurantAddress = async () => {

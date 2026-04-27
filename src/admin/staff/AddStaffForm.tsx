@@ -25,7 +25,6 @@ const AddStaffForm = ({ newStaff, setNewStaff, handleAddStaff, isLoading, editin
                         value={newStaff.role} onChange={e => setNewStaff({ ...newStaff, role: e.target.value })}>
                         <option value="waiter">Waiter</option>
                         <option value="chef">Chef</option>
-                        <option value="cashier">Cashier</option>
                     </select>
                 </div>
                 <div>

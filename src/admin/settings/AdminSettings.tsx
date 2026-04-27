@@ -122,6 +122,50 @@ const AdminSettings = () => {
         }
     };
 
+    const addressStr = formData.location.address;
+    const cityStr = formData.location.city;
+
+    const handleGeocode = async () => {
+        if (!addressStr || addressStr.length < 3) {
+            alert("Please enter a valid address to find on map.");
+            return;
+        }
+        try {
+            // First attempt: Address + City
+            let query = `${addressStr}${cityStr ? `, ${cityStr}` : ''}`;
+            let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+            let data = await res.json();
+            
+            // Second attempt: Just City if first fails
+            if ((!data || data.length === 0) && cityStr) {
+                console.log("Full address failed, trying just city...");
+                res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityStr)}&limit=1`);
+                data = await res.json();
+                if (data && data.length > 0) {
+                    alert("Could not find exact street address, but centered map on the City. Please drag the pin to your exact location.");
+                }
+            }
+
+            if (data && data.length > 0) {
+                const lat = parseFloat(data[0].lat);
+                const lng = parseFloat(data[0].lon);
+                setFormData(prev => ({
+                    ...prev,
+                    location: {
+                        ...prev.location,
+                        lat,
+                        lng
+                    }
+                }));
+            } else {
+                alert("Could not find coordinates for this address or city. Please refine it or select manually on the map.");
+            }
+        } catch (err) {
+            console.error("Geocoding error", err);
+            alert("Error connecting to geocoding service.");
+        }
+    };
+
     const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalData);
 
     const handleSave = async () => {
@@ -302,12 +346,21 @@ const AdminSettings = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">City <span className="text-rose-500">*</span></label>
-                                <input
-                                    name="location.city"
-                                    value={formData.location.city}
-                                    onChange={handleChange}
-                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                                />
+                                <div className="flex gap-2">
+                                    <input
+                                        name="location.city"
+                                        value={formData.location.city}
+                                        onChange={handleChange}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={handleGeocode}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl whitespace-nowrap text-sm font-bold transition-colors shadow-sm"
+                                    >
+                                        Find on Map
+                                    </button>
+                                </div>
                             </div>
                             <MapPicker 
                                 lat={formData.location.lat}

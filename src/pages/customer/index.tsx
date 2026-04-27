@@ -348,22 +348,34 @@ export default function CustomerHome() {
           ) : (
             filteredRestaurants.map((restaurant) => {
               const dummyImage = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=800";
+              
+              let distStr = "Near you";
+              if (userLocation && restaurant.location?.lat && restaurant.location?.lng) {
+                 const dist = calculateDistance(userLocation.lat, userLocation.lng, restaurant.location.lat, restaurant.location.lng);
+                 distStr = dist < 1 ? `${(dist * 1000).toFixed(0)} m` : `${dist.toFixed(1)} km`;
+              }
+              
+              const dynamicOffers = [];
+              if (restaurant.averagePriceForTwo > 1000) dynamicOffers.push("Premium Dining");
+              if (restaurant.isJainAvailable) dynamicOffers.push("Jain Available");
+              if (dynamicOffers.length === 0) dynamicOffers.push("Open Now");
+
               return (
                 <RestaurantCard
-                key={restaurant.id}
-                id={restaurant.id}
-                name={restaurant.name || "Sample Restaurant"}
-                image={restaurant.bannerImage || dummyImage}
+                  key={restaurant.id}
+                  id={restaurant.id}
+                  name={restaurant.name || "Sample Restaurant"}
+                  image={restaurant.bannerImage || dummyImage}
                   rating={restaurant.averageRating || 4.2}
-                  reviews="1.2k"
+                  reviews={restaurant.reviewCount ? `${restaurant.reviewCount}` : "New"}
                   cuisine={restaurant.cuisineType?.join(", ") || "Multi Cuisine"}
                   price={`₹${restaurant.averagePriceForTwo || 500} for two`}
                   location={restaurant.location?.city || "Ahmedabad"}
-                  distance={restaurant.location?.address ? "1.2 km" : "Unknown"}
-                  offers={["Flat 20% OFF", "Free Dessert"]} // Keep dummy offers
-                  />
-                );
-              })
+                  distance={distStr}
+                  offers={dynamicOffers}
+                />
+              );
+            })
             )}
         </div>
       </div>

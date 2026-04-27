@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChefHat, User, DollarSign, X, Plus, Edit2 } from 'lucide-react';
 
-const StaffList = ({ chefs, waiters, cashiers, handleDeleteStaff, setShowAddStaff, openEditStaff }: any) => {
+const StaffList = ({ chefs, waiters, handleDeleteStaff, setShowAddStaff, openEditStaff }: any) => {
     return (
         <div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -13,8 +13,7 @@ const StaffList = ({ chefs, waiters, cashiers, handleDeleteStaff, setShowAddStaf
             <div className="space-y-8">
                 {[
                     { title: 'Chefs', data: chefs, icon: ChefHat, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-amber-100 dark:bg-amber-500/10' },
-                    { title: 'Waiters', data: waiters, icon: User, color: 'text-blue-600 dark:text-blue-500', bg: 'bg-blue-100 dark:bg-blue-500/10' },
-                    { title: 'Cashiers', data: cashiers, icon: DollarSign, color: 'text-emerald-600 dark:text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-500/10' }
+                    { title: 'Waiters', data: waiters, icon: User, color: 'text-blue-600 dark:text-blue-500', bg: 'bg-blue-100 dark:bg-blue-500/10' }
                 ].map((group) => (
                     <div key={group.title}>
                         <div className="flex items-center gap-3 mb-4">

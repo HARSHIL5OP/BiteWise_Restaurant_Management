@@ -8,10 +8,11 @@ import { db } from '../../lib/firebase';
 import { 
     collection, addDoc, onSnapshot, query, 
     orderBy, doc, updateDoc, deleteDoc, 
-    serverTimestamp 
+    serverTimestamp, where 
 } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
 
 interface Slot {
     id: string;
@@ -27,6 +28,7 @@ interface Slot {
 
 const BookingsAndOffers = ({ restaurantId }: { restaurantId: string }) => {
     const [slots, setSlots] = useState<Slot[]>([]);
+    const [reservations, setReservations] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
     const [editingSlot, setEditingSlot] = useState<Slot | null>(null);
@@ -59,6 +61,27 @@ const BookingsAndOffers = ({ restaurantId }: { restaurantId: string }) => {
             console.error("Error fetching slots:", error);
             toast.error("Failed to fetch booking slots");
             setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [restaurantId]);
+
+    useEffect(() => {
+        if (!restaurantId) return;
+
+        // Fetch today's reservations
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const q = query(
+            collection(db, 'reservations'),
+            where('restaurantId', '==', restaurantId),
+            where('reservationDate', '==', todayStr),
+            where('status', '==', 'confirmed'),
+            orderBy('reservationTime')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setReservations(fetched);
         });
 
         return () => unsubscribe();
@@ -208,6 +231,63 @@ const BookingsAndOffers = ({ restaurantId }: { restaurantId: string }) => {
                     <Plus size={18} />
                     Add New Slot
                 </button>
+            </div>
+
+            {/* Today's Reservations */}
+            <div className="mb-10">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                    <Calendar className="text-indigo-500" size={20} />
+                    Today's Reservations
+                    <span className="bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-xs py-0.5 px-2 rounded-full">
+                        {reservations.length}
+                    </span>
+                </h3>
+                
+                {reservations.length === 0 ? (
+                    <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-6 text-center border border-slate-100 dark:border-slate-800">
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">No reservations booked for today yet.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {reservations.map(res => (
+                            <div key={res.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 shadow-sm flex flex-col gap-2">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex items-center gap-2">
+                                        <div className="bg-indigo-100 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 p-2 rounded-lg">
+                                            <Clock size={16} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-800 dark:text-white">{format(new Date(`2000-01-01T${res.reservationTime}`), 'hh:mm a')}</p>
+                                            <p className="text-[10px] text-slate-500 font-medium uppercase">{res.category}</p>
+                                        </div>
+                                    </div>
+                                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">
+                                        Confirmed
+                                    </span>
+                                </div>
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-700 mt-2 flex justify-between">
+                                    <div>
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Party</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1">
+                                            <Users size={14} className="text-slate-400" />
+                                            {res.partySize} Guests
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Option</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-white capitalize">
+                                            {res.bookingOption}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Time Slots Configuration</h3>
             </div>
 
             {/* Empty State */}

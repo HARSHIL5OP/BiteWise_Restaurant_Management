@@ -195,7 +195,13 @@ const AppRoutes = () => {
       <Route path="/social-impact" element={<SocialImpact />} />
 
       {/* --- Main Admin --- */}
-      <Route path="/main-admin" element={<MainAdminPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/main-admin" element={
+          <RoleRoute allowedRoles={["main-admin"]}>
+            <MainAdminPage />
+          </RoleRoute>
+        } />
+      </Route>
 
       {/* --- NGO (UPDATED) --- */}
       <Route path="/ngo" element={<NgoLayout />}>

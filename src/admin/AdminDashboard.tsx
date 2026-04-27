@@ -174,6 +174,70 @@ const AdminDashboard = () => {
     const [inventoryMode, setInventoryMode] = useState<'add' | 'edit' | 'restock'>('add');
     const [editingInventoryItem, setEditingInventoryItem] = useState<InventoryItem | null>(null);
     const [isInventoryLoading, setIsInventoryLoading] = useState(false);
+    
+    // Reservations State
+    const [upcomingReservations, setUpcomingReservations] = useState<any[]>([]);
+
+    // Compute Notifications
+    const notifications = React.useMemo(() => {
+        const notifs: any[] = [];
+        inventoryItems.forEach(item => {
+            if (item.quantity <= item.threshold) {
+                notifs.push({
+                    id: `low-${item.id}`,
+                    item: item,
+                    title: 'Low Stock Alert',
+                    message: `${item.name} is critically low (${item.quantity} ${item.unit} remaining).`,
+                    type: 'warning',
+                    time: new Date()
+                });
+            }
+            if (item.expiryDate) {
+                const days = (new Date(item.expiryDate).getTime() - Date.now()) / (1000 * 3600 * 24);
+                if (days > 0 && days <= 7) {
+                    notifs.push({
+                        id: `exp-${item.id}`,
+                        item: item,
+                        title: 'Expiring Soon',
+                        message: `${item.name} expires in ${Math.ceil(days)} days.`,
+                        type: 'danger',
+                        time: new Date()
+                    });
+                } else if (days <= 0) {
+                    notifs.push({
+                        id: `exp-${item.id}`,
+                        item: item,
+                        title: 'Expired Item',
+                        message: `${item.name} has expired!`,
+                        type: 'expired',
+                        time: new Date()
+                    });
+                }
+            }
+        });
+
+        upcomingReservations.forEach(res => {
+            const now = new Date();
+            const [h, m] = res.reservationTime.split(':').map(Number);
+            const resTime = new Date();
+            resTime.setHours(h, m, 0, 0);
+            const diffMins = (resTime.getTime() - now.getTime()) / 60000;
+            
+            // Show notification if booking is within 60 minutes and hasn't passed
+            if (diffMins > -15 && diffMins <= 60) {
+                notifs.push({
+                    id: `res-${res.id}`,
+                    item: res,
+                    title: 'Upcoming Booking',
+                    message: `Table booked for ${res.partySize} guests at ${res.reservationTime}.`,
+                    type: 'warning',
+                    time: new Date()
+                });
+            }
+        });
+
+        return notifs.sort((a, b) => b.time.getTime() - a.time.getTime());
+    }, [inventoryItems, upcomingReservations]);
 
     // Donations State
     const [donations, setDonations] = useState<Donation[]>([]);
@@ -183,8 +247,35 @@ const AdminDashboard = () => {
 
     // Modals & Forms State
     const [showAddMenu, setShowAddMenu] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
     const [showAddStaff, setShowAddStaff] = useState(false);
     const [showAddTable, setShowAddTable] = useState(false);
+    const [donateInventoryId, setDonateInventoryId] = useState<string | null>(null);
+
+    // Notification Handlers
+    const handleRestockNotification = (item: any) => {
+        setEditingInventoryItem(item);
+        setInventoryMode('restock');
+        setShowAddInventory(true);
+        setShowNotifications(false);
+    };
+
+    const handleDonateNotification = (item: any) => {
+        setDonateInventoryId(item.id);
+        setShowAddDonation(true);
+        setShowNotifications(false);
+    };
+
+    const handleRemoveExpiredNotification = async (item: any) => {
+        if (!restaurantId) return;
+        try {
+            await deleteDoc(doc(db, 'restaurants', restaurantId, 'inventory', item.id));
+            toast.success(`${item.name} removed from inventory.`);
+        } catch (error) {
+            console.error("Error deleting expired item:", error);
+            toast.error("Failed to remove item.");
+        }
+    };
 
     const [newMenuItem, setNewMenuItem] = useState({
         name: '', price: '', image: null as any, category: 'Main Course',
@@ -214,7 +305,6 @@ const AdminDashboard = () => {
     // Computed
     const chefs = staff.filter(s => s.role === 'chef');
     const waiters = staff.filter(s => s.role === 'waiter');
-    const cashiers = staff.filter(s => s.role === 'cashier');
 
     // Fetch Data on Mount
     useEffect(() => {
@@ -252,7 +342,7 @@ const AdminDashboard = () => {
                 });
 
                 const resolvedStaff = await Promise.all(staffPromises);
-                const filteredStaff = resolvedStaff.filter((u: any) => ['chef', 'waiter', 'cashier'].includes(u.role));
+                const filteredStaff = resolvedStaff.filter((u: any) => ['chef', 'waiter'].includes(u.role));
 
                 setStaff(filteredStaff);
                 setStaffCount(filteredStaff.length);
@@ -270,6 +360,13 @@ const AdminDashboard = () => {
             setTables(tablesData);
         }, (error) => {
             console.error("Tables fetch error:", error);
+        });
+
+        // Fetch Reservations
+        const todayStr = new Date().toISOString().split('T')[0];
+        const unsubscribeReservations = onSnapshot(query(collection(db, 'reservations'), where('restaurantId', '==', restaurantId), where('reservationDate', '==', todayStr), where('status', '==', 'confirmed')), (snapshot) => {
+            const resData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setUpcomingReservations(resData);
         });
 
         // Fetch Inventory Items (needed for menu creation and summary stats)
@@ -361,8 +458,9 @@ const AdminDashboard = () => {
             unsubscribeTables();
             unsubscribeRestaurant();
             unsubscribeInventory();
+            unsubscribeReservations();
         };
-    }, []);
+    }, [restaurantId]);
 
     // Data Handlers
     const handleLogout = async () => {
@@ -832,24 +930,29 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="mt-auto">
-                    <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-4 transition-colors duration-300">
+                    <div className="p-3.5 bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-indigo-500/30 transition-all duration-300 mb-4 cursor-pointer group flex items-center justify-between mx-2">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-md">
-                                {userProfile?.firstName?.charAt(0) || 'U'}{userProfile?.lastName?.charAt(0) || ''}
+                            <div className="relative">
+                                <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold shadow-inner ring-2 ring-white dark:ring-slate-900 group-hover:scale-105 transition-transform duration-300">
+                                    {userProfile?.firstName?.charAt(0) || 'U'}{userProfile?.lastName?.charAt(0) || ''}
+                                </div>
+                                <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-950 rounded-full"></div>
                             </div>
                             <div>
-                                <p className="text-sm font-semibold text-slate-900 dark:text-white capitalize">
+                                <p className="text-sm font-bold text-slate-900 dark:text-white capitalize group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
                                     {userProfile?.firstName || 'User'} {userProfile?.lastName || ''}
                                 </p>
-                                <p className="text-xs text-slate-500 capitalize">
+                                <p className="text-xs font-medium text-slate-500 capitalize flex items-center gap-1.5 mt-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                                     {userProfile?.role === 'restaurant_admin' ? 'Restaurant Admin' : userProfile?.role || 'Admin'}
                                 </p>
                             </div>
                         </div>
+                        <ChevronRight size={16} className="text-slate-400 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                     </div>
                     {/* Platform Identity */}
-                    <div className="text-center">
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 dark:text-slate-500">Powered by Bitewise</span>
+                    <div className="text-center py-2">
+                        <span className="text-[10px] uppercase font-extrabold tracking-widest text-slate-300 dark:text-slate-600 select-none">Powered by Bitewise</span>
                     </div>
                 </div>
             </aside>
@@ -874,14 +977,14 @@ const AdminDashboard = () => {
                         <p className="text-slate-500 text-sm hidden sm:block">Welcome back, here's what's happening today.</p>
                     </div>
                     <div className="flex items-center gap-2 md:gap-4 w-full md:w-auto justify-end">
-                        <div className="relative flex-1 md:flex-none hidden md:block">
+                        {/* <div className="relative flex-1 md:flex-none hidden md:block">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
                                 type="text"
                                 placeholder="Search..."
                                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 pl-10 pr-4 py-2 w-full md:w-64 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all text-sm text-slate-900 dark:text-white placeholder:text-slate-400"
                             />
-                        </div>
+                        </div> */}
 
                         {/* Theme Toggle */}
                         <button
@@ -893,11 +996,99 @@ const AdminDashboard = () => {
 
                         <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden md:block"></div>
 
-                        <button className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-indigo-500/50 hover:text-indigo-500 transition-all shadow-sm dark:shadow-none min-h-[44px] min-w-[44px] flex items-center justify-center">
-                            <Bell size={20} className="text-slate-600 dark:text-slate-400 group-hover:text-indigo-500" />
-                            <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-slate-900" />
-                        </button>
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-indigo-500/50 hover:text-indigo-500 transition-all shadow-sm dark:shadow-none min-h-[44px] min-w-[44px] flex items-center justify-center"
+                            >
+                                <Bell size={20} className="text-slate-600 dark:text-slate-400 group-hover:text-indigo-500" />
+                                {notifications.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white dark:ring-slate-900 animate-pulse">
+                                        {notifications.length}
+                                    </span>
+                                )}
+                            </button>
 
+                            {/* Notifications Dropdown */}
+                            <AnimatePresence>
+                                {showNotifications && (
+                                    <>
+                                        <div 
+                                            className="fixed inset-0 z-40"
+                                            onClick={() => setShowNotifications(false)}
+                                        />
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                            className="absolute right-0 mt-3 w-80 md:w-96 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 overflow-hidden"
+                                        >
+                                            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+                                                <h3 className="font-bold text-slate-800 dark:text-white">Notifications</h3>
+                                                {notifications.length > 0 && (
+                                                    <span className="text-xs font-semibold bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 px-2 py-1 rounded-md">
+                                                        {notifications.length} new
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="max-h-[60vh] overflow-y-auto">
+                                                {notifications.length > 0 ? (
+                                                    notifications.map((notif) => (
+                                                        <div key={notif.id} className="p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+                                                            <div className="flex gap-3">
+                                                                <div className={`mt-1 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                                                                    notif.type === 'danger' ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-500' : 'bg-amber-100 dark:bg-amber-500/20 text-amber-500'
+                                                                }`}>
+                                                                    <Bell size={14} />
+                                                                </div>
+                                                                <div className="flex-1">
+                                                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{notif.title}</p>
+                                                                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{notif.message}</p>
+                                                                    <div className="flex items-center gap-2 mt-3">
+                                                                        {notif.type === 'warning' && (
+                                                                            <button 
+                                                                                onClick={(e) => { e.stopPropagation(); handleRestockNotification(notif.item); }}
+                                                                                className="text-xs font-bold px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 dark:text-amber-400 rounded-lg transition-colors"
+                                                                            >
+                                                                                Restock Now
+                                                                            </button>
+                                                                        )}
+                                                                        {notif.title === 'Expiring Soon' && (
+                                                                            <button 
+                                                                                onClick={(e) => { e.stopPropagation(); handleDonateNotification(notif.item); }}
+                                                                                className="text-xs font-bold px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 dark:text-rose-400 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                            >
+                                                                                <Heart size={12} /> Donate Item
+                                                                            </button>
+                                                                        )}
+                                                                        {notif.type === 'expired' && (
+                                                                            <button 
+                                                                                onClick={(e) => { e.stopPropagation(); handleRemoveExpiredNotification(notif.item); }}
+                                                                                className="text-xs font-bold px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                            >
+                                                                                <Trash2 size={12} /> Remove Item
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="p-8 text-center">
+                                                        <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                            <Bell size={24} className="text-slate-400" />
+                                                        </div>
+                                                        <p className="text-slate-500 dark:text-slate-400 font-medium">All caught up!</p>
+                                                        <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">No new notifications.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    </>
+                                )}
+                            </AnimatePresence>
+                        </div>
                         <button 
                             onClick={handleLogout} 
                             className="lg:hidden p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl relative hover:border-rose-500/50 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all shadow-sm dark:shadow-none min-h-[44px] min-w-[44px] flex items-center justify-center text-rose-500"
@@ -1148,7 +1339,6 @@ const AdminDashboard = () => {
                             <StaffList
                                 chefs={chefs}
                                 waiters={waiters}
-                                cashiers={cashiers}
                                 handleDeleteStaff={handleDeleteStaff}
                                 setShowAddStaff={setShowAddStaff}
                                 openEditStaff={openEditStaff}
@@ -1251,8 +1441,8 @@ const AdminDashboard = () => {
             </Modal>
 
             {/* Donation Modals */}
-            <Modal isOpen={showAddDonation} onClose={() => setShowAddDonation(false)} title="Create Food Donation">
-                <AddDonationForm restaurantId={restaurantId} onClose={() => setShowAddDonation(false)} />
+            <Modal isOpen={showAddDonation} onClose={() => { setShowAddDonation(false); setDonateInventoryId(null); }} title="Create Food Donation">
+                <AddDonationForm restaurantId={restaurantId || ''} onClose={() => { setShowAddDonation(false); setDonateInventoryId(null); }} initialInventoryId={donateInventoryId || undefined} />
             </Modal>
 
             <Modal isOpen={showViewDonation} onClose={() => { setShowViewDonation(false); setViewingDonation(null); }} title="Donation Details">

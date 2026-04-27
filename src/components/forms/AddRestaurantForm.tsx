@@ -108,6 +108,44 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
     },
   });
 
+  const watchAddress = form.watch("address");
+  const watchCity = form.watch("city");
+
+  const handleGeocode = async () => {
+    if (!watchAddress || watchAddress.length < 3) {
+      alert("Please enter a valid address to find on map.");
+      return;
+    }
+    try {
+      // First attempt: Address + City
+      let query = `${watchAddress}${watchCity ? `, ${watchCity}` : ''}`;
+      let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      let data = await res.json();
+      
+      // Second attempt: Just City if first fails
+      if ((!data || data.length === 0) && watchCity) {
+        console.log("Full address failed, trying just city...");
+        res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(watchCity)}&limit=1`);
+        data = await res.json();
+        if (data && data.length > 0) {
+            alert("Could not find exact street address, but centered map on the City. Please drag the pin to your exact location.");
+        }
+      }
+
+      if (data && data.length > 0) {
+        const newLat = parseFloat(data[0].lat);
+        const newLng = parseFloat(data[0].lon);
+        form.setValue("lat", newLat);
+        form.setValue("lng", newLng);
+      } else {
+        alert("Could not find coordinates for this address or city. Please refine it or select manually on the map.");
+      }
+    } catch (err) {
+      console.error("Geocoding error", err);
+      alert("Error connecting to geocoding service.");
+    }
+  };
+
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
     try {
@@ -433,7 +471,16 @@ export default function AddRestaurantForm({ onSuccess }: { onSuccess?: () => voi
                   <FormItem>
                     <FormLabel className="text-slate-300">City</FormLabel>
                     <FormControl>
-                      <Input placeholder="New York" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                      <div className="flex gap-2">
+                        <Input placeholder="New York" {...field} className="bg-slate-900 border-slate-800 text-slate-200 focus-visible:ring-orange-500/50" />
+                        <button 
+                            type="button" 
+                            onClick={handleGeocode}
+                            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md whitespace-nowrap text-sm font-bold transition-colors"
+                        >
+                            Find on Map
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage className="text-red-400" />
                   </FormItem>

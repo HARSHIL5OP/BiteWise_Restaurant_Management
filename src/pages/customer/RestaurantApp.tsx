@@ -9,6 +9,7 @@ import {
 import { db } from '@/lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { jsPDF } from 'jspdf';
+import { format } from 'date-fns';
 
 import CustomerMenuView from './menu/CustomerMenuView';
 import CustomerOrdersView from './orders/CustomerOrdersView';
@@ -102,16 +103,19 @@ const RestaurantApp = () => {
     const tableId = searchParams.get("tableId") || paramsTableId || sessionStorage.getItem('currentTable') || "1";
     const [tableInfo, setTableInfo] = useState<any>(null);
 
+    const [accessError, setAccessError] = useState<string | null>(null);
+
     useEffect(() => {
         const fetchTableDetails = async () => {
             if (!restaurantId || restaurantId === 'DEFAULT_RESTAURANT' || !tableId) return;
             try {
+                let currentTable: any = null;
                 // First try to fetch by document ID
                 const tableRef = doc(db, 'restaurants', restaurantId, 'tables', tableId);
                 const tableSnap = await getDoc(tableRef);
                 
                 if (tableSnap.exists()) {
-                    setTableInfo({ id: tableSnap.id, ...tableSnap.data() });
+                    currentTable = { id: tableSnap.id, ...tableSnap.data() };
                 } else {
                     // If not found by ID, maybe tableId is actually the tableNumber
                     const numericTable = parseInt(tableId);
@@ -119,16 +123,63 @@ const RestaurantApp = () => {
                         const q = query(collection(db, 'restaurants', restaurantId, 'tables'), where('tableNumber', '==', numericTable));
                         const snap = await getDocs(q);
                         if (!snap.empty) {
-                            setTableInfo({ id: snap.docs[0].id, ...snap.docs[0].data() });
+                            currentTable = { id: snap.docs[0].id, ...snap.docs[0].data() };
                         }
                     }
+                }
+
+                if (currentTable) {
+                    // Check for reservations
+                    const todayStr = format(new Date(), 'yyyy-MM-dd');
+                    const reservationsQuery = query(
+                        collection(db, "reservations"),
+                        where("restaurantId", "==", restaurantId),
+                        where("reservationDate", "==", todayStr),
+                        where("tableIds", "array-contains", currentTable.id),
+                        where("status", "==", "confirmed")
+                    );
+                    const resSnap = await getDocs(reservationsQuery);
+
+                    if (!resSnap.empty) {
+                        const now = new Date();
+                        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                        for (const docSnap of resSnap.docs) {
+                            const resData = docSnap.data();
+                            const [resH, resM] = resData.reservationTime.split(':').map(Number);
+                            const resMinutes = resH * 60 + resM;
+
+                            // Table is reserved 15 mins before to 15 mins after booking time
+                            if (currentMinutes >= resMinutes - 15 && currentMinutes <= resMinutes + 15) {
+                                // If someone else tries to access
+                                if (user?.uid !== resData.customerId) {
+                                    setAccessError("This table is currently reserved for a pre-booking.");
+                                    return; // Stop further processing
+                                }
+                            } else if (currentMinutes > resMinutes + 15 && currentTable.status === 'reserved' && currentTable.reservedFor === docSnap.id) {
+                                // No-show handling: If current time > booking + 15m and it's still reserved, free it
+                                await updateDoc(docSnap.ref, { status: 'no-show' });
+                                await updateDoc(doc(db, 'restaurants', restaurantId, 'tables', currentTable.id), {
+                                    status: 'available',
+                                    reservedFor: null,
+                                    reservedDate: null,
+                                    reservedTime: null,
+                                    reservedCustomerId: null
+                                });
+                                currentTable.status = 'available';
+                            }
+                        }
+                    }
+
+                    setTableInfo(currentTable);
+                    setAccessError(null);
                 }
             } catch (error) {
                 console.error("Error fetching table details:", error);
             }
         };
         fetchTableDetails();
-    }, [restaurantId, tableId]);
+    }, [restaurantId, tableId, user]);
 
     const [restaurantInfo, setRestaurantInfo] = useState<any>(null);
 
@@ -805,6 +856,24 @@ const RestaurantApp = () => {
         return (
             <div className="min-h-screen flex items-center justify-center bg-orange-50">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+            </div>
+        );
+    }
+
+    if (accessError) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-[#FDFBF7] p-6 text-center">
+                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-6">
+                    <UtensilsCrossed className="w-10 h-10 text-red-500" />
+                </div>
+                <h1 className="text-2xl font-bold text-slate-800 mb-2">Table Reserved</h1>
+                <p className="text-slate-500 max-w-sm mb-8">{accessError}</p>
+                <button 
+                    onClick={() => navigate('/customer/home')}
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-8 rounded-xl transition-colors shadow-lg shadow-orange-500/30"
+                >
+                    Browse Other Restaurants
+                </button>
             </div>
         );
     }
