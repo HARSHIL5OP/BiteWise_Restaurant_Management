@@ -46,18 +46,34 @@ const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({ orders, setActi
 
                             {/* Items */}
                             <div className="space-y-3 mb-4">
-                                {order.items.map((item: any, idx: number) => (
-                                    <div key={idx} className="flex justify-between items-start text-sm">
-                                        <div className="flex items-start gap-2">
-                                            <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${item.veg ? 'bg-green-500' : 'bg-red-500'}`} />
-                                            <div>
-                                                <span className="font-semibold text-gray-800">{item.name}</span>
-                                                <div className="text-xs text-gray-500">Qty: {item.quantity}</div>
+                                {order.items.map((item: any, idx: number) => {
+                                    const itemStatus = item.status || 'pending';
+                                    const statusColors: any = {
+                                        pending: 'text-yellow-600 bg-yellow-50 border-yellow-200',
+                                        preparing: 'text-blue-600 bg-blue-50 border-blue-200',
+                                        ready: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+                                        served: 'text-gray-600 bg-gray-50 border-gray-200'
+                                    };
+                                    const colorClass = statusColors[itemStatus] || statusColors.pending;
+
+                                    return (
+                                        <div key={idx} className="flex justify-between items-start text-sm">
+                                            <div className="flex items-start gap-2">
+                                                <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${item.veg ? 'bg-green-500' : 'bg-red-500'}`} />
+                                                <div>
+                                                    <span className="font-semibold text-gray-800">{item.name}</span>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${colorClass}`}>
+                                                            {itemStatus}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
+                                            <span className="font-medium text-gray-700">₹{item.price * item.quantity}</span>
                                         </div>
-                                        <span className="font-medium text-gray-700">₹{item.price * item.quantity}</span>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             {/* Footer */}
