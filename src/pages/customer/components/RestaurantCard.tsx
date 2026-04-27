@@ -1,4 +1,4 @@
-import { Heart, Star, MapPin, Tag } from "lucide-react";
+import { Star, MapPin, Tag } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
@@ -40,12 +40,7 @@ export default function RestaurantCard({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent"></div>
           
-          <button 
-            className="absolute top-3 right-3 p-2 bg-black/20 backdrop-blur-md rounded-full text-white hover:bg-orange-500 hover:text-white transition-colors"
-            onClick={(e) => { e.preventDefault(); /* handle wish list */ }}
-          >
-            <Heart className="w-5 h-5" />
-          </button>
+          {/* Wishlist heart removed */}
 
           <div className="absolute bottom-3 left-3 space-y-1.5 flex flex-col items-start w-3/4">
             {offers.slice(0, 2).map((offer, idx) => (

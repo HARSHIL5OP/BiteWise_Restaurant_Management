@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { UtensilsCrossed, LogOut, Heart, ChevronRight, Flame, Share2, Copy } from 'lucide-react';
+import { UtensilsCrossed, LogOut, ChevronRight, Flame, Share2, Copy } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -403,53 +403,24 @@ const RestaurantApp = () => {
             const activeOrder = orders.find(o => o.tableId === resolvedTableId && o.status !== 'completed');
 
             let orderRefId = "";
+            let isNewOrder = false;
+            let existingSubtotal = 0;
+            let existingTax = 0;
+            let existingTotalAmount = 0;
 
             if (activeOrder) {
-                // 🔥 APPEND TO EXISTING ORDER
                 orderRefId = activeOrder.id;
-                
-                const newSubtotal = (activeOrder.subtotal || 0) + subtotal;
-                const newTax = (activeOrder.tax || 0) + tax;
-                const newTotalAmount = (activeOrder.totalAmount || 0) + totalAmount;
-
-                await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', orderRefId), {
-                    subtotal: newSubtotal,
-                    tax: newTax,
-                    totalAmount: newTotalAmount,
-                    status: 'pending', // Reset status back to pending so the chef sees updates
-                    updatedAt: serverTimestamp()
-                });
+                existingSubtotal = activeOrder.subtotal || 0;
+                existingTax = activeOrder.tax || 0;
+                existingTotalAmount = activeOrder.totalAmount || 0;
             } else {
-                // 🔥 CREATE NEW ORDER
-                const { waiterId } = await assignWaiter();
                 const orderRef = doc(collection(db, 'restaurants', restaurantId, 'orders'));
                 orderRefId = orderRef.id;
-                
-                await setDoc(orderRef, {
-                    orderId: orderRef.id,
-                    tableId: resolvedTableId,
-                    orderNumber: Math.floor(1000 + Math.random() * 9000).toString(),
-                    customerId: user.uid,
-                    waiterId: waiterId || null,
-                    restaurantId: restaurantId,
-                    status: 'pending',
-                    orderSource: 'QR',
-                    subtotal: subtotal,
-                    tax: tax,
-                    discount: discount,
-                    totalAmount: totalAmount,
-                    paymentStatus: 'pending',
-                    paymentId: null,
-                    notes: "",
-                    createdAt: serverTimestamp(),
-                    preparedAt: null,
-                    servedAt: null,
-                    completedAt: null
-                });
+                isNewOrder = true;
             }
 
-            // 🔥 SAVE ORDER ITEMS
-            for (const item of cart) {
+            // 🔥 1. SAVE ORDER ITEMS FIRST
+            const itemPromises = cart.map(async (item) => {
                 const itemRef = doc(collection(db, 'restaurants', restaurantId, 'orders', orderRefId, 'items'));
                 await setDoc(itemRef, {
                     itemId: itemRef.id,
@@ -461,11 +432,54 @@ const RestaurantApp = () => {
                     total: item.price * item.quantity,
                     notes: '',
                     status: 'pending',
-                    addedBy: item.addedBy || 'Guest'
+                    addedBy: item.addedBy || 'Guest',
+                    veg: item.veg ?? true
                 });
                 
                 // Clear out from structured cart
                 await deleteDoc(doc(db, 'restaurants', restaurantId, 'tables', resolvedTableId, 'cart', item.cartDocId));
+            });
+
+            await Promise.all(itemPromises);
+
+            // 🔥 2. CALCULATE NEW TOTALS
+            const newSubtotal = existingSubtotal + subtotal;
+            const newTax = existingTax + tax;
+            const newTotalAmount = existingTotalAmount + totalAmount;
+
+            // 🔥 3. CREATE OR UPDATE ORDER DOCUMENT LAST (Triggers Snapshot)
+            if (isNewOrder) {
+                const { waiterId } = await assignWaiter();
+                await setDoc(doc(db, 'restaurants', restaurantId, 'orders', orderRefId), {
+                    orderId: orderRefId,
+                    tableId: resolvedTableId,
+                    orderNumber: Math.floor(1000 + Math.random() * 9000).toString(),
+                    customerId: user.uid,
+                    waiterId: waiterId || null,
+                    restaurantId: restaurantId,
+                    status: 'pending',
+                    orderSource: 'QR',
+                    subtotal: newSubtotal,
+                    tax: newTax,
+                    discount: discount,
+                    totalAmount: newTotalAmount,
+                    paymentStatus: 'pending',
+                    paymentId: null,
+                    notes: "",
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    preparedAt: null,
+                    servedAt: null,
+                    completedAt: null
+                });
+            } else {
+                await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', orderRefId), {
+                    subtotal: newSubtotal,
+                    tax: newTax,
+                    totalAmount: newTotalAmount,
+                    status: 'pending',
+                    updatedAt: serverTimestamp()
+                });
             }
 
             // Update table status
@@ -823,13 +837,7 @@ const RestaurantApp = () => {
                                 <Share2 className="w-4 h-4 fill-blue-500" />
                             </button>
                         )}
-                        <button
-                            onClick={() => navigate('/social-impact')}
-                            className="p-2 text-green-500 hover:text-green-600 transition-colors"
-                            title="Social Impact - Food Wastage Control"
-                        >
-                            <Heart className="w-5 h-5 fill-green-500" />
-                        </button>
+                        {/* Social Impact heart button removed */}
                         <button
                             onClick={() => {
                                 logout();

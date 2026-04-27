@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
-  ArrowLeft, Heart, Share2, Star, MapPin, 
+  ArrowLeft, Share2, Star, MapPin, 
   Clock, Tag, Car, Leaf, CreditCard, ChevronRight, CheckCircle2 
 } from "lucide-react";
 
@@ -96,9 +96,7 @@ export default function RestaurantDetail() {
             <button className="w-10 h-10 bg-black/30 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-black/50 transition-colors active:scale-90">
               <Share2 className="w-4 h-4" />
             </button>
-            <button className="w-10 h-10 bg-black/30 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center text-white hover:bg-orange-500 transition-colors active:scale-90">
-              <Heart className="w-5 h-5" />
-            </button>
+            {/* Wishlist heart removed */}
           </div>
         </div>
       </div>

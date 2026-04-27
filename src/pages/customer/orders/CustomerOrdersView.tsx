@@ -61,9 +61,19 @@ const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({ orders, setActi
                             </div>
 
                             {/* Footer */}
-                            <div className="flex justify-between items-center bg-gray-50 -mx-5 -mb-5 p-4 mt-2">
-                                <span className="text-gray-500 text-sm">Total Bill</span>
-                                <span className="text-xl font-bold text-gray-900">₹{order.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0)}</span>
+                            <div className="bg-gray-50 -mx-5 -mb-5 p-4 mt-2 space-y-2">
+                                <div className="flex justify-between items-center text-gray-500 text-xs">
+                                    <span>Subtotal</span>
+                                    <span>₹{order.subtotal?.toFixed(1) || order.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0).toFixed(1)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-gray-500 text-xs">
+                                    <span>Taxes (5%)</span>
+                                    <span>₹{order.tax?.toFixed(1) || (order.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0) * 0.05).toFixed(1)}</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                                    <span className="text-gray-900 font-bold">Total Bill</span>
+                                    <span className="text-xl font-bold text-gray-900">₹{order.totalAmount?.toFixed(1) || (order.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0) * 1.05).toFixed(1)}</span>
+                                </div>
                             </div>
                         </div>
                     ))}
