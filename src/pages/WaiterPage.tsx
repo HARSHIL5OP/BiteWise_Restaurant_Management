@@ -9,12 +9,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 // --- HELPERS ---
 
 // Flatten Logic: Orders from DB -> Virtual Ready Items for UI
-const transformOrdersToVirtualItems = (orders: any[], tablesMap: Record<string, any>) => {
+const transformOrdersToVirtualItems = (orders: any[], tablesMap: Record<string, any>, currentUserId: string) => {
     const virtualItems: any[] = [];
     orders.forEach(order => {
         if (!order.items) return;
         order.items.forEach((item: any) => {
-            if (item.status === 'ready') {
+            // Include item if it is ready AND assigned to the current waiter
+            // (or fallback to order-level assignment if no item-level assignment exists for backward compatibility)
+            const isAssignedToMe = item.waiterId === currentUserId || (!item.waiterId && order.waiterId === currentUserId);
+            if (item.status === 'ready' && isAssignedToMe) {
                 virtualItems.push({
                     uniqueId: item.id || `${order.id}_${item.name}`,
                     itemId: item.id,
@@ -24,7 +27,7 @@ const transformOrdersToVirtualItems = (orders: any[], tablesMap: Record<string, 
                     name: item.name,
                     quantity: item.quantity,
                     veg: item.veg,
-                    readyAt: order.updatedAt || order.createdAt
+                    readyAt: item.updatedAt || order.updatedAt || order.createdAt
                 });
             }
         });
@@ -67,9 +70,10 @@ const WaiterDashboard = () => {
     useEffect(() => {
         if (!user || !restaurantId) return;
 
+        // Fetch all active orders (we will filter items by waiterId locally)
         const q = query(
             collection(db, 'restaurants', restaurantId, 'orders'),
-            where('waiterId', '==', user.uid)
+            where('status', '!=', 'completed')
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -112,7 +116,7 @@ const WaiterDashboard = () => {
     const fullOrders = useMemo(() => orders.map(o => ({ ...o, items: orderItemsMap[o.id] || [], updatedAt: o.updatedAt || o.createdAt })), [orders, orderItemsMap]);
 
     // Derived Virtual Items
-    const readyItems = useMemo(() => transformOrdersToVirtualItems(fullOrders, tablesMap), [fullOrders, tablesMap]);
+    const readyItems = useMemo(() => transformOrdersToVirtualItems(fullOrders, tablesMap, user?.uid || ''), [fullOrders, tablesMap, user]);
 
     // Local Hidden State for Optimistic UI
     const [servedVirtualIds, setServedVirtualIds] = useState<Set<string>>(new Set());
@@ -147,7 +151,8 @@ const WaiterDashboard = () => {
                 if (allServed) {
                     await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', virtualItem.orderId), {
                         completedAt: serverTimestamp(),
-                        updatedAt: serverTimestamp()
+                        updatedAt: serverTimestamp(),
+                        status: 'served'
                     });
                 }
             } catch (err) {
