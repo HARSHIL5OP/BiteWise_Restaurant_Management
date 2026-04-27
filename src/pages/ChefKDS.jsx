@@ -370,37 +370,93 @@ const ChefKDS = () => {
         }
     };
 
+    // Item-level Waiter Assignment
+    const assignWaiterToItem = async () => {
+        try {
+            // 1. Get all waiters
+            const waitersQuery = query(collection(db, 'staff'), where('restaurantId', '==', restaurantId), where('role', '==', 'waiter'));
+            const waitersSnapshot = await getDocs(waitersQuery);
+            if (waitersSnapshot.empty) return null;
+            
+            const waiters = waitersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // 2. Calculate workload for each waiter (count of 'ready' items assigned to them that are not yet 'served')
+            // Instead of complex cross-collection queries, we can use the local orderItemsMap!
+            // Wait, the chef's orderItemsMap contains ALL items for ALL active orders. This is perfectly in-sync.
+            
+            const workloads = waiters.map(waiter => {
+                let load = 0;
+                Object.values(orderItemsMap).forEach(itemsArray => {
+                    itemsArray.forEach(item => {
+                        if (item.waiterId === waiter.id && item.status === 'ready') {
+                            load++;
+                        }
+                    });
+                });
+                return { waiter, load };
+            });
+
+            // 3. Find least workload
+            const minLoad = Math.min(...workloads.map(w => w.load));
+            const eligibleWaiters = workloads.filter(w => w.load === minLoad);
+            const selected = eligibleWaiters[Math.floor(Math.random() * eligibleWaiters.length)];
+            
+            return selected.waiter.id;
+        } catch (error) {
+            console.error("Error assigning waiter to item:", error);
+            return null;
+        }
+    };
+
     // 3. Status Action Handler
     const handleItemAction = async (item, currentStatus) => {
         const nextStatus = currentStatus === 'preparing' ? 'ready' : 'preparing';
 
         try {
+            let itemUpdates = { status: nextStatus, updatedAt: serverTimestamp() };
+
             if (currentStatus === 'preparing' && nextStatus === 'ready') {
                 await deductInventoryForItem(item);
+                // Assign a waiter right when it's ready!
+                const assignedWaiterId = await assignWaiterToItem();
+                if (assignedWaiterId) {
+                    itemUpdates.waiterId = assignedWaiterId;
+                }
             }
 
             // Update item
             const itemRef = doc(db, 'restaurants', restaurantId, 'orders', item.orderId, 'items', item.itemId);
-            await updateDoc(itemRef, { status: nextStatus });
+            await updateDoc(itemRef, itemUpdates);
 
-            // Timestamp Consistency
+            // Timestamp Consistency & Order Status
             const allItems = orderItemsMap[item.orderId] || [];
             const newItems = allItems.map(i => i.itemId === item.itemId ? { ...i, status: nextStatus } : i);
+
+            let orderStatus = 'pending';
+            if (newItems.every(i => i.status === 'served')) {
+                orderStatus = 'served';
+            } else if (newItems.every(i => i.status === 'ready' || i.status === 'served')) {
+                orderStatus = 'ready';
+            } else if (newItems.some(i => i.status === 'preparing' || i.status === 'ready' || i.status === 'served')) {
+                orderStatus = 'preparing';
+            }
+
+            let orderUpdates = { 
+                updatedAt: serverTimestamp(),
+                status: orderStatus
+            };
 
             const anyPreparing = newItems.some(i => i.status === 'preparing');
             const allReady = newItems.length > 0 && newItems.every(i => i.status === 'ready' || i.status === 'served');
 
-            let orderUpdates = {};
             if (nextStatus === 'preparing' && anyPreparing) {
                 orderUpdates.preparedAt = serverTimestamp();
             }
             if (nextStatus === 'ready' && allReady) {
-                orderUpdates.servedAt = serverTimestamp();
+                orderUpdates.readyAt = serverTimestamp();
             }
 
-            if (Object.keys(orderUpdates).length > 0) {
-                await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', item.orderId), orderUpdates);
-            }
+            await updateDoc(doc(db, 'restaurants', restaurantId, 'orders', item.orderId), orderUpdates);
 
         } catch (err) {
             console.error("Action handler failed:", err);
